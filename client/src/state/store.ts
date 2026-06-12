@@ -1,0 +1,266 @@
+import type { Die, ErrorCode, HandScore, PlayerId, RoomSnapshot, ServerMessage } from '@dice/shared';
+import type { ConnectionStatus } from '../ws/client';
+
+export const CHAT_BUFFER_SIZE = 200;
+const MAX_TOASTS = 5;
+
+export type ChatEntry =
+  | { kind: 'chat'; playerId: PlayerId; playerName: string; text: string; ts: number }
+  /** Muted inline lines: joins, kicks, round winners. */
+  | { kind: 'system'; text: string; ts: number };
+
+export interface Toast {
+  id: number;
+  kind: 'error' | 'info';
+  text: string;
+}
+
+export interface LastRoll {
+  playerId: PlayerId;
+  dice: Die[];
+  rollNumber: number;
+  kept: number[];
+  /** Client receive time, so the animation re-triggers on every roll. */
+  receivedAt: number;
+}
+
+/** Last `round:ended` payload, kept for the recap modal until dismissed. */
+export interface RoundEndInfo {
+  winnerId: PlayerId;
+  potWon: number;
+  scores: { playerId: PlayerId; score: HandScore }[];
+  receivedAt: number;
+}
+
+/** Last `bonus:awarded` payload, kept for the celebration banner until dismissed. */
+export interface BonusInfo {
+  playerId: PlayerId;
+  amount: number;
+  kind: 'little' | 'big';
+  target: 'pot' | 'direct';
+  streak: number;
+  receivedAt: number;
+}
+
+export interface AppState {
+  connection: ConnectionStatus;
+  me: { playerId: PlayerId; rejoinToken: string } | null;
+  roomId: string | null;
+  snapshot: RoomSnapshot | null;
+  chat: ChatEntry[];
+  lastRoll: LastRoll | null;
+  roundEnd: RoundEndInfo | null;
+  bonus: BonusInfo | null;
+  toasts: Toast[];
+  /** Set when joining failed terminally (e.g. unknown room). */
+  joinError: { code: ErrorCode; message: string } | null;
+}
+
+export const initialState: AppState = {
+  connection: 'closed',
+  me: null,
+  roomId: null,
+  snapshot: null,
+  chat: [],
+  lastRoll: null,
+  roundEnd: null,
+  bonus: null,
+  toasts: [],
+  joinError: null,
+};
+
+export type AppAction =
+  | { type: 'server-message'; message: ServerMessage }
+  | { type: 'connection-status'; status: ConnectionStatus }
+  | { type: 'join-error'; code: ErrorCode; message: string }
+  | { type: 'dismiss-toast'; id: number }
+  | { type: 'dismiss-round-end' }
+  | { type: 'dismiss-bonus' }
+  | { type: 'leave-room' };
+
+let nextToastId = 1;
+
+function pushToast(toasts: Toast[], kind: Toast['kind'], text: string): Toast[] {
+  return [...toasts, { id: nextToastId++, kind, text }].slice(-MAX_TOASTS);
+}
+
+function pushChat(chat: ChatEntry[], entries: ChatEntry[]): ChatEntry[] {
+  if (entries.length === 0) return chat;
+  return [...chat, ...entries].slice(-CHAT_BUFFER_SIZE);
+}
+
+function systemLine(text: string): ChatEntry {
+  return { kind: 'system', text, ts: Date.now() };
+}
+
+export function reducer(state: AppState, action: AppAction): AppState {
+  switch (action.type) {
+    case 'connection-status':
+      return { ...state, connection: action.status };
+
+    case 'join-error':
+      return { ...state, joinError: { code: action.code, message: action.message } };
+
+    case 'dismiss-toast':
+      return { ...state, toasts: state.toasts.filter((t) => t.id !== action.id) };
+
+    case 'dismiss-round-end':
+      return { ...state, roundEnd: null };
+
+    case 'dismiss-bonus':
+      return { ...state, bonus: null };
+
+    case 'leave-room':
+      return {
+        ...initialState,
+        connection: state.connection,
+      };
+
+    case 'server-message':
+      return applyServerMessage(state, action.message);
+  }
+}
+
+function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
+  switch (msg.type) {
+    case 'room:created':
+      return {
+        ...state,
+        roomId: msg.roomId,
+        me: { playerId: msg.playerId, rejoinToken: msg.rejoinToken },
+        joinError: null,
+      };
+
+    case 'room:joined':
+      return {
+        ...state,
+        roomId: msg.snapshot.roomId,
+        me: { playerId: msg.playerId, rejoinToken: msg.rejoinToken },
+        snapshot: msg.snapshot,
+        joinError: null,
+      };
+
+    case 'room:state': {
+      let toasts = state.toasts;
+      const systemLines: ChatEntry[] = [];
+      const prev = state.snapshot;
+      const next = msg.snapshot;
+      if (prev && state.me) {
+        const myId = state.me.playerId;
+        const meBefore = prev.players.find((p) => p.id === myId);
+        const meAfter = next.players.find((p) => p.id === myId);
+        // Kicked: I was seated, now I'm an (unseated) banned spectator.
+        if (meBefore?.seat != null && meAfter && meAfter.seat === null && meAfter.banned) {
+          toasts = pushToast(toasts, 'error', 'You were kicked from your seat');
+        }
+        if (prev.hostId !== next.hostId) {
+          const hostName = next.players.find((p) => p.id === next.hostId)?.name ?? 'someone';
+          toasts = pushToast(
+            toasts,
+            'info',
+            next.hostId === myId ? 'You are now the host' : `${hostName} is now the host`,
+          );
+        }
+        // System chat lines: joins and kicks (diffed against the last snapshot).
+        const prevById = new Map(prev.players.map((p) => [p.id, p]));
+        for (const p of next.players) {
+          const before = prevById.get(p.id);
+          if (!before) {
+            systemLines.push(systemLine(`${p.name} joined`));
+          } else if (!before.banned && p.banned) {
+            systemLines.push(systemLine(`${p.name} was kicked`));
+          }
+        }
+      }
+      return { ...state, snapshot: next, toasts, chat: pushChat(state.chat, systemLines) };
+    }
+
+    case 'turn:rolled':
+      return {
+        ...state,
+        lastRoll: {
+          playerId: msg.playerId,
+          dice: msg.dice,
+          rollNumber: msg.rollNumber,
+          kept: msg.kept,
+          receivedAt: Date.now(),
+        },
+      };
+
+    case 'chat:message': {
+      // The server replays history on rejoin; skip messages we already have.
+      const duplicate = state.chat.some(
+        (e) =>
+          e.kind === 'chat' && e.ts === msg.ts && e.playerId === msg.playerId && e.text === msg.text,
+      );
+      if (duplicate) return state;
+      return {
+        ...state,
+        chat: pushChat(state.chat, [
+          {
+            kind: 'chat',
+            playerId: msg.playerId,
+            playerName: msg.playerName,
+            text: msg.text,
+            ts: msg.ts,
+          },
+        ]),
+      };
+    }
+
+    case 'seat:requested':
+      return {
+        ...state,
+        toasts: pushToast(state.toasts, 'info', `${msg.playerName} requests a seat (${msg.buyIn} chips)`),
+      };
+
+    case 'seat:denied':
+      return { ...state, toasts: pushToast(state.toasts, 'info', 'Your seat request was denied') };
+
+    case 'subround:started':
+      return {
+        ...state,
+        toasts: pushToast(
+          state.toasts,
+          'info',
+          `Tie! Sub-round (depth ${msg.depth}) — ante ${msg.anteAmount}`,
+        ),
+      };
+
+    case 'error':
+      if (msg.code === 'ROOM_NOT_FOUND') {
+        return { ...state, joinError: { code: msg.code, message: msg.message } };
+      }
+      return { ...state, toasts: pushToast(state.toasts, 'error', msg.message) };
+
+    case 'round:ended': {
+      const winnerName =
+        state.snapshot?.players.find((p) => p.id === msg.winnerId)?.name ?? 'Someone';
+      return {
+        ...state,
+        roundEnd: {
+          winnerId: msg.winnerId,
+          potWon: msg.potWon,
+          scores: msg.scores,
+          receivedAt: Date.now(),
+        },
+        chat: pushChat(state.chat, [
+          systemLine(`${winnerName} wins the round (${msg.potWon} chip${msg.potWon === 1 ? '' : 's'})`),
+        ]),
+      };
+    }
+
+    case 'bonus:awarded':
+      return {
+        ...state,
+        bonus: {
+          playerId: msg.playerId,
+          amount: msg.amount,
+          kind: msg.kind,
+          target: msg.target,
+          streak: msg.streak,
+          receivedAt: Date.now(),
+        },
+      };
+  }
+}

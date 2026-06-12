@@ -1,0 +1,14 @@
+---
+description: Multi-tab browser verification for client phases (7+)
+globs: client/**/*
+alwaysApply: false
+---
+
+# Client browser verification
+
+Before marking Phase 7 or 8 done in PLAN.md, run the multi-tab flows in [docs/browser-testing.md](../../docs/browser-testing.md).
+
+- One dev stack: `npm run dev` → client `:5173`, server `:3001`
+- Poll until **`Connection: open`** before create/join
+- Multi-tab players: `localStorage.setItem('dice:name', '<name>')` per tab; rejoin uses stored `playerName`
+- See [AGENTS.md](../../AGENTS.md) for the agent checklist

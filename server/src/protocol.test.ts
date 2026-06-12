@@ -1,0 +1,108 @@
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS } from '@dice/shared';
+import { parseClientMessage } from './protocol.js';
+
+const parse = (v: unknown) => parseClientMessage(JSON.stringify(v));
+
+describe('parseClientMessage', () => {
+  it('rejects malformed JSON without throwing', () => {
+    expect(parseClientMessage('{nope')).toEqual({ ok: false, error: 'invalid JSON' });
+    expect(parseClientMessage('')).toMatchObject({ ok: false });
+  });
+
+  it('rejects non-object payloads', () => {
+    expect(parse(42)).toMatchObject({ ok: false });
+    expect(parse([1, 2])).toMatchObject({ ok: false });
+    expect(parse(null)).toMatchObject({ ok: false });
+  });
+
+  it('rejects missing or unknown types', () => {
+    expect(parse({ playerName: 'a' })).toMatchObject({ ok: false, error: 'missing message type' });
+    expect(parse({ type: 'hack:everything' })).toMatchObject({
+      ok: false,
+      error: 'unknown message type: hack:everything',
+    });
+  });
+
+  it('accepts a valid room:create', () => {
+    const result = parse({ type: 'room:create', playerName: 'Kice', settings: DEFAULT_SETTINGS });
+    expect(result).toMatchObject({ ok: true, message: { type: 'room:create' } });
+  });
+
+  it('rejects room:create with missing fields', () => {
+    expect(parse({ type: 'room:create', playerName: 'Kice' })).toMatchObject({ ok: false });
+    expect(parse({ type: 'room:create', settings: DEFAULT_SETTINGS })).toMatchObject({ ok: false });
+    expect(
+      parse({ type: 'room:create', playerName: '', settings: DEFAULT_SETTINGS }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it('rejects malformed settings (bad straightBonus)', () => {
+    const settings = { ...DEFAULT_SETTINGS, straightBonus: { enabled: 'yes' } };
+    expect(parse({ type: 'room:create', playerName: 'a', settings })).toMatchObject({ ok: false });
+  });
+
+  it('validates room:join with optional rejoinToken', () => {
+    expect(parse({ type: 'room:join', roomId: 'ABC234', playerName: 'p' })).toMatchObject({
+      ok: true,
+    });
+    expect(
+      parse({ type: 'room:join', roomId: 'ABC234', playerName: 'p', rejoinToken: 't' }),
+    ).toMatchObject({ ok: true });
+    expect(
+      parse({ type: 'room:join', roomId: 'ABC234', playerName: 'p', rejoinToken: '' }),
+    ).toMatchObject({ ok: false });
+    expect(parse({ type: 'room:join', playerName: 'p' })).toMatchObject({ ok: false });
+  });
+
+  it('validates turn:roll keepIndices', () => {
+    expect(parse({ type: 'turn:roll', keepIndices: [] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:roll', keepIndices: [0, 2, 4] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:roll', keepIndices: [0.5] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:roll', keepIndices: [0, 1, 2, 3, 4, 5] })).toMatchObject({
+      ok: false,
+    });
+    expect(parse({ type: 'turn:roll' })).toMatchObject({ ok: false });
+  });
+
+  it('rejects out-of-range, negative, and duplicate keepIndices (11.2)', () => {
+    expect(parse({ type: 'turn:roll', keepIndices: [5] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:roll', keepIndices: [-1] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:roll', keepIndices: [1, 1] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:roll', keepIndices: [0, 1, 2, 3, 4] })).toMatchObject({ ok: true });
+  });
+
+  it('validates payload-less messages', () => {
+    expect(parse({ type: 'game:start' })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:stand' })).toMatchObject({ ok: true });
+  });
+
+  it('validates chat:send length bounds', () => {
+    expect(parse({ type: 'chat:send', text: 'hi' })).toMatchObject({ ok: true });
+    expect(parse({ type: 'chat:send', text: '' })).toMatchObject({ ok: false });
+    expect(parse({ type: 'chat:send', text: '   ' })).toMatchObject({ ok: false });
+    expect(parse({ type: 'chat:send', text: 'x'.repeat(501) })).toMatchObject({ ok: false });
+  });
+
+  it('validates seat:request buy-in', () => {
+    expect(parse({ type: 'seat:request', buyIn: 100 })).toMatchObject({ ok: true });
+    expect(parse({ type: 'seat:request', buyIn: -5 })).toMatchObject({ ok: false });
+    expect(parse({ type: 'seat:request', buyIn: 'lots' })).toMatchObject({ ok: false });
+  });
+
+  it('rejects non-integer and non-finite buy-ins (11.2)', () => {
+    expect(parse({ type: 'seat:request', buyIn: 10.5 })).toMatchObject({ ok: false });
+    expect(parse({ type: 'seat:request', buyIn: 0 })).toMatchObject({ ok: false });
+    expect(parse({ type: 'seat:request', buyIn: Infinity })).toMatchObject({ ok: false });
+    expect(parse({ type: 'seat:request', buyIn: NaN })).toMatchObject({ ok: false });
+  });
+
+  it('rejects over-long and control-char-only names', () => {
+    expect(parse({ type: 'room:join', roomId: 'ABCDEF', playerName: 'x'.repeat(25) })).toMatchObject(
+      { ok: false },
+    );
+    expect(parse({ type: 'room:join', roomId: 'x'.repeat(13), playerName: 'p' })).toMatchObject({
+      ok: false,
+    });
+  });
+});
