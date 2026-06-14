@@ -1,67 +1,88 @@
-import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
-import Seat from './Seat';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import type { RoomSnapshot } from '@dice/shared';
+import TableCanvas from '../table3d/TableCanvas';
+import SeatOverlay from '../table3d/SeatOverlay';
+import TableCenterOverlay from '../table3d/TableCenterOverlay';
+import type { OverlayRect } from '../table3d/layout';
+
+import type { TableDiceProps } from '../table3d/dice/types';
 
 interface Props {
   snapshot: RoomSnapshot;
   myId: string | null;
   onKick: (playerId: string) => void;
-  /** Highlighted as the round winner during the round-end recap. */
   winnerId?: string | null;
+  dice?: TableDiceProps;
+  /** Crosshair cursor while aiming a throw on the felt. */
+  diceAiming?: boolean;
+  /** Pointer entered or left the playing area (viewport). */
+  onTablePointer?: (inside: boolean, clientX?: number, clientY?: number) => void;
 }
 
-/** Oval table with up to 8 seats arranged around it; stacks vertically on narrow screens. */
-export default function Table({ snapshot, myId, onKick, winnerId = null }: Props) {
-  const isHost = myId !== null && snapshot.hostId === myId;
-  const activeId = snapshot.game?.currentTurn?.playerId ?? null;
-  const bySeat = new Map<number, PlayerPublic>();
-  for (const p of snapshot.players) {
-    if (p.seat !== null) bySeat.set(p.seat, p);
-  }
+function toOverlayRect(el: HTMLElement): OverlayRect {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
 
-  const seatCount = Math.min(Math.max(snapshot.settings.maxPlayers, 2), 8);
-  const seats = Array.from({ length: seatCount }, (_, i) => {
-    // Distribute seats around an ellipse, seat 0 at the bottom.
-    const angle = (Math.PI / 2) + (i / seatCount) * Math.PI * 2;
-    const x = 50 + 44 * Math.cos(angle);
-    const y = 50 + 40 * Math.sin(angle);
-    const player = bySeat.get(i) ?? null;
-    return (
-      <div
-        key={i}
-        className="seat-anchor"
-        style={{ '--x': `${x}%`, '--y': `${y}%` } as React.CSSProperties}
-      >
-        <Seat
-          seatIndex={i}
-          player={player}
-          isMe={player !== null && player.id === myId}
-          isActive={player !== null && player.id === activeId}
-          isWinner={player !== null && player.id === winnerId}
-          canKick={isHost && player !== null && player.id !== myId}
-          onKick={onKick}
-        />
-      </div>
-    );
-  });
+function useLayoutRects(
+  frameRef: RefObject<HTMLElement | null>,
+  viewportRef: RefObject<HTMLElement | null>,
+) {
+  const [layout, setLayout] = useState<{ frame: OverlayRect; viewport: OverlayRect } | null>(null);
+  const [viewportAspect, setViewportAspect] = useState(16 / 9);
+
+  useEffect(() => {
+    const frameEl = frameRef.current;
+    const viewportEl = viewportRef.current;
+    if (!frameEl || !viewportEl) return;
+
+    const update = () => {
+      setLayout({ frame: toOverlayRect(frameEl), viewport: toOverlayRect(viewportEl) });
+      const vr = viewportEl.getBoundingClientRect();
+      if (vr.height > 0) setViewportAspect(vr.width / vr.height);
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(frameEl);
+    ro.observe(viewportEl);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [frameRef, viewportRef]);
+
+  return { layout, viewportAspect };
+}
+
+/** 3D poker table with 2D player overlays that stay off the felt. */
+export default function Table({ snapshot, myId, onKick, winnerId = null, dice, diceAiming = false, onTablePointer }: Props) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
 
   return (
-    <div className="table">
-      <div className="table-felt">
-        <div className="table-center">
-          {snapshot.game ? (
-            <>
-              <span className="table-pot">Pot {snapshot.game.pot}</span>
-              <span className="table-phase">round {snapshot.game.roundNumber}</span>
-            </>
-          ) : (
-            <>
-              <span className="table-room-id">{snapshot.roomId}</span>
-              <span className="table-phase">waiting to start</span>
-            </>
-          )}
-        </div>
+    <div ref={frameRef} className="table table-3d">
+      <div
+        ref={viewportRef}
+        className={`table-3d-viewport${diceAiming ? ' table-3d-viewport--aiming' : ''}`}
+        onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
+        onPointerLeave={() => onTablePointer?.(false)}
+      >
+        <TableCanvas dice={dice} />
+        {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
-      <div className="seats">{seats}</div>
+      {layout && (
+        <SeatOverlay
+          snapshot={snapshot}
+          myId={myId}
+          onKick={onKick}
+          winnerId={winnerId}
+          frame={layout.frame}
+          viewport={layout.viewport}
+        />
+      )}
     </div>
   );
 }

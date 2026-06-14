@@ -11,6 +11,8 @@
   --danger: #e0564b;
   --ok: #4bc06a;
   --radius: 12px;
+  /** Primary game layout width — tuned for large screens. */
+  --layout-max: 1400px;
 
   color-scheme: dark;
 }
@@ -221,9 +223,9 @@ code {
 /* ---- Room ---- */
 
 .room {
-  max-width: 960px;
+  max-width: var(--layout-max);
   margin: 0 auto;
-  padding: 1rem 1rem 4rem;
+  padding: 1rem 1.25rem 4rem;
 }
 
 .room-header {
@@ -251,25 +253,66 @@ code {
   margin: 0 auto;
 }
 
-/* ---- Table & seats ---- */
+/* ---- Table & seats (3D canvas + HTML overlays) ---- */
 
 .table {
   position: relative;
   width: 100%;
-  max-width: 860px;
-  aspect-ratio: 16 / 9;
+  max-width: var(--layout-max);
   margin: 1rem auto 1.5rem;
 }
 
-.table-felt {
+.table-3d {
+  min-height: 420px;
+  border-radius: var(--radius);
+  border: 1px solid var(--surface-2);
+  background: var(--bg);
+  position: relative;
+  display: grid;
+  grid-template-columns: 7.5rem 1fr 7.5rem;
+  grid-template-rows: 4.25rem auto 4.25rem;
+}
+
+.table-3d-viewport {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-height: 480px;
+  min-width: 0;
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  z-index: 1;
+}
+
+.table-3d-viewport--aiming,
+.table-3d-viewport--aiming .table-canvas {
+  cursor: crosshair;
+}
+
+.seat-overlay {
   position: absolute;
-  inset: 11% 13%;
-  background: radial-gradient(ellipse at center, var(--felt), var(--felt-edge));
-  border: 6px solid #3a2a1a;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.seat-overlay-anchor {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.table-center-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.table-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 
 .table-center {
@@ -277,6 +320,32 @@ code {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  pointer-events: none;
+  user-select: none;
+}
+
+.table-center-3d {
+  min-width: 6rem;
+}
+
+.table-3d .seat {
+  width: 118px;
+  min-height: 62px;
+  padding: 0.38rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.table-3d .seat-chips {
+  font-size: 0.82rem;
+}
+
+.table-3d .seat-name {
+  font-size: 0.86rem;
+}
+
+.table-3d .kick-button {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.35rem;
 }
 
 .table-room-id {
@@ -1180,26 +1249,9 @@ button.die:hover {
     grid-template-columns: 1fr;
   }
 
-  .table {
-    aspect-ratio: auto;
-  }
-
-  .table-felt {
-    position: static;
-    border-radius: 16px;
-    padding: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .seats {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .seat-anchor {
-    position: static;
-    transform: none;
+  .table-3d {
+    aspect-ratio: 4 / 3;
+    min-height: 240px;
   }
 
   .seat {
@@ -1301,4 +1353,88 @@ button.die:hover {
   .seat-request {
     max-width: none;
   }
+}
+
+/* ── Dev UI playground (/dev/play) ── */
+
+.playground {
+  max-width: var(--layout-max);
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.playground-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.playground-bar-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.playground-title {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.playground-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface-2);
+  color: var(--accent);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.playground-home {
+  margin-left: auto;
+  font-size: 0.9rem;
+}
+
+.playground-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: flex-end;
+}
+
+.playground-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 10rem;
+}
+
+.playground-field select {
+  width: auto;
+  min-width: 12rem;
+}
+
+.playground-hint {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+}
+
+.playground-panel {
+  margin-top: 1rem;
+}
+
+.playground-dice-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.playground-die-field select {
+  width: 4rem;
+  min-width: 0;
 }
