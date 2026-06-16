@@ -98,6 +98,7 @@ export function usePlaygroundTurn(initialScene: PlaygroundScene) {
     releaseSignal,
     releaseVelocity,
     rolling,
+    setRolling,
     loadScene,
     setPendingKeep,
     keepAllStand,

@@ -42,6 +42,7 @@ export default function Playground() {
     stand,
     replayAnimation,
     setSnapshot,
+    setRolling,
   } = usePlaygroundTurn(initialScene);
 
   const [myId, setMyId] = useState(() => params.get('view') ?? initialScene.defaultMyId);
@@ -99,12 +100,12 @@ export default function Playground() {
           releaseVelocity,
           keepIndices: pendingKeep,
           dice: turn.dice,
-          canDrag: !rolling,
+          canDrag: true,
           active: true,
           onSettled: commitRoll,
           onRelease: releaseThrow,
           onDragChange: setDragging,
-          onRollingChange: undefined,
+          onRollingChange: setRolling,
         }
       : turn
         ? {
@@ -185,10 +186,10 @@ export default function Playground() {
 
       <p className="playground-hint muted">
         {dragging
-          ? 'Drag to aim — release to throw.'
+          ? 'Drag the koozie to aim — release to spill the dice.'
           : isMyTurn
-            ? 'Press and hold on the table to pick up the dice, then release to throw.'
-            : 'No server required. Roll / keep / stand update local state only. Share this URL to reopen the same scene.'}
+            ? 'Click the koozie on the table, drag it around, then release to roll.'
+            : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
       </p>
 
       <Table

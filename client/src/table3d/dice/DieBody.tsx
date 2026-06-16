@@ -9,11 +9,16 @@ export interface DieBodyHandle {
 
 interface Props {
   locked: boolean;
+  /** When false, pointer rays pass through to the koozie pick mesh. */
+  pickable?: boolean;
   position: [number, number, number];
   rotation?: [number, number, number];
 }
 
-const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody({ locked, position, rotation }, ref) {
+const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
+  { locked, pickable = true, position, rotation },
+  ref,
+) {
   const bodyRef = useRef<RapierRigidBody>(null);
 
   useImperativeHandle(ref, () => ({
@@ -40,7 +45,9 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody({ locked, posi
         restitution={PHYSICS.dieRestitution}
         density={PHYSICS.dieDensity}
       />
-      <PipDie />
+      <group raycast={pickable ? undefined : () => null}>
+        <PipDie />
+      </group>
     </RigidBody>
   );
 });

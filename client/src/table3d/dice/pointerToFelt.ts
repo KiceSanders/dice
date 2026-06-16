@@ -33,6 +33,7 @@ function clientToNdc(
 function raycastPlane(ndcX: number, ndcY: number, camera: Camera, planeY: number): THREE.Vector3 {
   _plane.constant = -planeY;
   _ndc.set(ndcX, ndcY);
+  camera.updateMatrixWorld();
   _raycaster.setFromCamera(_ndc, camera);
   _raycaster.ray.intersectPlane(_plane, _hit);
   return _hit;
@@ -95,6 +96,74 @@ export function pointerCenterPosition(
   const hit = raycastPlane(ndcX, ndcY, camera, planeY);
   hit.y = planeY;
   return clampCenterForCluster(clampToFelt(hit));
+}
+
+/** Raycast cursor onto a horizontal plane without felt clamping (for floating koozie). */
+export function pointerOnPlane(
+  clientX: number,
+  clientY: number,
+  canvas: HTMLCanvasElement,
+  camera: Camera,
+  planeY: number,
+): THREE.Vector3 {
+  const { ndcX, ndcY } = clientToNdc(clientX, clientY, canvas);
+  const hit = raycastPlane(ndcX, ndcY, camera, planeY);
+  hit.y = planeY;
+  return hit;
+}
+
+/** Canvas element used for layout math (R3F v9 wraps the WebGL canvas in a div). */
+export function canvasLayoutElement(canvas: HTMLCanvasElement): HTMLElement {
+  return canvas.parentElement ?? canvas;
+}
+
+/** True when the click is near the cup's on-screen projection. */
+export function hitCupScreen(
+  clientX: number,
+  clientY: number,
+  canvas: HTMLCanvasElement,
+  camera: Camera,
+  cupCenter: readonly [number, number, number],
+  radiusPx: number,
+): boolean {
+  const _cup = new THREE.Vector3(cupCenter[0], cupCenter[1], cupCenter[2]);
+  camera.updateMatrixWorld();
+  _cup.project(camera);
+  if (_cup.z > 1) return false;
+  const rect = canvasLayoutElement(canvas).getBoundingClientRect();
+  const sx = rect.left + (_cup.x * 0.5 + 0.5) * rect.width;
+  const sy = rect.top + (-_cup.y * 0.5 + 0.5) * rect.height;
+  return Math.hypot(clientX - sx, clientY - sy) <= radiusPx;
+}
+
+/** True when the pointer ray hits the drag plane within a world-space radius of the cup. */
+export function hitCupWorld(
+  clientX: number,
+  clientY: number,
+  canvas: HTMLCanvasElement,
+  camera: Camera,
+  cupCenter: readonly [number, number, number],
+  radiusWorld: number,
+  planeY = cupCenter[1],
+): boolean {
+  const hit = pointerOnPlane(clientX, clientY, canvas, camera, planeY);
+  return Math.hypot(hit.x - cupCenter[0], hit.z - cupCenter[2]) <= radiusWorld;
+}
+
+/** Screen- or world-space cup pickup test (whichever is easier to hit). */
+export function hitCup(
+  clientX: number,
+  clientY: number,
+  canvas: HTMLCanvasElement,
+  camera: Camera,
+  cupCenter: readonly [number, number, number],
+  radiusPx: number,
+  radiusWorld: number,
+): boolean {
+  return (
+    hitCupScreen(clientX, clientY, canvas, camera, cupCenter, radiusPx) ||
+    hitCupWorld(clientX, clientY, canvas, camera, cupCenter, radiusWorld)
+  );
 }
 
 /** @deprecated Use pointerCenterPosition or pointerDiePosition. */

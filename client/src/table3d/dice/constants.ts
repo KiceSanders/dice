@@ -1,4 +1,4 @@
-import { FELT_SCALE, RAIL_INNER_WORLD, TABLE } from '../layout';
+import { FELT_HALF_EXTENT, FELT_SCALE, RAIL_INNER_WORLD, TABLE } from '../layout';
 
 /** Edge length of each die in world units (~12 cm on a ~2 m table). */
 export const DIE_SIZE = 0.12;
@@ -60,7 +60,7 @@ export const PHYSICS = {
 /** Resting slot offsets on the felt (index 0–4). */
 export function dieSlotPosition(index: number): [number, number, number] {
   const t = (index - 2) * 0.2;
-  return [t, DICE_FELT_Y, 0.02 + (index % 2) * 0.05];
+  return [t, DICE_FELT_Y, FELT_HALF_EXTENT.z * 0.02 + (index % 2) * 0.05];
 }
 
 /** Drop from just above the felt near the active player (+Z). */
@@ -69,9 +69,54 @@ export function dieSpawnPosition(index: number): [number, number, number] {
   return [
     spread + (Math.random() - 0.5) * 0.04,
     0.14 + index * 0.012,
-    0.38 + (Math.random() - 0.5) * 0.05,
+    FELT_HALF_EXTENT.z * 0.4 + (Math.random() - 0.5) * 0.05,
   ];
 }
+
+/** Physics dice cup — closed bottom, open top; floats above felt for spill room. */
+const KOOZIE_HEIGHT = 0.4;
+/** Cup center height while idle / dragging (well above the felt). */
+const KOOZIE_FLOAT_CENTER_Y = DICE_FELT_Y + 0.72;
+const KOOZIE_RIM_Y = KOOZIE_FLOAT_CENTER_Y + KOOZIE_HEIGHT * 0.5 - 0.03;
+
+export const KOOZIE = {
+  radius: 0.26,
+  height: KOOZIE_HEIGHT,
+  wallThickness: 0.024,
+  wallSegments: 12,
+  bottomThickness: 0.016,
+  rimInset: 0.03,
+  friction: 0.85,
+  restitution: 0.08,
+  density: 1.2,
+  floatCenterY: KOOZIE_FLOAT_CENTER_Y,
+  home: [0, KOOZIE_FLOAT_CENTER_Y, FELT_HALF_EXTENT.z * 0.47] as [number, number, number],
+  /** Pointer raycast plane at the open rim — matches where the cup hangs from. */
+  dragPlaneY: KOOZIE_RIM_Y,
+  /** Rim follow speed — high enough to feel direct, low enough to filter pointer jitter. */
+  gripFollow: 34,
+  gripVelSmooth: 16,
+  gripAccelSmooth: 9,
+  /** Pointer acceleration fed into the pendulum swing (not steady drag speed). */
+  swingKick: 0.011,
+  /** Ignore tiny accelerations so micro-jitter does not wobble the cup. */
+  swingKickDeadzone: 1.4,
+  /** Spring that pulls the cup back to vertical under the grip. */
+  swingStiffness: 34,
+  swingDamping: 0.87,
+  /** Smooths tilt changes frame-to-frame. */
+  tiltSmooth: 24,
+  maxDragTilt: 0.38,
+  /** World-space drop while tipping so the rim clears the felt. */
+  tipDropY: 0.18,
+  /** How far the cup rotates on release (open end toward the felt). */
+  releaseTipAngle: 2.15,
+  tiltDurationMs: 680,
+  hitRadius: 0.34,
+  /** Screen-space pickup radius in CSS pixels. */
+  hitScreenPx: 100,
+  emptyCheckRadius: 0.22,
+} as const;
 
 export function randomRollImpulse(): { linear: [number, number, number]; angular: [number, number, number] } {
   return {

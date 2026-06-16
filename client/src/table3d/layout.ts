@@ -9,10 +9,16 @@ export interface SeatLayout {
 export const FELT_SCALE = { x: 1.15, z: 0.95 } as const;
 
 export const TABLE = {
-  feltRadius: 1,
+  feltRadius: 2,
   feltThickness: 0.06,
   railHeight: 0.1,
   surfaceY: 0,
+} as const;
+
+/** Felt ellipse half-extents in world units (center → edge along each axis). */
+export const FELT_HALF_EXTENT = {
+  x: FELT_SCALE.x * TABLE.feltRadius,
+  z: FELT_SCALE.z * TABLE.feltRadius,
 } as const;
 
 /** Felt → padded rail seam (unit radius, before FELT_SCALE). */
@@ -71,11 +77,11 @@ export function clampSeatCount(maxPlayers: number): number {
   return Math.min(Math.max(maxPlayers, 2), 8);
 }
 
-/** Fixed front-seat camera — not interactive. */
+/** Fixed front-seat camera — not interactive. Target sits on the near felt so the oval fills 16:9. */
 export const SEAT_VIEW = {
-  position: [0, 1.58, 2.88] as const,
-  target: [0, 0, 0] as const,
-  fov: 47,
+  position: [0, 2.88, 4.36] as const,
+  target: [0, 0.04, 0.8] as const,
+  fov: 36,
 } as const;
 
 export const SEAT_LABEL = {
