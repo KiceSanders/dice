@@ -1,8 +1,15 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { CuboidCollider, CylinderCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
+import { CylinderCollider, RigidBody, TrimeshCollider, type RapierRigidBody } from '@react-three/rapier';
 import KoozieMesh from './KoozieMesh';
-import { koozieWallSegments } from './koozieColliders';
+import {
+  KOOZIE_COLLIDER_RADIUS_INSET,
+  KOOZIE_LID_COLLIDER_RADIUS_INSET,
+  createKooziePickGeometry,
+  koozieBottomColliderY,
+  koozieLidColliderY,
+  koozieWallTrimeshArgs,
+} from './koozieGeometry';
 import type { DicePhysicsTuning } from './tuning';
 
 export interface KoozieBodyHandle {
@@ -27,7 +34,11 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
-  const walls = koozieWallSegments(tuning.cup);
+  const wallTrimeshArgs = useMemo(
+    () => koozieWallTrimeshArgs(tuning.cup),
+    [tuning.cup.radius, tuning.cup.height, tuning.cup.wallThickness, tuning.cup.rimInset],
+  );
+  const pickGeometry = useMemo(() => createKooziePickGeometry(tuning.cup), [tuning.cup.radius, tuning.cup.height]);
 
   useImperativeHandle(ref, () => ({
     get body() {
@@ -37,8 +48,8 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
 
   if (!visible) return null;
 
-  const bottomY = -tuning.cup.height * 0.5 + tuning.cup.bottomThickness * 0.5;
-  const lidY = tuning.cup.height * 0.5 - tuning.cup.rimInset + tuning.cup.lidThickness * 0.5;
+  const bottomY = koozieBottomColliderY(tuning.cup);
+  const lidY = koozieLidColliderY(tuning.cup);
 
   return (
     <RigidBody
@@ -56,7 +67,7 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       canSleep
     >
       <CylinderCollider
-        args={[tuning.cup.bottomThickness * 0.5, tuning.cup.radius * 0.88]}
+        args={[tuning.cup.bottomThickness * 0.5, tuning.cup.radius * KOOZIE_COLLIDER_RADIUS_INSET]}
         position={[0, bottomY, 0]}
         friction={tuning.cup.friction}
         restitution={tuning.cup.restitution}
@@ -64,24 +75,19 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       />
       {lid ? (
         <CylinderCollider
-          args={[tuning.cup.lidThickness * 0.5, tuning.cup.radius * 0.86]}
+          args={[tuning.cup.lidThickness * 0.5, tuning.cup.radius * KOOZIE_LID_COLLIDER_RADIUS_INSET]}
           position={[0, lidY, 0]}
           friction={tuning.cup.friction}
           restitution={tuning.cup.restitution}
           density={tuning.cup.density}
         />
       ) : null}
-      {walls.map((seg, i) => (
-        <CuboidCollider
-          key={i}
-          args={seg.halfExtents}
-          position={seg.position}
-          rotation={seg.rotation}
-          friction={tuning.cup.friction}
-          restitution={tuning.cup.restitution}
-          density={tuning.cup.density}
-        />
-      ))}
+      <TrimeshCollider
+        args={wallTrimeshArgs}
+        friction={tuning.cup.friction}
+        restitution={tuning.cup.restitution}
+        density={tuning.cup.density}
+      />
       {onGrabStart ? (
         <mesh
           onPointerDown={(event) => {
@@ -89,14 +95,7 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
             onGrabStart(event);
           }}
         >
-          <cylinderGeometry
-            args={[
-              tuning.cup.radius * 1.12,
-              tuning.cup.radius * 1.12,
-              tuning.cup.height * 0.92,
-              20,
-            ]}
-          />
+          <primitive object={pickGeometry} attach="geometry" />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       ) : null}

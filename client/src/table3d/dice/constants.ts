@@ -83,7 +83,6 @@ export const KOOZIE = {
   radius: 0.27,
   height: KOOZIE_HEIGHT,
   wallThickness: 0.075,
-  wallSegments: 12,
   bottomThickness: 0.024,
   rimInset: 0.03,
   friction: 0.82,
@@ -121,8 +120,6 @@ export const KOOZIE = {
   pourVelMax: 0.75,
   pourTilt: 0.45,
   pourDown: 0.25,
-  /** Overlap factor for radial wall segment arc length. */
-  wallArcOverlap: 1.12,
   tiltDurationMs: 680,
   hitRadius: 0.34,
   /** Screen-space pickup radius in CSS pixels. */

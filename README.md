@@ -4,7 +4,7 @@ Real-time, browser-based dice game for up to 8 players per room. Roll 5 dice, ke
 
 **→ See [PLAN.md](./PLAN.md) for the full game rules, architecture, WebSocket protocol, and the phased development checklist.**
 
-**Agents:** see [AGENTS.md](./AGENTS.md) and [docs/browser-testing.md](./docs/browser-testing.md) for multi-tab browser verification (Phase 7+).
+**Agents:** see [AGENTS.md](./AGENTS.md), [docs/browser-testing.md](./docs/browser-testing.md) (multi-tab verification), and [docs/decisions/](docs/decisions/) (design decisions).
 
 ## Stack
 

@@ -1,12 +1,23 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { KOOZIE } from './constants';
+import {
+  createKoozieRimVisualGeometry,
+  createKoozieWallVisualGeometry,
+  koozieWallLayout,
+} from './koozieGeometry';
 import type { DicePhysicsTuning } from './tuning';
 
 /** Closed-bottom, open-top cup visual (no physics — colliders live on KoozieBody). */
-export default function KoozieMesh({ cup = KOOZIE }: { cup?: Pick<DicePhysicsTuning['cup'], 'radius' | 'height' | 'rimInset'> }) {
-  const { radius, height, rimInset } = cup;
-  const wallH = height - rimInset;
+export default function KoozieMesh({
+  cup = KOOZIE,
+}: {
+  cup?: Pick<DicePhysicsTuning['cup'], 'radius' | 'height' | 'rimInset'>;
+}) {
+  const { rimInset } = cup;
+  const { centerY } = koozieWallLayout(cup);
+  const wallGeometry = useMemo(() => createKoozieWallVisualGeometry(cup), [cup.radius, cup.height, cup.rimInset]);
+  const rimGeometry = useMemo(() => createKoozieRimVisualGeometry(cup), [cup.radius, cup.rimInset]);
   const mat = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
@@ -25,11 +36,11 @@ export default function KoozieMesh({ cup = KOOZIE }: { cup?: Pick<DicePhysicsTun
 
   return (
     <group>
-      <mesh castShadow receiveShadow position={[0, -rimInset * 0.5, 0]} material={mat}>
-        <cylinderGeometry args={[radius, radius, wallH, 32, 1, false]} />
+      <mesh castShadow receiveShadow position={[0, centerY, 0]} material={mat}>
+        <primitive object={wallGeometry} attach="geometry" />
       </mesh>
-      <mesh position={[0, height * 0.5 - rimInset * 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[radius * 0.98, 0.006, 8, 32]} />
+      <mesh position={[0, cup.height * 0.5 - rimInset * 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <primitive object={rimGeometry} attach="geometry" />
         <meshPhysicalMaterial color="#e8f4fa" transparent opacity={0.55} roughness={0.4} depthWrite={false} />
       </mesh>
     </group>

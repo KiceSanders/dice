@@ -1,12 +1,6 @@
 import { KOOZIE } from './constants';
 import type { DicePhysicsTuning } from './tuning';
 
-export type WallSegment = {
-  position: [number, number, number];
-  rotation: [number, number, number];
-  halfExtents: [number, number, number];
-};
-
 type CupTuning = DicePhysicsTuning['cup'];
 
 function cupDefaults(): CupTuning {
@@ -14,7 +8,6 @@ function cupDefaults(): CupTuning {
     radius: KOOZIE.radius,
     height: KOOZIE.height,
     wallThickness: KOOZIE.wallThickness,
-    wallSegments: KOOZIE.wallSegments,
     bottomThickness: KOOZIE.bottomThickness,
     rimInset: KOOZIE.rimInset,
     lidThickness: 0.02,
@@ -23,33 +16,10 @@ function cupDefaults(): CupTuning {
     density: KOOZIE.density,
     floatCenterY: KOOZIE.floatCenterY,
     homeZ: KOOZIE.home[2],
-    wallArcOverlap: KOOZIE.wallArcOverlap,
     hitRadius: KOOZIE.hitRadius,
     hitScreenPx: KOOZIE.hitScreenPx,
     emptyCheckRadius: KOOZIE.emptyCheckRadius,
   };
-}
-
-/** Radial wall cuboids forming a hollow cylinder shell (open top). */
-export function koozieWallSegments(cup: CupTuning = cupDefaults()): WallSegment[] {
-  const { radius, height, wallThickness, wallSegments, rimInset } = cup;
-  const innerR = radius - wallThickness * 0.5;
-  const wallHalfH = (height - rimInset) * 0.5;
-  const wallCenterY = -rimInset * 0.5;
-  const arcLen = (2 * Math.PI * innerR) / wallSegments;
-  const segments: WallSegment[] = [];
-
-  for (let i = 0; i < wallSegments; i++) {
-    const angle = (i / wallSegments) * Math.PI * 2;
-    const x = Math.cos(angle) * innerR;
-    const z = Math.sin(angle) * innerR;
-    segments.push({
-      position: [x, wallCenterY, z],
-      rotation: [0, -angle + Math.PI / 2, 0],
-      halfExtents: [wallThickness * 0.5, wallHalfH, arcLen * 0.5 * cup.wallArcOverlap],
-    });
-  }
-  return segments;
 }
 
 function pseudoRandom(index: number, salt: number): number {

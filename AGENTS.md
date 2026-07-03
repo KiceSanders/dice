@@ -6,6 +6,7 @@ Read this file when working on the multiplayer dice game codebase.
 
 1. **[PLAN.md](./PLAN.md)** — game rules, protocol, phased checklist (source of truth).
 2. **[docs/browser-testing.md](./docs/browser-testing.md)** — **multi-tab browser verification** for Phase 7+ client work.
+3. **[docs/decisions/](./docs/decisions/)** — architecture decision records (ADRs); read before changing 3D physics, colliders, or table/cup geometry.
 
 ## Before marking a client phase done
 

@@ -30,7 +30,6 @@ export interface DicePhysicsTuning {
     radius: number;
     height: number;
     wallThickness: number;
-    wallSegments: number;
     bottomThickness: number;
     rimInset: number;
     lidThickness: number;
@@ -39,7 +38,6 @@ export interface DicePhysicsTuning {
     density: number;
     floatCenterY: number;
     homeZ: number;
-    wallArcOverlap: number;
     hitRadius: number;
     hitScreenPx: number;
     emptyCheckRadius: number;
@@ -110,7 +108,6 @@ export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
     radius: KOOZIE.radius,
     height: KOOZIE.height,
     wallThickness: KOOZIE.wallThickness,
-    wallSegments: KOOZIE.wallSegments,
     bottomThickness: KOOZIE.bottomThickness,
     rimInset: KOOZIE.rimInset,
     lidThickness: 0.02,
@@ -119,7 +116,6 @@ export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
     density: KOOZIE.density,
     floatCenterY: DEFAULT_CUP_FLOAT_Y,
     homeZ: KOOZIE.home[2],
-    wallArcOverlap: KOOZIE.wallArcOverlap,
     hitRadius: KOOZIE.hitRadius,
     hitScreenPx: KOOZIE.hitScreenPx,
     emptyCheckRadius: KOOZIE.emptyCheckRadius,
