@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { KOOZIE } from './constants';
+import type { DicePhysicsTuning } from './tuning';
 
 /** Closed-bottom, open-top cup visual (no physics — colliders live on KoozieBody). */
-export default function KoozieMesh() {
-  const { radius, height, rimInset } = KOOZIE;
+export default function KoozieMesh({ cup = KOOZIE }: { cup?: Pick<DicePhysicsTuning['cup'], 'radius' | 'height' | 'rimInset'> }) {
+  const { radius, height, rimInset } = cup;
   const wallH = height - rimInset;
   const mat = useMemo(
     () =>

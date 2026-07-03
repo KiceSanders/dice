@@ -2,8 +2,8 @@ import { forwardRef, useImperativeHandle, useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import { CuboidCollider, CylinderCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
 import KoozieMesh from './KoozieMesh';
-import { KOOZIE } from './constants';
 import { koozieWallSegments } from './koozieColliders';
+import type { DicePhysicsTuning } from './tuning';
 
 export interface KoozieBodyHandle {
   body: RapierRigidBody | null;
@@ -16,16 +16,18 @@ interface Props {
   position: [number, number, number];
   rotation?: [number, number, number];
   visible?: boolean;
+  lid?: boolean;
   ccd?: boolean;
+  tuning: DicePhysicsTuning;
   onGrabStart?: (event: ThreeEvent<PointerEvent>) => void;
 }
 
 const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
-  { bodyType, position, rotation, visible = true, ccd = false, onGrabStart },
+  { bodyType, position, rotation, visible = true, lid = false, ccd = false, tuning, onGrabStart },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
-  const walls = koozieWallSegments();
+  const walls = koozieWallSegments(tuning.cup);
 
   useImperativeHandle(ref, () => ({
     get body() {
@@ -35,7 +37,8 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
 
   if (!visible) return null;
 
-  const bottomY = -KOOZIE.height * 0.5 + KOOZIE.bottomThickness * 0.5;
+  const bottomY = -tuning.cup.height * 0.5 + tuning.cup.bottomThickness * 0.5;
+  const lidY = tuning.cup.height * 0.5 - tuning.cup.rimInset + tuning.cup.lidThickness * 0.5;
 
   return (
     <RigidBody
@@ -44,8 +47,8 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       position={position}
       rotation={rotation}
       colliders={false}
-      friction={KOOZIE.friction}
-      restitution={KOOZIE.restitution}
+      friction={tuning.cup.friction}
+      restitution={tuning.cup.restitution}
       linearDamping={0.35}
       angularDamping={0.4}
       gravityScale={0}
@@ -53,21 +56,30 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       canSleep
     >
       <CylinderCollider
-        args={[KOOZIE.bottomThickness * 0.5, KOOZIE.radius * 0.88]}
+        args={[tuning.cup.bottomThickness * 0.5, tuning.cup.radius * 0.88]}
         position={[0, bottomY, 0]}
-        friction={KOOZIE.friction}
-        restitution={KOOZIE.restitution}
-        density={KOOZIE.density}
+        friction={tuning.cup.friction}
+        restitution={tuning.cup.restitution}
+        density={tuning.cup.density}
       />
+      {lid ? (
+        <CylinderCollider
+          args={[tuning.cup.lidThickness * 0.5, tuning.cup.radius * 0.86]}
+          position={[0, lidY, 0]}
+          friction={tuning.cup.friction}
+          restitution={tuning.cup.restitution}
+          density={tuning.cup.density}
+        />
+      ) : null}
       {walls.map((seg, i) => (
         <CuboidCollider
           key={i}
           args={seg.halfExtents}
           position={seg.position}
           rotation={seg.rotation}
-          friction={KOOZIE.friction}
-          restitution={KOOZIE.restitution}
-          density={KOOZIE.density}
+          friction={tuning.cup.friction}
+          restitution={tuning.cup.restitution}
+          density={tuning.cup.density}
         />
       ))}
       {onGrabStart ? (
@@ -77,11 +89,18 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
             onGrabStart(event);
           }}
         >
-          <cylinderGeometry args={[KOOZIE.radius * 1.12, KOOZIE.radius * 1.12, KOOZIE.height * 0.92, 20]} />
+          <cylinderGeometry
+            args={[
+              tuning.cup.radius * 1.12,
+              tuning.cup.radius * 1.12,
+              tuning.cup.height * 0.92,
+              20,
+            ]}
+          />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       ) : null}
-      <KoozieMesh />
+      <KoozieMesh cup={tuning.cup} />
     </RigidBody>
   );
 });

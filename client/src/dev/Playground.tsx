@@ -1,8 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Leva, button, folder, useControls } from 'leva';
 import type { Die } from '@dice/shared';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
+import {
+  DEFAULT_DICE_PHYSICS_TUNING,
+  clearLiveTuning,
+  getDicePhysicsTuning,
+  persistLiveTuning,
+  readTuningPreset,
+  resetDicePhysicsTuning,
+  restoreLiveTuning,
+  saveTuningPreset,
+  setDicePhysicsTuning,
+  subscribeDicePhysicsTuning,
+  updateDicePhysicsTuning,
+  type DicePhysicsTuning,
+} from '../table3d/dice/tuning';
 import {
   DEV_BOB,
   DEV_CAROL,
@@ -18,6 +33,304 @@ const VIEW_IDS = [
   { id: DEV_CAROL, label: 'Carol (spectator seat)' },
   { id: DEV_BOB, label: 'Bob (other player)' },
 ] as const;
+
+type ControlSetter = (values: Record<string, number | boolean | string>) => void;
+
+function tuningToControls(tuning: DicePhysicsTuning): Record<string, number | boolean | string> {
+  return {
+    gravityY: tuning.world.gravityY,
+    timeScale: tuning.world.timeScale,
+    debug: tuning.world.debug,
+    dieFriction: tuning.dice.friction,
+    dieRestitution: tuning.dice.restitution,
+    dieDensity: tuning.dice.density,
+    linearDamping: tuning.dice.linearDamping,
+    angularDamping: tuning.dice.angularDamping,
+    pendulumFollow: tuning.pendulum.follow,
+    pendulumLength: tuning.pendulum.length,
+    pendulumDamping: tuning.pendulum.dampingRatio,
+    maxTilt: tuning.pendulum.maxTilt,
+    maxPivotSpeed: tuning.pendulum.maxPivotSpeed,
+    tipDurationMs: tuning.release.tipDurationMs,
+    tipAngle: tuning.release.tipAngle,
+    pourCenterY: tuning.release.pourCenterY,
+    glideVelocityScale: tuning.release.glideVelocityScale,
+    glideMaxDistance: tuning.release.glideMaxDistance,
+    cupRadius: tuning.cup.radius,
+    cupHeight: tuning.cup.height,
+    cupFloatY: tuning.cup.floatCenterY,
+    cupHomeZ: tuning.cup.homeZ,
+    wallThickness: tuning.cup.wallThickness,
+    settleLinear: tuning.settle.linearVelocity,
+    settleAngular: tuning.settle.angularVelocity,
+    settleFrames: tuning.settle.frames,
+  };
+}
+
+function copyTuningJson() {
+  const json = JSON.stringify(getDicePhysicsTuning(), null, 2);
+  void navigator.clipboard?.writeText(json);
+}
+
+function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
+  const [presetName, setPresetName] = useState('favorite');
+  const [lastAction, setLastAction] = useState('');
+  const setControlsRef = useRef<ControlSetter | null>(null);
+  const defaults = DEFAULT_DICE_PHYSICS_TUNING;
+
+  const [, setControls] = useControls(
+    'Dice physics',
+    () => ({
+      World: folder({
+        gravityY: {
+          value: defaults.world.gravityY,
+          min: -95,
+          max: -8,
+          step: 1,
+          onChange: (gravityY: number) => updateDicePhysicsTuning({ world: { gravityY } }),
+        },
+        timeScale: {
+          value: defaults.world.timeScale,
+          min: 0.15,
+          max: 1.25,
+          step: 0.05,
+          onChange: (timeScale: number) => updateDicePhysicsTuning({ world: { timeScale } }),
+        },
+        debug: {
+          value: defaults.world.debug,
+          onChange: (debug: boolean) => updateDicePhysicsTuning({ world: { debug } }),
+        },
+      }),
+      Dice: folder({
+        dieFriction: {
+          value: defaults.dice.friction,
+          min: 0,
+          max: 1.4,
+          step: 0.01,
+          onChange: (friction: number) => updateDicePhysicsTuning({ dice: { friction } }),
+        },
+        dieRestitution: {
+          value: defaults.dice.restitution,
+          min: 0,
+          max: 0.8,
+          step: 0.01,
+          onChange: (restitution: number) => updateDicePhysicsTuning({ dice: { restitution } }),
+        },
+        dieDensity: {
+          value: defaults.dice.density,
+          min: 0.4,
+          max: 7,
+          step: 0.1,
+          onChange: (density: number) => updateDicePhysicsTuning({ dice: { density } }),
+        },
+        linearDamping: {
+          value: defaults.dice.linearDamping,
+          min: 0,
+          max: 1.2,
+          step: 0.01,
+          onChange: (linearDamping: number) => updateDicePhysicsTuning({ dice: { linearDamping } }),
+        },
+        angularDamping: {
+          value: defaults.dice.angularDamping,
+          min: 0,
+          max: 1.2,
+          step: 0.01,
+          onChange: (angularDamping: number) => updateDicePhysicsTuning({ dice: { angularDamping } }),
+        },
+      }),
+      Pendulum: folder({
+        pendulumFollow: {
+          value: defaults.pendulum.follow,
+          min: 4,
+          max: 60,
+          step: 1,
+          onChange: (follow: number) => updateDicePhysicsTuning({ pendulum: { follow } }),
+        },
+        pendulumLength: {
+          value: defaults.pendulum.length,
+          min: 0.18,
+          max: 0.8,
+          step: 0.01,
+          onChange: (length: number) => updateDicePhysicsTuning({ pendulum: { length } }),
+        },
+        pendulumDamping: {
+          value: defaults.pendulum.dampingRatio,
+          min: 0.05,
+          max: 1.5,
+          step: 0.01,
+          onChange: (dampingRatio: number) => updateDicePhysicsTuning({ pendulum: { dampingRatio } }),
+        },
+        maxTilt: {
+          value: defaults.pendulum.maxTilt,
+          min: 0.1,
+          max: 1,
+          step: 0.01,
+          onChange: (maxTilt: number) => updateDicePhysicsTuning({ pendulum: { maxTilt } }),
+        },
+        maxPivotSpeed: {
+          value: defaults.pendulum.maxPivotSpeed,
+          min: 0.5,
+          max: 8,
+          step: 0.1,
+          onChange: (maxPivotSpeed: number) => updateDicePhysicsTuning({ pendulum: { maxPivotSpeed } }),
+        },
+      }),
+      Release: folder({
+        tipDurationMs: {
+          value: defaults.release.tipDurationMs,
+          min: 180,
+          max: 1500,
+          step: 10,
+          onChange: (tipDurationMs: number) => updateDicePhysicsTuning({ release: { tipDurationMs } }),
+        },
+        tipAngle: {
+          value: defaults.release.tipAngle,
+          min: 1.2,
+          max: 3.05,
+          step: 0.01,
+          onChange: (tipAngle: number) => updateDicePhysicsTuning({ release: { tipAngle } }),
+        },
+        pourCenterY: {
+          value: defaults.release.pourCenterY,
+          min: 0.16,
+          max: 0.85,
+          step: 0.01,
+          onChange: (pourCenterY: number) => updateDicePhysicsTuning({ release: { pourCenterY } }),
+        },
+        glideVelocityScale: {
+          value: defaults.release.glideVelocityScale,
+          min: 0,
+          max: 0.8,
+          step: 0.01,
+          onChange: (glideVelocityScale: number) => updateDicePhysicsTuning({ release: { glideVelocityScale } }),
+        },
+        glideMaxDistance: {
+          value: defaults.release.glideMaxDistance,
+          min: 0,
+          max: 1.2,
+          step: 0.01,
+          onChange: (glideMaxDistance: number) => updateDicePhysicsTuning({ release: { glideMaxDistance } }),
+        },
+      }),
+      Cup: folder({
+        cupRadius: {
+          value: defaults.cup.radius,
+          min: 0.18,
+          max: 0.42,
+          step: 0.01,
+          onChange: (radius: number) => updateDicePhysicsTuning({ cup: { radius } }),
+        },
+        cupHeight: {
+          value: defaults.cup.height,
+          min: 0.26,
+          max: 0.7,
+          step: 0.01,
+          onChange: (height: number) => updateDicePhysicsTuning({ cup: { height } }),
+        },
+        cupFloatY: {
+          value: defaults.cup.floatCenterY,
+          min: 0.38,
+          max: 1.2,
+          step: 0.01,
+          onChange: (floatCenterY: number) => updateDicePhysicsTuning({ cup: { floatCenterY } }),
+        },
+        cupHomeZ: {
+          value: defaults.cup.homeZ,
+          min: 0,
+          max: 1.4,
+          step: 0.01,
+          onChange: (homeZ: number) => updateDicePhysicsTuning({ cup: { homeZ } }),
+        },
+        wallThickness: {
+          value: defaults.cup.wallThickness,
+          min: 0.02,
+          max: 0.12,
+          step: 0.005,
+          onChange: (wallThickness: number) => updateDicePhysicsTuning({ cup: { wallThickness } }),
+        },
+      }),
+      Settling: folder({
+        settleLinear: {
+          value: defaults.settle.linearVelocity,
+          min: 0.01,
+          max: 0.4,
+          step: 0.01,
+          onChange: (linearVelocity: number) => updateDicePhysicsTuning({ settle: { linearVelocity } }),
+        },
+        settleAngular: {
+          value: defaults.settle.angularVelocity,
+          min: 0.05,
+          max: 2,
+          step: 0.05,
+          onChange: (angularVelocity: number) => updateDicePhysicsTuning({ settle: { angularVelocity } }),
+        },
+        settleFrames: {
+          value: defaults.settle.frames,
+          min: 4,
+          max: 60,
+          step: 1,
+          onChange: (frames: number) => updateDicePhysicsTuning({ settle: { frames } }),
+        },
+      }),
+      Presets: folder({
+        presetName: {
+          value: 'favorite',
+          onChange: (name: string) => setPresetName(name),
+        },
+        savePreset: button(() => {
+          saveTuningPreset(presetName);
+          setLastAction(`Saved "${presetName.trim() || 'untitled'}"`);
+        }),
+        loadPreset: button(() => {
+          const preset = readTuningPreset(presetName);
+          if (!preset) {
+            setLastAction(`No preset named "${presetName}"`);
+            return;
+          }
+          setDicePhysicsTuning(preset);
+          setControlsRef.current?.(tuningToControls(preset));
+          setLastAction(`Loaded "${presetName}"`);
+          rerack();
+        }),
+        resetDefaults: button(() => {
+          resetDicePhysicsTuning();
+          clearLiveTuning();
+          setControlsRef.current?.(tuningToControls(DEFAULT_DICE_PHYSICS_TUNING));
+          setLastAction('Reset defaults');
+          rerack();
+        }),
+        copyJson: button(() => {
+          copyTuningJson();
+          setLastAction('Copied tuning JSON');
+        }),
+        rerack: button(rerack),
+      }),
+    }),
+    [presetName, rerack],
+  );
+
+  useEffect(() => {
+    setControlsRef.current = setControls as ControlSetter;
+  }, [setControls]);
+
+  // Survive page refreshes: restore the last live tuning once, then keep
+  // localStorage in sync with every store change.
+  useEffect(() => {
+    const restored = restoreLiveTuning();
+    if (restored) setControlsRef.current?.(tuningToControls(restored));
+    return subscribeDicePhysicsTuning(persistLiveTuning);
+  }, []);
+
+  return (
+    <>
+      <Leva collapsed={false} />
+      <p className="playground-hint muted">
+        Physics tuning is live. {lastAction ? `${lastAction}. ` : ''}Use debug + slow motion to inspect
+        colliders and paste copied JSON back into constants once a tune feels right.
+      </p>
+    </>
+  );
+}
 
 /**
  * Dev-only UI sandbox: in-game table + turn controls without WebSocket or server.
@@ -135,6 +448,10 @@ export default function Playground() {
     });
   };
 
+  const rerackDice = useCallback(() => {
+    loadScene(sceneById(sceneId));
+  }, [loadScene, sceneId]);
+
   return (
     <main className="playground">
       <header className="playground-bar">
@@ -176,7 +493,7 @@ export default function Playground() {
           <button
             type="button"
             className="secondary"
-            onClick={() => loadScene(sceneById(sceneId))}
+            onClick={rerackDice}
             title="Reset scene to fixture defaults"
           >
             Reset scene
@@ -191,6 +508,8 @@ export default function Playground() {
             ? 'Click the koozie on the table, drag it around, then release to roll.'
             : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
       </p>
+
+      <PhysicsTuningControls rerack={rerackDice} />
 
       <Table
         snapshot={snapshot}

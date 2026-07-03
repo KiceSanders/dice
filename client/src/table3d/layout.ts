@@ -40,7 +40,7 @@ export const RAIL_COLLIDER_H = TABLE.railHeight;
 export const RAIL_COLLIDER_SEGMENTS = 40;
 
 /** Invisible vertical containment — stops dice leaving the table. */
-export const TABLE_WALL_H = 0.55;
+export const TABLE_WALL_H = 1.4;
 export const TABLE_WALL_Y = TABLE.surfaceY + TABLE_WALL_H * 0.5;
 /** Place wall just outside the visible rail outer edge. */
 export const TABLE_WALL_OUTSET = 0.04;

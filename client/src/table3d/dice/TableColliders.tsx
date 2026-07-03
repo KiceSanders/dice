@@ -13,7 +13,8 @@ import {
   TABLE_WALL_SEGMENTS,
   TABLE_WALL_Y,
 } from '../layout';
-import { FELT_HALF_X, FELT_HALF_Y, FELT_HALF_Z, PHYSICS } from './constants';
+import { FELT_HALF_X, FELT_HALF_Y, FELT_HALF_Z } from './constants';
+import { useDicePhysicsTuning } from './tuning';
 
 const feltY = TABLE.surfaceY - FELT_HALF_Y;
 
@@ -80,14 +81,22 @@ const WALL_SEGMENTS = buildContainmentWallSegments();
 export default function TableColliders() {
   const railSegments = useMemo(() => RAIL_SEGMENTS, []);
   const wallSegments = useMemo(() => WALL_SEGMENTS, []);
+  const tuning = useDicePhysicsTuning();
+  const ceilingY = Math.max(tuning.table.ceilingY, TABLE.surfaceY + 0.3);
 
   return (
     <group>
-      <RigidBody type="fixed" friction={PHYSICS.tableFriction} restitution={PHYSICS.tableRestitution}>
+      <RigidBody type="fixed" friction={tuning.table.friction} restitution={tuning.table.restitution}>
         <CuboidCollider args={[FELT_HALF_X, FELT_HALF_Y, FELT_HALF_Z]} position={[0, feltY, 0]} />
+        <CuboidCollider
+          args={[FELT_HALF_X, 0.025, FELT_HALF_Z]}
+          position={[0, ceilingY, 0]}
+          friction={tuning.table.wallFriction}
+          restitution={tuning.table.wallRestitution}
+        />
       </RigidBody>
 
-      <RigidBody type="fixed" friction={PHYSICS.railFriction} restitution={PHYSICS.railRestitution}>
+      <RigidBody type="fixed" friction={tuning.table.railFriction} restitution={tuning.table.railRestitution}>
         {railSegments.map((seg, i) => (
           <CuboidCollider
             key={`rail-${i}`}
@@ -98,7 +107,7 @@ export default function TableColliders() {
         ))}
       </RigidBody>
 
-      <RigidBody type="fixed" friction={PHYSICS.wallFriction} restitution={PHYSICS.wallRestitution}>
+      <RigidBody type="fixed" friction={tuning.table.wallFriction} restitution={tuning.table.wallRestitution}>
         {wallSegments.map((seg, i) => (
           <CuboidCollider
             key={`wall-${i}`}

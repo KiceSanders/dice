@@ -37,24 +37,24 @@ export const DIE_SCREEN_OFFSETS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 export const PHYSICS = {
-  gravity: [0, -9.8, 0] as [number, number, number],
-  dieFriction: 0.72,
-  dieRestitution: 0.22,
-  dieDensity: 2.8,
+  gravity: [0, -55, 0] as [number, number, number],
+  dieFriction: 0.58,
+  dieRestitution: 0.28,
+  dieDensity: 2.4,
   tableFriction: 0.95,
-  tableRestitution: 0.05,
-  railFriction: 0.78,
-  railRestitution: 0.22,
+  tableRestitution: 0.04,
+  railFriction: 0.82,
+  railRestitution: 0.16,
   /** Invisible outer wall — contain dice, minimal bounce. */
   wallFriction: 0.9,
-  wallRestitution: 0.04,
-  linearDamping: 0.45,
-  angularDamping: 0.55,
-  settleLinVel: 0.04,
-  settleAngVel: 0.25,
-  settleFrames: 10,
-  maxLinVel: 3.5,
-  maxAngVel: 12,
+  wallRestitution: 0.02,
+  linearDamping: 0.06,
+  angularDamping: 0.08,
+  settleLinVel: 0.08,
+  settleAngVel: 0.45,
+  settleFrames: 18,
+  maxLinVel: 8,
+  maxAngVel: 34,
 } as const;
 
 /** Resting slot offsets on the felt (index 0–4). */
@@ -82,12 +82,12 @@ const KOOZIE_RIM_Y = KOOZIE_FLOAT_CENTER_Y + KOOZIE_HEIGHT * 0.5 - 0.03;
 export const KOOZIE = {
   radius: 0.26,
   height: KOOZIE_HEIGHT,
-  wallThickness: 0.024,
+  wallThickness: 0.06,
   wallSegments: 12,
-  bottomThickness: 0.016,
+  bottomThickness: 0.024,
   rimInset: 0.03,
-  friction: 0.85,
-  restitution: 0.08,
+  friction: 0.82,
+  restitution: 0.04,
   density: 1.2,
   floatCenterY: KOOZIE_FLOAT_CENTER_Y,
   home: [0, KOOZIE_FLOAT_CENTER_Y, FELT_HALF_EXTENT.z * 0.47] as [number, number, number],
@@ -130,17 +130,3 @@ export const KOOZIE = {
   emptyCheckRadius: 0.22,
 } as const;
 
-export function randomRollImpulse(): { linear: [number, number, number]; angular: [number, number, number] } {
-  return {
-    linear: [
-      (Math.random() - 0.5) * 0.35,
-      0.15 + Math.random() * 0.25,
-      -0.55 - Math.random() * 0.45,
-    ],
-    angular: [
-      (Math.random() - 0.5) * 4,
-      (Math.random() - 0.5) * 4,
-      (Math.random() - 0.5) * 4,
-    ],
-  };
-}

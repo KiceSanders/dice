@@ -5,11 +5,14 @@ import FixedCamera from './FixedCamera';
 import PokerTableMesh from './PokerTableMesh';
 import DicePhysics from './dice/DicePhysics';
 import TableColliders from './dice/TableColliders';
-import { PHYSICS } from './dice/constants';
+import { useDicePhysicsTuning } from './dice/tuning';
 import type { TableDiceProps } from './dice/types';
 import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
 
 function SceneContent({ dice }: { dice?: TableDiceProps }) {
+  const tuning = useDicePhysicsTuning();
+  const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
+
   return (
     <>
       <FixedCamera />
@@ -35,7 +38,12 @@ function SceneContent({ dice }: { dice?: TableDiceProps }) {
 
       <PokerTableMesh />
 
-      <Physics gravity={PHYSICS.gravity} timeStep="vary" interpolate>
+      <Physics
+        gravity={[0, gravityY, 0]}
+        timeStep={tuning.world.timeStep}
+        interpolate
+        debug={tuning.world.debug}
+      >
         {dice ? <DicePhysics {...dice} /> : <TableColliders />}
       </Physics>
     </>

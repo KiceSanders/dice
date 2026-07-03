@@ -1,4 +1,5 @@
 import { KOOZIE } from './constants';
+import type { DicePhysicsTuning } from './tuning';
 
 export type WallSegment = {
   position: [number, number, number];
@@ -6,9 +7,32 @@ export type WallSegment = {
   halfExtents: [number, number, number];
 };
 
+type CupTuning = DicePhysicsTuning['cup'];
+
+function cupDefaults(): CupTuning {
+  return {
+    radius: KOOZIE.radius,
+    height: KOOZIE.height,
+    wallThickness: KOOZIE.wallThickness,
+    wallSegments: KOOZIE.wallSegments,
+    bottomThickness: KOOZIE.bottomThickness,
+    rimInset: KOOZIE.rimInset,
+    lidThickness: 0.02,
+    friction: KOOZIE.friction,
+    restitution: KOOZIE.restitution,
+    density: KOOZIE.density,
+    floatCenterY: KOOZIE.floatCenterY,
+    homeZ: KOOZIE.home[2],
+    wallArcOverlap: KOOZIE.wallArcOverlap,
+    hitRadius: KOOZIE.hitRadius,
+    hitScreenPx: KOOZIE.hitScreenPx,
+    emptyCheckRadius: KOOZIE.emptyCheckRadius,
+  };
+}
+
 /** Radial wall cuboids forming a hollow cylinder shell (open top). */
-export function koozieWallSegments(): WallSegment[] {
-  const { radius, height, wallThickness, wallSegments, rimInset } = KOOZIE;
+export function koozieWallSegments(cup: CupTuning = cupDefaults()): WallSegment[] {
+  const { radius, height, wallThickness, wallSegments, rimInset } = cup;
   const innerR = radius - wallThickness * 0.5;
   const wallHalfH = (height - rimInset) * 0.5;
   const wallCenterY = -rimInset * 0.5;
@@ -22,7 +46,7 @@ export function koozieWallSegments(): WallSegment[] {
     segments.push({
       position: [x, wallCenterY, z],
       rotation: [0, -angle + Math.PI / 2, 0],
-      halfExtents: [wallThickness * 0.5, wallHalfH, arcLen * 0.5 * KOOZIE.wallArcOverlap],
+      halfExtents: [wallThickness * 0.5, wallHalfH, arcLen * 0.5 * cup.wallArcOverlap],
     });
   }
   return segments;
@@ -36,9 +60,10 @@ function pseudoRandom(index: number, salt: number): number {
 export function spawnDiceInCupLocal(
   index: number,
   total: number,
+  cup: CupTuning = cupDefaults(),
 ): { position: [number, number, number]; rotation: [number, number, number] } {
-  const { height, radius, bottomThickness, rimInset } = KOOZIE;
-  const innerR = radius - KOOZIE.wallThickness - 0.02;
+  const { height, radius, bottomThickness, rimInset } = cup;
+  const innerR = radius - cup.wallThickness - 0.025;
   const yMin = -height * 0.5 + bottomThickness + 0.06;
   const yMax = height * 0.5 - rimInset - 0.06;
   const angle = (index / Math.max(total, 1)) * Math.PI * 2 + pseudoRandom(index, 1) * 0.6;
@@ -55,6 +80,6 @@ export function spawnDiceInCupLocal(
 }
 
 /** Cup-local Y of the open rim (top). */
-export function cupRimLocalY(): number {
-  return KOOZIE.height * 0.5 - KOOZIE.rimInset;
+export function cupRimLocalY(cup: CupTuning = cupDefaults()): number {
+  return cup.height * 0.5 - cup.rimInset;
 }

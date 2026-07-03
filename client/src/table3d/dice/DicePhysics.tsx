@@ -1,35 +1,46 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RigidBodyType } from '@dimforge/rapier3d-compat';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import type { Die } from '@dice/shared';
 import { HAND_SIZE } from '@dice/shared';
 import * as THREE from 'three';
 import DieBody, { type DieBodyHandle } from './DieBody';
 import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
 import TableColliders from './TableColliders';
-import { DICE_COUNT, DICE_FELT_Y, DIE_HALF, KOOZIE, dieSlotPosition, PHYSICS } from './constants';
+import {
+  DICE_COUNT,
+  DICE_FELT_Y,
+  DIE_HALF,
+  FELT_BOUND_X,
+  FELT_BOUND_Z,
+  KOOZIE,
+  dieSlotPosition,
+} from './constants';
 import { spawnDiceInCupLocal } from './koozieColliders';
 import {
-  computeReleaseTiltTarget,
-  createDragStateFromPose,
+  createHeldStateFromPose,
   createHomePose,
+  createPourState,
   isInsideCup,
-  pourDirectionFromRelease,
-  stepDragPose,
-  tippingPoseAt,
-  type KoozieDragState,
-  type TippingState,
-} from './kooziePose';
+  pouringPoseAt,
+  stepHeldPose,
+  type KoozieHeldState,
+  type KooziePourState,
+} from './koozieMotion';
 import { canvasLayoutElement, hitCup, pointerOnPlane } from './pointerToFelt';
 import { quaternionForFace, readTopFace } from './faceValue';
+import {
+  getDicePhysicsTuning,
+  useDicePhysicsTuning,
+  type DicePhysicsTuning,
+} from './tuning';
 import type { TableDiceProps, ThrowVelocity } from './types';
 
 const _quat = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _vec = new THREE.Vector3();
-const _home = createHomePose();
 
-type CupPhase = 'idle' | 'dragging' | 'tipping' | 'rolling' | 'hidden';
+type CupPhase = 'idle' | 'held' | 'pouring' | 'settling' | 'hidden';
 
 type DieRuntime = {
   visible: boolean;
@@ -41,15 +52,13 @@ type DieRuntime = {
 
 type Sample = { x: number; y: number; z: number; t: number };
 
-type CarriedDie = {
-  localPos: THREE.Vector3;
-  localQuat: THREE.Quaternion;
-};
-
-
 function quatToEuler(q: THREE.Quaternion): [number, number, number] {
   _euler.setFromQuaternion(q);
   return [_euler.x, _euler.y, _euler.z];
+}
+
+function homePosition(tuning: DicePhysicsTuning): [number, number, number] {
+  return [0, tuning.cup.floatCenterY, tuning.cup.homeZ];
 }
 
 function cupLocalToWorld(
@@ -69,7 +78,12 @@ function randomRotation(): [number, number, number] {
   ];
 }
 
-function buildRuntime(dice: Die[], keepIndices: number[], cupMode: boolean): DieRuntime[] {
+function buildRuntime(
+  dice: Die[],
+  keepIndices: number[],
+  cupMode: boolean,
+  tuning: DicePhysicsTuning,
+): DieRuntime[] {
   if (!cupMode) {
     return Array.from({ length: DICE_COUNT }, (_, i) => {
       const value = dice[i];
@@ -93,46 +107,50 @@ function buildRuntime(dice: Die[], keepIndices: number[], cupMode: boolean): Die
 
   const kept = new Set(keepIndices);
   const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => !kept.has(i));
+  const home = createHomePose(tuning);
 
   return Array.from({ length: DICE_COUNT }, (_, i) => {
     if (kept.has(i)) {
       const value = dice[i];
-      const rot = value ? quatToEuler(quaternionForFace(value)) : undefined;
       return {
         visible: true,
         locked: true,
         inCup: false,
         position: dieSlotPosition(i),
-        rotation: rot,
+        rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
       };
     }
 
     const cupSlot = unkeptIndices.indexOf(i);
-    const local = spawnDiceInCupLocal(cupSlot, unkeptIndices.length);
-    const pos = cupLocalToWorld(local.position, _home.position, _home.quaternion);
-    const value = dice[i];
+    const local = spawnDiceInCupLocal(cupSlot, unkeptIndices.length, tuning.cup);
     return {
       visible: true,
       locked: false,
       inCup: true,
-      position: pos,
-      rotation: value ? quatToEuler(quaternionForFace(value)) : local.rotation,
+      position: cupLocalToWorld(local.position, home.position, home.quaternion),
+      rotation: local.rotation,
     };
   });
 }
 
 function clampBodyVelocity(body: NonNullable<DieBodyHandle['body']>, maxLin: number, maxAng: number) {
   const lv = body.linvel();
+  const lvx = lv.x;
+  const lvy = lv.y;
+  const lvz = lv.z;
   const av = body.angvel();
-  const speed = Math.hypot(lv.x, lv.y, lv.z);
+  const avx = av.x;
+  const avy = av.y;
+  const avz = av.z;
+  const speed = Math.hypot(lvx, lvy, lvz);
   if (speed > maxLin) {
     const s = maxLin / speed;
-    body.setLinvel({ x: lv.x * s, y: lv.y * s, z: lv.z * s }, true);
+    body.setLinvel({ x: lvx * s, y: lvy * s, z: lvz * s }, true);
   }
-  const spin = Math.hypot(av.x, av.y, av.z);
+  const spin = Math.hypot(avx, avy, avz);
   if (spin > maxAng) {
     const s = maxAng / spin;
-    body.setAngvel({ x: av.x * s, y: av.y * s, z: av.z * s }, true);
+    body.setAngvel({ x: avx * s, y: avy * s, z: avz * s }, true);
   }
 }
 
@@ -155,57 +173,24 @@ function sampleVelocity(samples: Sample[]): ThrowVelocity {
   };
 }
 
-function blendReleaseVelocity(samples: Sample[], gripVel: THREE.Vector3 | undefined): ThrowVelocity {
+function blendReleaseVelocity(
+  samples: Sample[],
+  heldVelocity: THREE.Vector3 | undefined,
+  tuning: DicePhysicsTuning,
+): ThrowVelocity {
   const sampled = sampleVelocity(samples);
-  const blend = KOOZIE.gripVelReleaseBlend;
+  const blend = tuning.release.velocityBlend;
   return {
-    x: sampled.x + (gripVel?.x ?? 0) * blend,
-    y: sampled.y + (gripVel?.y ?? 0) * blend,
-    z: sampled.z + (gripVel?.z ?? 0) * blend,
+    x: sampled.x + (heldVelocity?.x ?? 0) * blend,
+    y: sampled.y + (heldVelocity?.y ?? 0) * blend,
+    z: sampled.z + (heldVelocity?.z ?? 0) * blend,
   };
 }
 
-function snapshotCarriedDice(
-  carried: Map<number, CarriedDie>,
-  runtime: DieRuntime[],
-  keepIndices: number[],
-) {
-  carried.clear();
-  const unkeptInCup = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => {
-    const rt = runtime[i];
-    return rt?.visible && rt.inCup && !keepIndices.includes(i);
-  });
-
-  for (const i of unkeptInCup) {
-    const rt = runtime[i]!;
-    const cupSlot = unkeptInCup.indexOf(i);
-    const local = spawnDiceInCupLocal(cupSlot, unkeptInCup.length);
-    const localPos = new THREE.Vector3(...local.position);
-    const rot = rt.rotation ?? local.rotation;
-    _euler.set(rot[0], rot[1], rot[2]);
-    const localQuat = new THREE.Quaternion().setFromEuler(_euler);
-    carried.set(i, { localPos, localQuat });
-  }
-}
-
-function syncCarriedDice(
-  carried: Map<number, CarriedDie>,
-  pose: { position: THREE.Vector3; quaternion: THREE.Quaternion },
-  refs: (DieBodyHandle | null)[],
-) {
-  for (const [i, { localPos, localQuat }] of carried) {
-    const body = refs[i]?.body;
-    if (!body) continue;
-    _vec.copy(localPos).applyQuaternion(pose.quaternion).add(pose.position);
-    _quat.copy(pose.quaternion).multiply(localQuat);
-    body.setNextKinematicTranslation({ x: _vec.x, y: _vec.y, z: _vec.z });
-    body.setNextKinematicRotation({ x: _quat.x, y: _quat.y, z: _quat.z, w: _quat.w });
-  }
-}
-
-function cupCenterNow(cup: KoozieBodyHandle['body']): readonly [number, number, number] {
-  if (!cup) return KOOZIE.home;
-  const t = cup.translation();
+function cupCenterNow(cup: KoozieBodyHandle['body'], tuning: DicePhysicsTuning): readonly [number, number, number] {
+  const body = liveBody(cup);
+  if (!body) return homePosition(tuning);
+  const t = body.translation();
   return [t.x, t.y, t.z];
 }
 
@@ -213,36 +198,84 @@ function pointerTarget(canvas: HTMLCanvasElement): HTMLElement {
   return canvasLayoutElement(canvas);
 }
 
-function nudgeDiceOutOfCup(
-  refs: (DieBodyHandle | null)[],
-  runtime: DieRuntime[],
-  pour: THREE.Vector3,
-) {
-  for (let i = 0; i < DICE_COUNT; i++) {
-    const rt = runtime[i];
-    if (!rt?.visible || rt.locked) continue;
-    const body = refs[i]?.body;
-    if (!body) continue;
-    body.applyImpulse(
-      { x: pour.x * 0.055, y: pour.y * 0.035, z: pour.z * 0.055 },
-      true,
-    );
-  }
+function setCupPose(cup: NonNullable<KoozieBodyHandle['body']>, pose: { position: THREE.Vector3; quaternion: THREE.Quaternion }) {
+  cup.setNextKinematicTranslation({ x: pose.position.x, y: pose.position.y, z: pose.position.z });
+  cup.setNextKinematicRotation({
+    x: pose.quaternion.x,
+    y: pose.quaternion.y,
+    z: pose.quaternion.z,
+    w: pose.quaternion.w,
+  });
 }
 
-function countUnkeptInside(refs: (DieBodyHandle | null)[], runtime: DieRuntime[], cupBody: NonNullable<KoozieBodyHandle['body']>): number {
+function clampPivotToTable(point: THREE.Vector3, tuning: DicePhysicsTuning): THREE.Vector3 {
+  const margin = tuning.cup.radius + 0.16;
+  const a = Math.max(FELT_BOUND_X - margin, 0.1);
+  const b = Math.max(FELT_BOUND_Z - margin, 0.1);
+  const nx = point.x / a;
+  const nz = point.z / b;
+  const dist = Math.hypot(nx, nz);
+  if (dist > 1) {
+    point.x = (nx / dist) * a;
+    point.z = (nz / dist) * b;
+  }
+  return point;
+}
+
+function outsideTable(point: { x: number; z: number }): boolean {
+  const nx = point.x / (FELT_BOUND_X + 0.25);
+  const nz = point.z / (FELT_BOUND_Z + 0.25);
+  return Math.hypot(nx, nz) > 1.15;
+}
+
+function countUnkeptInside(
+  refs: (DieBodyHandle | null)[],
+  runtime: DieRuntime[],
+  cupBody: NonNullable<KoozieBodyHandle['body']>,
+  tuning: DicePhysicsTuning,
+): number {
   const t = cupBody.translation();
+  const cupPos = { x: t.x, y: t.y, z: t.z };
   const r = cupBody.rotation();
+  const cupRot = { x: r.x, y: r.y, z: r.z, w: r.w };
   let inside = 0;
   for (let i = 0; i < DICE_COUNT; i++) {
     const rt = runtime[i];
     if (!rt?.visible || rt.locked) continue;
-    const body = refs[i]?.body;
+    const body = liveBody(refs[i]?.body);
     if (!body) continue;
     const p = body.translation();
-    if (isInsideCup(p, t, r)) inside++;
+    if (isInsideCup({ x: p.x, y: p.y, z: p.z }, cupPos, cupRot, tuning)) inside++;
   }
   return inside;
+}
+
+/**
+ * Rapier bodies removed from the world keep their JS wrapper alive; calling
+ * methods on them panics the WASM module and kills the whole physics world.
+ * Refs can briefly point at removed bodies around remounts, so every
+ * imperative access must go through this guard.
+ */
+function liveBody<T extends { isValid(): boolean }>(body: T | null | undefined): T | null {
+  return body && body.isValid() ? body : null;
+}
+
+function respawnDieOnFelt(index: number, body: NonNullable<DieBodyHandle['body']>) {
+  const [x, , z] = dieSlotPosition(index);
+  body.setBodyType(RigidBodyType.Dynamic, true);
+  body.setTranslation({ x, y: DICE_FELT_Y + 0.08, z }, true);
+  body.setRotation(
+    {
+      x: Math.random() - 0.5,
+      y: Math.random() - 0.5,
+      z: Math.random() - 0.5,
+      w: 1,
+    },
+    true,
+  );
+  body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  body.wakeUp();
 }
 
 export default function DicePhysics({
@@ -256,6 +289,7 @@ export default function DicePhysics({
   canDrag = true,
 }: TableDiceProps) {
   const { camera, gl } = useThree();
+  const tuning = useDicePhysicsTuning();
   const dieRefs = useRef<(DieBodyHandle | null)[]>(Array(DICE_COUNT).fill(null));
   const koozieRef = useRef<KoozieBodyHandle | null>(null);
   const rollingRef = useRef(false);
@@ -266,28 +300,31 @@ export default function DicePhysics({
   const onReleaseRef = useRef(onRelease);
   const onDragChangeRef = useRef(onDragChange);
   const canDragRef = useRef(canDrag);
-  const rollStartRef = useRef(0);
-  const releaseTimeRef = useRef(0);
   const cupPhaseRef = useRef<CupPhase>('hidden');
-  const dragStateRef = useRef<KoozieDragState | null>(null);
-  const tippingRef = useRef<TippingState | null>(null);
+  const heldStateRef = useRef<KoozieHeldState | null>(null);
+  const pourStateRef = useRef<KooziePourState | null>(null);
   const diceRef = useRef(dice);
+  const tuningRef = useRef(tuning);
   diceRef.current = dice;
+  tuningRef.current = tuning;
 
   const clientXRef = useRef(0);
   const clientYRef = useRef(0);
   const draggingRef = useRef(false);
   const moveSamples = useRef<Sample[]>([]);
-  const spillNudgeMsRef = useRef(0);
   const layoutGenRef = useRef(0);
-  const carriedDiceRef = useRef<Map<number, CarriedDie>>(new Map());
+  const rollElapsedMsRef = useRef(0);
+  const finishPendingRef = useRef(false);
+  const skipDiceLayoutRef = useRef(false);
 
   const [cupPhase, setCupPhase] = useState<CupPhase>(active && canDrag ? 'idle' : 'hidden');
   const [cupVisible, setCupVisible] = useState(active && canDrag);
   const [dragging, setDragging] = useState(false);
   const [simRolling, setSimRolling] = useState(false);
   const [layoutGen, setLayoutGen] = useState(0);
-  const [runtime, setRuntime] = useState<DieRuntime[]>(() => buildRuntime(dice, keepIndices, canDrag));
+  const [runtime, setRuntime] = useState<DieRuntime[]>(() =>
+    buildRuntime(dice, keepIndices, canDrag, tuning),
+  );
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
 
@@ -303,53 +340,86 @@ export default function DicePhysics({
   draggingRef.current = dragging;
   cupPhaseRef.current = cupPhase;
 
-  const resetToIdleInCup = () => {
+  const resetToIdleInCup = useCallback((nextDice?: Die[]) => {
+    const latestTuning = getDicePhysicsTuning();
     const cupMode = canDragRef.current;
+    skipDiceLayoutRef.current = true;
     layoutGenRef.current += 1;
     setLayoutGen(layoutGenRef.current);
-    setRuntime(buildRuntime(diceRef.current, keepRef.current, cupMode));
+    setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
     setCupPhase(cupMode ? 'idle' : 'hidden');
     setCupVisible(cupMode);
     rollingRef.current = false;
+    rollElapsedMsRef.current = 0;
     setSimRolling(false);
     settleCountRef.current = 0;
-    dragStateRef.current = null;
-    tippingRef.current = null;
-    spillNudgeMsRef.current = 0;
-    carriedDiceRef.current.clear();
+    heldStateRef.current = null;
+    pourStateRef.current = null;
 
-    const cup = koozieRef.current?.body;
+    const cup = liveBody(koozieRef.current?.body);
     if (cup && cupMode) {
+      const [x, y, z] = homePosition(latestTuning);
       cup.setBodyType(RigidBodyType.Fixed, true);
-      cup.setTranslation({ x: KOOZIE.home[0], y: KOOZIE.home[1], z: KOOZIE.home[2] }, true);
+      cup.setTranslation({ x, y, z }, true);
       cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
       cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
-  };
-
-  useEffect(() => {
-    if (rollingRef.current || dragging) return;
-    layoutGenRef.current += 1;
-    setLayoutGen(layoutGenRef.current);
-    setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag));
-  }, [keepIndices, dragging, canDrag]);
+  }, []);
 
   const wakeUnkeptDice = useCallback(() => {
     for (let i = 0; i < DICE_COUNT; i++) {
       const rt = runtimeRef.current[i];
       if (!rt?.visible || rt.locked) continue;
-      const body = dieRefs.current[i]?.body;
+      const body = liveBody(dieRefs.current[i]?.body);
       if (!body) continue;
       body.setBodyType(RigidBodyType.Dynamic, true);
       body.wakeUp();
     }
   }, []);
 
+  const readCurrentDieValues = useCallback((fallbackDice?: Die[]): Die[] => {
+    const values: Die[] = [];
+    for (let i = 0; i < HAND_SIZE; i++) {
+      if (keepRef.current.includes(i) && diceRef.current[i]) {
+        values.push(diceRef.current[i]!);
+        continue;
+      }
+      const body = liveBody(dieRefs.current[i]?.body);
+      if (!body) {
+        values.push(fallbackDice?.[i] ?? diceRef.current[i] ?? 1);
+        continue;
+      }
+      const rot = body.rotation();
+      _quat.set(rot.x, rot.y, rot.z, rot.w);
+      values.push(readTopFace(_quat));
+    }
+    return values;
+  }, []);
+
+  const finishWithCurrentFaces = useCallback(
+    (fallbackDice?: Die[]) => {
+      if (finishPendingRef.current) return;
+      finishPendingRef.current = true;
+      rollingRef.current = false;
+      const values = readCurrentDieValues(fallbackDice);
+      requestAnimationFrame(() => {
+        finishPendingRef.current = false;
+        settleCountRef.current = 0;
+        setSimRolling(false);
+        onRollingChangeRef.current?.(false);
+        onSettledRef.current(values);
+        resetToIdleInCup(values);
+      });
+    },
+    [readCurrentDieValues, resetToIdleInCup],
+  );
+
   const recordSample = useCallback(
     (clientX: number, clientY: number) => {
       const canvas = gl.domElement;
-      const center = pointerOnPlane(clientX, clientY, canvas, camera, KOOZIE.dragPlaneY);
+      const center = pointerOnPlane(clientX, clientY, canvas, camera, tuningRef.current.cup.floatCenterY);
+      clampPivotToTable(center, tuningRef.current);
       moveSamples.current.push({ x: center.x, y: center.y, z: center.z, t: performance.now() });
       if (moveSamples.current.length > 24) moveSamples.current.shift();
     },
@@ -359,52 +429,27 @@ export default function DicePhysics({
   const finishDrag = useCallback(
     (e: PointerEvent) => {
       if (!draggingRef.current || e.button !== 0) return;
+      const latestTuning = tuningRef.current;
       recordSample(e.clientX, e.clientY);
-      const dragState = dragStateRef.current;
-      const pose = dragState?.pose;
-      const velocity = blendReleaseVelocity(moveSamples.current, dragState?.gripVel);
-      const releaseSpeed = Math.hypot(velocity.x, velocity.z);
-      const cup = koozieRef.current?.body;
-
-      let pourDir = new THREE.Vector3(0, -1, 0);
-      if (pose) {
-        pourDir = pourDirectionFromRelease(pose, velocity, dragState?.gripVel);
-      }
+      const heldState = heldStateRef.current;
+      const pose = heldState?.pose;
+      const velocity = blendReleaseVelocity(moveSamples.current, heldState?.pivotVel, latestTuning);
+      const cup = liveBody(koozieRef.current?.body);
 
       if (cup && pose) {
         cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
-        tippingRef.current = {
-          origin: pose.position.clone(),
-          from: pose.quaternion.clone(),
-          to: computeReleaseTiltTarget(pose, pourDir),
-          pourDir,
-          releaseSpeed,
-          startMs: performance.now(),
-        };
-        const tipPose = tippingPoseAt(tippingRef.current, performance.now()).pose;
-        cup.setNextKinematicTranslation({ x: tipPose.position.x, y: tipPose.position.y, z: tipPose.position.z });
-        cup.setNextKinematicRotation({
-          x: tipPose.quaternion.x,
-          y: tipPose.quaternion.y,
-          z: tipPose.quaternion.z,
-          w: tipPose.quaternion.w,
-        });
+        pourStateRef.current = createPourState(pose, velocity, heldState?.pivotVel, latestTuning);
+        const { pose: pourPose } = pouringPoseAt(pourStateRef.current, 0, latestTuning);
+        setCupPose(cup, pourPose);
       }
 
-      if (pose && carriedDiceRef.current.size > 0) {
-        syncCarriedDice(carriedDiceRef.current, pose, dieRefs.current);
-      }
-      carriedDiceRef.current.clear();
       wakeUnkeptDice();
-      nudgeDiceOutOfCup(dieRefs.current, runtimeRef.current, pourDir);
-
       rollingRef.current = true;
-      rollStartRef.current = performance.now();
-      releaseTimeRef.current = performance.now();
+      rollElapsedMsRef.current = 0;
       draggingRef.current = false;
-      cupPhaseRef.current = 'tipping';
+      cupPhaseRef.current = 'pouring';
       setDragging(false);
-      setCupPhase('tipping');
+      setCupPhase('pouring');
       setSimRolling(true);
       onDragChangeRef.current?.(false);
       onRollingChangeRef.current?.(true);
@@ -424,27 +469,31 @@ export default function DicePhysics({
       clientYRef.current = clientY;
       recordSample(clientX, clientY);
 
-      const cup = koozieRef.current?.body;
+      const cup = liveBody(koozieRef.current?.body);
       if (cup) {
         cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
         cup.wakeUp();
         const t = cup.translation();
+        const cupPos = new THREE.Vector3(t.x, t.y, t.z);
         const r = cup.rotation();
         _quat.set(r.x, r.y, r.z, r.w);
-        dragStateRef.current = createDragStateFromPose({
-          position: new THREE.Vector3(t.x, t.y, t.z),
-          quaternion: _quat.clone(),
-        });
-        snapshotCarriedDice(carriedDiceRef.current, runtimeRef.current, keepRef.current);
+        heldStateRef.current = createHeldStateFromPose(
+          {
+            position: cupPos,
+            quaternion: _quat.clone(),
+          },
+          tuningRef.current,
+        );
       }
 
+      wakeUnkeptDice();
       draggingRef.current = true;
-      cupPhaseRef.current = 'dragging';
+      cupPhaseRef.current = 'held';
       setDragging(true);
-      setCupPhase('dragging');
+      setCupPhase('held');
       onDragChangeRef.current?.(true);
     },
-    [recordSample],
+    [recordSample, wakeUnkeptDice],
   );
 
   const handleKoozieGrab = useCallback(
@@ -457,6 +506,59 @@ export default function DicePhysics({
 
   const beginDragRef = useRef(beginDrag);
   beginDragRef.current = beginDrag;
+
+  useEffect(() => {
+    if (rollingRef.current || dragging) return;
+    if (skipDiceLayoutRef.current) {
+      skipDiceLayoutRef.current = false;
+      return;
+    }
+    layoutGenRef.current += 1;
+    setLayoutGen(layoutGenRef.current);
+    setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current));
+  }, [dice, keepIndices, dragging, canDrag]);
+
+  useEffect(() => {
+    if (!active) {
+      rollingRef.current = false;
+      settleCountRef.current = 0;
+      moveSamples.current = [];
+      draggingRef.current = false;
+      setDragging(false);
+      setSimRolling(false);
+      setCupPhase('hidden');
+      setCupVisible(false);
+      setRuntime(
+        Array.from({ length: DICE_COUNT }, () => ({
+          visible: false,
+          locked: false,
+          inCup: false,
+          position: [0, DIE_HALF, 0] as [number, number, number],
+        })),
+      );
+      return;
+    }
+
+    if (!rollingRef.current && !draggingRef.current) {
+      resetToIdleInCup();
+    }
+  }, [active, resetToIdleInCup]);
+
+  useEffect(() => {
+    if (!active || rollingRef.current || draggingRef.current) return;
+    resetToIdleInCup();
+  }, [
+    active,
+    canDrag,
+    tuning.cup.radius,
+    tuning.cup.height,
+    tuning.cup.wallThickness,
+    tuning.cup.bottomThickness,
+    tuning.cup.rimInset,
+    tuning.cup.floatCenterY,
+    tuning.cup.homeZ,
+    resetToIdleInCup,
+  ]);
 
   useEffect(() => {
     if (!active || !canDrag) return;
@@ -476,7 +578,8 @@ export default function DicePhysics({
         }
       }
       camera.updateMatrixWorld();
-      const center = cupCenterNow(koozieRef.current?.body ?? null);
+      const latestTuning = tuningRef.current;
+      const center = cupCenterNow(koozieRef.current?.body ?? null, latestTuning);
       const rect = canvasLayoutElement(canvas).getBoundingClientRect();
       const inTable =
         e.clientX >= rect.left &&
@@ -485,7 +588,15 @@ export default function DicePhysics({
         e.clientY <= rect.bottom;
       if (
         !inTable ||
-        !hitCup(e.clientX, e.clientY, canvas, camera, center, KOOZIE.hitScreenPx, KOOZIE.hitRadius)
+        !hitCup(
+          e.clientX,
+          e.clientY,
+          canvas,
+          camera,
+          center,
+          latestTuning.cup.hitScreenPx,
+          latestTuning.cup.hitRadius,
+        )
       ) {
         return;
       }
@@ -531,76 +642,6 @@ export default function DicePhysics({
     };
   }, [dragging, finishDrag, recordSample]);
 
-  useLayoutEffect(() => {
-    if (cupPhase !== 'dragging') return;
-    const pose = dragStateRef.current?.pose;
-    if (!pose || carriedDiceRef.current.size === 0) return;
-    syncCarriedDice(carriedDiceRef.current, pose, dieRefs.current);
-  }, [cupPhase]);
-
-  useEffect(() => {
-    if (!active) {
-      rollingRef.current = false;
-      settleCountRef.current = 0;
-      moveSamples.current = [];
-      draggingRef.current = false;
-      setDragging(false);
-      setSimRolling(false);
-      setCupPhase('hidden');
-      setCupVisible(false);
-      setRuntime(
-        Array.from({ length: DICE_COUNT }, () => ({
-          visible: false,
-          locked: false,
-          inCup: false,
-          position: [0, DIE_HALF, 0] as [number, number, number],
-        })),
-      );
-      return;
-    }
-
-    if (!rollingRef.current && !draggingRef.current) {
-      resetToIdleInCup();
-    }
-  }, [active]);
-
-  useEffect(() => {
-    if (!active || rollingRef.current || draggingRef.current) return;
-    resetToIdleInCup();
-  }, [canDrag, active]);
-
-  useEffect(() => {
-    if (!active || rollingRef.current) return;
-    const id = requestAnimationFrame(() => {
-      const home = createHomePose();
-      const unkept = runtimeRef.current
-        .map((rt, i) => ({ rt, i }))
-        .filter(({ rt, i }) => rt.visible && !rt.locked && !keepRef.current.includes(i));
-
-      for (const { rt, i } of unkept) {
-        const body = dieRefs.current[i]?.body;
-        if (!body) continue;
-        body.setBodyType(rt.inCup ? RigidBodyType.Fixed : RigidBodyType.Dynamic, true);
-        body.setTranslation({ x: rt.position[0], y: rt.position[1], z: rt.position[2] }, true);
-        if (rt.rotation) {
-          _euler.set(rt.rotation[0], rt.rotation[1], rt.rotation[2]);
-          _quat.setFromEuler(_euler);
-          body.setRotation({ x: _quat.x, y: _quat.y, z: _quat.z, w: _quat.w }, true);
-        }
-        body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-        body.sleep();
-      }
-
-      const cup = koozieRef.current?.body;
-      if (cup && cupPhaseRef.current === 'idle') {
-        cup.setTranslation({ x: home.position.x, y: home.position.y, z: home.position.z }, true);
-        cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [layoutGen, active]);
-
   useEffect(() => {
     const target = pointerTarget(gl.domElement);
     if (!active || !canDrag) {
@@ -611,80 +652,56 @@ export default function DicePhysics({
   }, [dragging, active, canDrag, simRolling, gl]);
 
   useFrame((_, delta) => {
-    if (draggingRef.current && cupPhaseRef.current === 'dragging') {
-      const cup = koozieRef.current?.body;
-      const state = dragStateRef.current;
+    const latestTuning = tuningRef.current;
+    const scaledDelta = delta * latestTuning.world.timeScale;
+
+    if (draggingRef.current && cupPhaseRef.current === 'held') {
+      const cup = liveBody(koozieRef.current?.body);
+      const state = heldStateRef.current;
       if (cup && state) {
         const canvas = gl.domElement;
-        const gripTarget = pointerOnPlane(
+        const pivotTarget = pointerOnPlane(
           clientXRef.current,
           clientYRef.current,
           canvas,
           camera,
-          KOOZIE.dragPlaneY,
+          latestTuning.cup.floatCenterY,
         );
-        const pose = stepDragPose(state, gripTarget, delta, reducedMotion);
-        cup.setNextKinematicTranslation({ x: pose.position.x, y: pose.position.y, z: pose.position.z });
-        cup.setNextKinematicRotation({
-          x: pose.quaternion.x,
-          y: pose.quaternion.y,
-          z: pose.quaternion.z,
-          w: pose.quaternion.w,
-        });
-        syncCarriedDice(carriedDiceRef.current, pose, dieRefs.current);
+        clampPivotToTable(pivotTarget, latestTuning);
+        const pose = stepHeldPose(state, pivotTarget, scaledDelta, reducedMotion, latestTuning);
+        setCupPose(cup, pose);
       }
       return;
     }
 
-    if (!rollingRef.current) return;
+    if (!rollingRef.current || finishPendingRef.current) return;
+    rollElapsedMsRef.current += scaledDelta * 1000;
 
-    const cup = koozieRef.current?.body;
-    const tipping = tippingRef.current;
+    const cup = liveBody(koozieRef.current?.body);
+    const pouring = pourStateRef.current;
 
-    if (cup && cupPhaseRef.current === 'tipping' && tipping) {
-      const { pose, progress } = tippingPoseAt(tipping, performance.now());
-      cup.setNextKinematicTranslation({ x: pose.position.x, y: pose.position.y, z: pose.position.z });
-      cup.setNextKinematicRotation({
-        x: pose.quaternion.x,
-        y: pose.quaternion.y,
-        z: pose.quaternion.z,
-        w: pose.quaternion.w,
-      });
+    if (cup && cupPhaseRef.current === 'pouring' && pouring) {
+      pouring.elapsedMs += scaledDelta * 1000;
+      const { pose, progress } = pouringPoseAt(pouring, pouring.elapsedMs, latestTuning);
+      setCupPose(cup, pose);
 
-      const inside = countUnkeptInside(dieRefs.current, runtimeRef.current, cup);
-      const elapsed = performance.now() - releaseTimeRef.current;
-      const now = performance.now();
-      if (progress > 0.45 && inside > 0 && now - spillNudgeMsRef.current > 140) {
-        spillNudgeMsRef.current = now;
-        nudgeDiceOutOfCup(dieRefs.current, runtimeRef.current, tipping.pourDir);
-      }
-      if ((inside === 0 && progress > 0.55) || (progress > 0.92 && elapsed > 1200) || elapsed > 2800) {
-        tippingRef.current = null;
+      const inside = countUnkeptInside(dieRefs.current, runtimeRef.current, cup, latestTuning);
+      if (
+        (inside === 0 && progress > 0.55) ||
+        progress >= 1 ||
+        pouring.elapsedMs > latestTuning.release.tipDurationMs + 900
+      ) {
+        pourStateRef.current = null;
         cup.setBodyType(RigidBodyType.Fixed, true);
         cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
         cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
         setCupVisible(false);
-        setCupPhase('rolling');
+        setCupPhase('settling');
       }
     }
 
-    if (performance.now() - rollStartRef.current > 10000) {
-      rollingRef.current = false;
-      onRollingChangeRef.current?.(false);
-      const values: Die[] = [];
-      for (let i = 0; i < HAND_SIZE; i++) {
-        const body = dieRefs.current[i]?.body;
-        if (!body) {
-          values.push(diceRef.current[i] ?? 1);
-          continue;
-        }
-        const rot = body.rotation();
-        _quat.set(rot.x, rot.y, rot.z, rot.w);
-        values.push(readTopFace(_quat));
-      }
-      setSimRolling(false);
-      onSettledRef.current(values);
-      resetToIdleInCup();
+    if (rollElapsedMsRef.current > latestTuning.settle.timeoutMs) {
+      finishWithCurrentFaces();
       return;
     }
 
@@ -692,18 +709,29 @@ export default function DicePhysics({
     for (let i = 0; i < DICE_COUNT; i++) {
       const rt = runtimeRef.current[i];
       if (!rt?.visible || rt.locked) continue;
-      const body = dieRefs.current[i]?.body;
+      const body = liveBody(dieRefs.current[i]?.body);
       if (!body) {
         settled = false;
         continue;
       }
-      clampBodyVelocity(body, PHYSICS.maxLinVel, PHYSICS.maxAngVel);
+      clampBodyVelocity(body, latestTuning.dice.maxLinVel, latestTuning.dice.maxAngVel);
+      const p = body.translation();
+      const px = p.x;
+      const py = p.y;
+      const pz = p.z;
+      if (py < latestTuning.settle.fallThroughY || outsideTable({ x: px, z: pz })) {
+        respawnDieOnFelt(i, body);
+        settled = false;
+        continue;
+      }
       const lv = body.linvel();
+      const lvx = lv.x;
+      const lvy = lv.y;
+      const lvz = lv.z;
       const av = body.angvel();
-      const speed = Math.hypot(lv.x, lv.y, lv.z);
+      const speed = Math.hypot(lvx, lvy, lvz);
       const spin = Math.hypot(av.x, av.y, av.z);
-      const y = body.translation().y;
-      if (y < -0.5 || speed > PHYSICS.settleLinVel || spin > PHYSICS.settleAngVel) {
+      if (speed > latestTuning.settle.linearVelocity || spin > latestTuning.settle.angularVelocity) {
         settled = false;
         break;
       }
@@ -711,80 +739,51 @@ export default function DicePhysics({
 
     if (settled) {
       settleCountRef.current += 1;
-      if (settleCountRef.current >= PHYSICS.settleFrames) {
-        rollingRef.current = false;
-        settleCountRef.current = 0;
-        setSimRolling(false);
-        onRollingChangeRef.current?.(false);
-
-        const values: Die[] = [];
-        for (let i = 0; i < HAND_SIZE; i++) {
-          const body = dieRefs.current[i]?.body;
-          if (!body) {
-            values.push(diceRef.current[i] ?? 1);
-            continue;
-          }
-          const rot = body.rotation();
-          _quat.set(rot.x, rot.y, rot.z, rot.w);
-          values.push(readTopFace(_quat));
-          if (keepRef.current.includes(i)) {
-            body.setBodyType(RigidBodyType.Fixed, true);
-          }
-        }
-        onSettledRef.current(values);
-        resetToIdleInCup();
+      if (settleCountRef.current >= latestTuning.settle.frames) {
+        finishWithCurrentFaces();
       }
     } else {
       settleCountRef.current = 0;
-
-      const elapsed = performance.now() - releaseTimeRef.current;
-      if (elapsed > 3000 && cup && cupVisible) {
-        for (let i = 0; i < DICE_COUNT; i++) {
-          const rt = runtimeRef.current[i];
-          if (!rt?.visible || rt.locked) continue;
-          const body = dieRefs.current[i]?.body;
-          if (!body || !cup) continue;
-          const p = body.translation();
-          const t = cup.translation();
-          const r = cup.rotation();
-          if (isInsideCup(p, t, r)) {
-            body.applyImpulse({ x: 0, y: 0.08, z: 0 }, true);
-          }
-        }
-      }
     }
   });
 
   if (!active) return <TableColliders />;
 
   const cupBodyType: 'fixed' | 'kinematicPosition' =
-    cupPhase === 'dragging' || cupPhase === 'tipping' ? 'kinematicPosition' : 'fixed';
+    cupPhase === 'held' || cupPhase === 'pouring' ? 'kinematicPosition' : 'fixed';
+  const cupLid = cupPhase === 'idle' || cupPhase === 'held';
+  const cupGeometryKey = [
+    tuning.cup.radius,
+    tuning.cup.height,
+    tuning.cup.wallThickness,
+    tuning.cup.bottomThickness,
+    tuning.cup.rimInset,
+    tuning.cup.lidThickness,
+  ].join(':');
 
   return (
     <>
       <TableColliders />
       <KoozieBody
+        key={`cup-${cupGeometryKey}-${layoutGen}`}
         ref={koozieRef}
         bodyType={cupBodyType}
-        position={[...KOOZIE.home]}
+        position={homePosition(tuning)}
         visible={cupVisible}
-        ccd={cupPhase === 'dragging' || cupPhase === 'tipping'}
+        lid={cupLid}
+        ccd={cupPhase === 'held' || cupPhase === 'pouring'}
+        tuning={tuning}
         onGrabStart={cupPhase === 'idle' && canDrag ? handleKoozieGrab : undefined}
       />
       {runtime.map((rt, i) =>
         rt.visible ? (
           <DieBody
-            key={
-              rt.locked
-                ? `die-${i}-locked-${layoutGen}`
-                : `die-${i}-cup-${layoutGen}`
-            }
+            key={rt.locked ? `die-${i}-locked-${layoutGen}` : `die-${i}-dynamic-${layoutGen}`}
             ref={(el) => {
               dieRefs.current[i] = el;
             }}
-            locked={rt.locked || (rt.inCup && cupPhase === 'idle')}
-            driven={rt.inCup && cupPhase === 'dragging' && !rt.locked}
-            pickable={!(rt.inCup && (cupPhase === 'idle' || cupPhase === 'dragging'))}
+            locked={rt.locked}
+            pickable={!(rt.inCup && (cupPhase === 'idle' || cupPhase === 'held'))}
             position={rt.position}
             rotation={rt.rotation ?? randomRotation()}
           />

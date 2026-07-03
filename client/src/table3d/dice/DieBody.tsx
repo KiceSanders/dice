@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
 import PipDie from './PipDie';
-import { DIE_HALF, PHYSICS } from './constants';
+import { DIE_HALF } from './constants';
+import { useDicePhysicsTuning } from './tuning';
 
 export interface DieBodyHandle {
   body: RapierRigidBody | null;
@@ -22,6 +23,7 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
+  const tuning = useDicePhysicsTuning();
 
   useImperativeHandle(ref, () => ({
     get body() {
@@ -38,16 +40,16 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
       position={position}
       rotation={rotation}
       colliders={false}
-      linearDamping={PHYSICS.linearDamping}
-      angularDamping={PHYSICS.angularDamping}
+      linearDamping={tuning.dice.linearDamping}
+      angularDamping={tuning.dice.angularDamping}
       canSleep
       ccd={!locked && !driven}
     >
       <CuboidCollider
         args={[DIE_HALF * 0.96, DIE_HALF * 0.96, DIE_HALF * 0.96]}
-        friction={PHYSICS.dieFriction}
-        restitution={PHYSICS.dieRestitution}
-        density={PHYSICS.dieDensity}
+        friction={tuning.dice.friction}
+        restitution={tuning.dice.restitution}
+        density={tuning.dice.density}
       />
       <group raycast={pickable ? undefined : () => null}>
         <PipDie />
