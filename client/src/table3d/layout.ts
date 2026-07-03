@@ -15,6 +15,9 @@ export const TABLE = {
   surfaceY: 0,
 } as const;
 
+/** Vertical half-extent of the felt physics slab (top aligns with TABLE.surfaceY). */
+export const FELT_COLLIDER_HALF_Y = 0.045;
+
 /** Felt ellipse half-extents in world units (center → edge along each axis). */
 export const FELT_HALF_EXTENT = {
   x: FELT_SCALE.x * TABLE.feltRadius,
@@ -37,14 +40,12 @@ export const RAIL_OUTER_WORLD = RAIL_OUTER * RAIL_MESH_SCALE;
 /** Vertical rail bumper collider (world Y). */
 export const RAIL_COLLIDER_Y = TABLE.surfaceY + TABLE.railHeight * 0.5;
 export const RAIL_COLLIDER_H = TABLE.railHeight;
-export const RAIL_COLLIDER_SEGMENTS = 40;
 
 /** Invisible vertical containment — stops dice leaving the table. */
 export const TABLE_WALL_H = 1.4;
 export const TABLE_WALL_Y = TABLE.surfaceY + TABLE_WALL_H * 0.5;
 /** Place wall just outside the visible rail outer edge. */
 export const TABLE_WALL_OUTSET = 0.04;
-export const TABLE_WALL_SEGMENTS = 40;
 
 /** Outer edge of the padded rail (world units). */
 const RAIL_OUTER_X = FELT_SCALE.x * RAIL_OUTER;

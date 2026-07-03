@@ -1,4 +1,4 @@
-import { FELT_HALF_EXTENT, FELT_SCALE, RAIL_INNER_WORLD, TABLE } from '../layout';
+import { FELT_COLLIDER_HALF_Y, FELT_HALF_EXTENT, FELT_SCALE, RAIL_INNER_WORLD, TABLE } from '../layout';
 
 /** Edge length of each die in world units (~12 cm on a ~2 m table). */
 export const DIE_SIZE = 0.12;
@@ -6,14 +6,14 @@ export const DIE_HALF = DIE_SIZE / 2;
 
 export const DICE_COUNT = 5;
 
-/** Felt collider half-extents (slightly inset from visual rail). */
+/** Overhead safety collider half-extents (slightly inset from visual rail). */
 export const FELT_HALF_X = FELT_SCALE.x * TABLE.feltRadius * 0.92;
 export const FELT_HALF_Z = FELT_SCALE.z * TABLE.feltRadius * 0.92;
 
 /** Play area bound — inner rail ellipse (matches physics bumper). */
 export const FELT_BOUND_X = FELT_SCALE.x * RAIL_INNER_WORLD;
 export const FELT_BOUND_Z = FELT_SCALE.z * RAIL_INNER_WORLD;
-export const FELT_HALF_Y = 0.045;
+export const FELT_HALF_Y = FELT_COLLIDER_HALF_Y;
 
 /** Inset from felt edge when clamping hover positions. */
 export const FELT_CLAMP_MARGIN = 0.02;

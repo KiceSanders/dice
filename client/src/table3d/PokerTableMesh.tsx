@@ -1,4 +1,6 @@
-import { FELT_SCALE, RAIL_HIGHLIGHT_INNER, RAIL_HIGHLIGHT_OUTER, RAIL_HIGHLIGHT_SCALE, RAIL_INNER, RAIL_MESH_SCALE, RAIL_OUTER, TABLE } from './layout';
+import { useMemo } from 'react';
+import { FELT_SCALE, RAIL_HIGHLIGHT_SCALE, RAIL_MESH_SCALE, TABLE } from './layout';
+import { createFeltGeometry, createRailHighlightGeometry, createRailRingGeometry } from './tableGeometry';
 
 const FELT = '#1d6b3a';
 const RAIL = '#3a2a1a';
@@ -7,6 +9,9 @@ const RAIL_HIGHLIGHT = '#5c4228';
 /** Oval poker table: felt top and padded rail. */
 export default function PokerTableMesh() {
   const y = TABLE.surfaceY;
+  const feltGeometry = useMemo(() => createFeltGeometry(), []);
+  const railGeometry = useMemo(() => createRailRingGeometry(), []);
+  const railHighlightGeometry = useMemo(() => createRailHighlightGeometry(), []);
 
   return (
     <group>
@@ -16,7 +21,7 @@ export default function PokerTableMesh() {
         scale={[FELT_SCALE.x, FELT_SCALE.z, 1]}
         receiveShadow
       >
-        <circleGeometry args={[TABLE.feltRadius, 64]} />
+        <primitive object={feltGeometry} attach="geometry" />
         <meshStandardMaterial color={FELT} roughness={0.92} metalness={0.02} />
       </mesh>
 
@@ -26,7 +31,7 @@ export default function PokerTableMesh() {
         scale={[FELT_SCALE.x * RAIL_MESH_SCALE, FELT_SCALE.z * RAIL_MESH_SCALE, 1]}
         castShadow
       >
-        <ringGeometry args={[RAIL_INNER, RAIL_OUTER, 64]} />
+        <primitive object={railGeometry} attach="geometry" />
         <meshStandardMaterial color={RAIL} roughness={0.78} metalness={0.04} />
       </mesh>
 
@@ -36,7 +41,7 @@ export default function PokerTableMesh() {
         scale={[FELT_SCALE.x * RAIL_HIGHLIGHT_SCALE, FELT_SCALE.z * RAIL_HIGHLIGHT_SCALE, 1]}
         castShadow
       >
-        <ringGeometry args={[RAIL_HIGHLIGHT_INNER, RAIL_HIGHLIGHT_OUTER, 64]} />
+        <primitive object={railHighlightGeometry} attach="geometry" />
         <meshStandardMaterial color={RAIL_HIGHLIGHT} roughness={0.65} metalness={0.05} />
       </mesh>
     </group>
