@@ -10,13 +10,12 @@ import {
   stepHeldPose,
 } from './koozieMotion';
 import { KOOZIE } from './constants';
-import { FELT_HALF_EXTENT } from '../layout';
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 describe('koozieMotion', () => {
   it('createHomePose uses configured home position', () => {
     const home = createHomePose();
-    expect(home.position.z).toBeCloseTo(FELT_HALF_EXTENT.z * 0.47, 2);
+    expect(home.position.z).toBeCloseTo(DEFAULT_DICE_PHYSICS_TUNING.cup.homeZ, 2);
     expect(home.quaternion.w).toBeCloseTo(1, 2);
   });
 

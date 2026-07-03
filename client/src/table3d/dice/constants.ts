@@ -37,9 +37,9 @@ export const DIE_SCREEN_OFFSETS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 export const PHYSICS = {
-  gravity: [0, -55, 0] as [number, number, number],
-  dieFriction: 0.58,
-  dieRestitution: 0.28,
+  gravity: [0, -8, 0] as [number, number, number],
+  dieFriction: 0.22,
+  dieRestitution: 0.11,
   dieDensity: 2.4,
   tableFriction: 0.95,
   tableRestitution: 0.04,
@@ -48,8 +48,8 @@ export const PHYSICS = {
   /** Invisible outer wall — contain dice, minimal bounce. */
   wallFriction: 0.9,
   wallRestitution: 0.02,
-  linearDamping: 0.06,
-  angularDamping: 0.08,
+  linearDamping: 0,
+  angularDamping: 0,
   settleLinVel: 0.08,
   settleAngVel: 0.45,
   settleFrames: 18,
@@ -80,9 +80,9 @@ const KOOZIE_FLOAT_CENTER_Y = DICE_FELT_Y + 0.72;
 const KOOZIE_RIM_Y = KOOZIE_FLOAT_CENTER_Y + KOOZIE_HEIGHT * 0.5 - 0.03;
 
 export const KOOZIE = {
-  radius: 0.26,
+  radius: 0.27,
   height: KOOZIE_HEIGHT,
-  wallThickness: 0.06,
+  wallThickness: 0.075,
   wallSegments: 12,
   bottomThickness: 0.024,
   rimInset: 0.03,
@@ -90,7 +90,7 @@ export const KOOZIE = {
   restitution: 0.04,
   density: 1.2,
   floatCenterY: KOOZIE_FLOAT_CENTER_Y,
-  home: [0, KOOZIE_FLOAT_CENTER_Y, FELT_HALF_EXTENT.z * 0.47] as [number, number, number],
+  home: [0, KOOZIE_FLOAT_CENTER_Y, 0.62] as [number, number, number],
   /** Pointer raycast plane at the open rim — matches where the cup hangs from. */
   dragPlaneY: KOOZIE_RIM_Y,
   /** Rim follow speed — high enough to feel direct, low enough to filter pointer jitter. */
