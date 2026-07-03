@@ -111,6 +111,18 @@ export const KOOZIE = {
   tipDropY: 0.18,
   /** How far the cup rotates on release (open end toward the felt). */
   releaseTipAngle: 2.15,
+  /** Blend grip velocity into release sample (0–1). */
+  gripVelReleaseBlend: 0.4,
+  /** Horizontal speed below which pour falls back to default forward. */
+  pourSpeedThreshold: 0.3,
+  /** Speed (m/s) that maps to max velocity weight. */
+  pourSpeedFull: 2,
+  pourVelMin: 0.35,
+  pourVelMax: 0.75,
+  pourTilt: 0.45,
+  pourDown: 0.25,
+  /** Overlap factor for radial wall segment arc length. */
+  wallArcOverlap: 1.12,
   tiltDurationMs: 680,
   hitRadius: 0.34,
   /** Screen-space pickup radius in CSS pixels. */

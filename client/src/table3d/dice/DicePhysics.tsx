@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { RigidBodyType } from '@dimforge/rapier3d-compat';
 import type { Die } from '@dice/shared';
@@ -14,7 +14,7 @@ import {
   createDragStateFromPose,
   createHomePose,
   isInsideCup,
-  pourDirectionFromVelocity,
+  pourDirectionFromRelease,
   stepDragPose,
   tippingPoseAt,
   type KoozieDragState,
@@ -40,6 +40,12 @@ type DieRuntime = {
 };
 
 type Sample = { x: number; y: number; z: number; t: number };
+
+type CarriedDie = {
+  localPos: THREE.Vector3;
+  localQuat: THREE.Quaternion;
+};
+
 
 function quatToEuler(q: THREE.Quaternion): [number, number, number] {
   _euler.setFromQuaternion(q);
@@ -149,6 +155,54 @@ function sampleVelocity(samples: Sample[]): ThrowVelocity {
   };
 }
 
+function blendReleaseVelocity(samples: Sample[], gripVel: THREE.Vector3 | undefined): ThrowVelocity {
+  const sampled = sampleVelocity(samples);
+  const blend = KOOZIE.gripVelReleaseBlend;
+  return {
+    x: sampled.x + (gripVel?.x ?? 0) * blend,
+    y: sampled.y + (gripVel?.y ?? 0) * blend,
+    z: sampled.z + (gripVel?.z ?? 0) * blend,
+  };
+}
+
+function snapshotCarriedDice(
+  carried: Map<number, CarriedDie>,
+  runtime: DieRuntime[],
+  keepIndices: number[],
+) {
+  carried.clear();
+  const unkeptInCup = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => {
+    const rt = runtime[i];
+    return rt?.visible && rt.inCup && !keepIndices.includes(i);
+  });
+
+  for (const i of unkeptInCup) {
+    const rt = runtime[i]!;
+    const cupSlot = unkeptInCup.indexOf(i);
+    const local = spawnDiceInCupLocal(cupSlot, unkeptInCup.length);
+    const localPos = new THREE.Vector3(...local.position);
+    const rot = rt.rotation ?? local.rotation;
+    _euler.set(rot[0], rot[1], rot[2]);
+    const localQuat = new THREE.Quaternion().setFromEuler(_euler);
+    carried.set(i, { localPos, localQuat });
+  }
+}
+
+function syncCarriedDice(
+  carried: Map<number, CarriedDie>,
+  pose: { position: THREE.Vector3; quaternion: THREE.Quaternion },
+  refs: (DieBodyHandle | null)[],
+) {
+  for (const [i, { localPos, localQuat }] of carried) {
+    const body = refs[i]?.body;
+    if (!body) continue;
+    _vec.copy(localPos).applyQuaternion(pose.quaternion).add(pose.position);
+    _quat.copy(pose.quaternion).multiply(localQuat);
+    body.setNextKinematicTranslation({ x: _vec.x, y: _vec.y, z: _vec.z });
+    body.setNextKinematicRotation({ x: _quat.x, y: _quat.y, z: _quat.z, w: _quat.w });
+  }
+}
+
 function cupCenterNow(cup: KoozieBodyHandle['body']): readonly [number, number, number] {
   if (!cup) return KOOZIE.home;
   const t = cup.translation();
@@ -226,6 +280,7 @@ export default function DicePhysics({
   const moveSamples = useRef<Sample[]>([]);
   const spillNudgeMsRef = useRef(0);
   const layoutGenRef = useRef(0);
+  const carriedDiceRef = useRef<Map<number, CarriedDie>>(new Map());
 
   const [cupPhase, setCupPhase] = useState<CupPhase>(active && canDrag ? 'idle' : 'hidden');
   const [cupVisible, setCupVisible] = useState(active && canDrag);
@@ -261,6 +316,7 @@ export default function DicePhysics({
     dragStateRef.current = null;
     tippingRef.current = null;
     spillNudgeMsRef.current = 0;
+    carriedDiceRef.current.clear();
 
     const cup = koozieRef.current?.body;
     if (cup && cupMode) {
@@ -304,35 +360,43 @@ export default function DicePhysics({
     (e: PointerEvent) => {
       if (!draggingRef.current || e.button !== 0) return;
       recordSample(e.clientX, e.clientY);
-      const velocity = sampleVelocity(moveSamples.current);
+      const dragState = dragStateRef.current;
+      const pose = dragState?.pose;
+      const velocity = blendReleaseVelocity(moveSamples.current, dragState?.gripVel);
+      const releaseSpeed = Math.hypot(velocity.x, velocity.z);
       const cup = koozieRef.current?.body;
 
-      if (cup) {
-        const state = dragStateRef.current;
-        const pose = state?.pose;
-        if (pose) {
-          const pourDir = pourDirectionFromVelocity(velocity);
-          cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
-          tippingRef.current = {
-            origin: pose.position.clone(),
-            from: pose.quaternion.clone(),
-            to: computeReleaseTiltTarget(pose, velocity),
-            pourDir,
-            startMs: performance.now(),
-          };
-          const tipPose = tippingPoseAt(tippingRef.current, performance.now()).pose;
-          cup.setNextKinematicTranslation({ x: tipPose.position.x, y: tipPose.position.y, z: tipPose.position.z });
-          cup.setNextKinematicRotation({
-            x: tipPose.quaternion.x,
-            y: tipPose.quaternion.y,
-            z: tipPose.quaternion.z,
-            w: tipPose.quaternion.w,
-          });
-        }
+      let pourDir = new THREE.Vector3(0, -1, 0);
+      if (pose) {
+        pourDir = pourDirectionFromRelease(pose, velocity, dragState?.gripVel);
       }
 
+      if (cup && pose) {
+        cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
+        tippingRef.current = {
+          origin: pose.position.clone(),
+          from: pose.quaternion.clone(),
+          to: computeReleaseTiltTarget(pose, pourDir),
+          pourDir,
+          releaseSpeed,
+          startMs: performance.now(),
+        };
+        const tipPose = tippingPoseAt(tippingRef.current, performance.now()).pose;
+        cup.setNextKinematicTranslation({ x: tipPose.position.x, y: tipPose.position.y, z: tipPose.position.z });
+        cup.setNextKinematicRotation({
+          x: tipPose.quaternion.x,
+          y: tipPose.quaternion.y,
+          z: tipPose.quaternion.z,
+          w: tipPose.quaternion.w,
+        });
+      }
+
+      if (pose && carriedDiceRef.current.size > 0) {
+        syncCarriedDice(carriedDiceRef.current, pose, dieRefs.current);
+      }
+      carriedDiceRef.current.clear();
       wakeUnkeptDice();
-      nudgeDiceOutOfCup(dieRefs.current, runtimeRef.current, pourDirectionFromVelocity(velocity));
+      nudgeDiceOutOfCup(dieRefs.current, runtimeRef.current, pourDir);
 
       rollingRef.current = true;
       rollStartRef.current = performance.now();
@@ -371,9 +435,8 @@ export default function DicePhysics({
           position: new THREE.Vector3(t.x, t.y, t.z),
           quaternion: _quat.clone(),
         });
+        snapshotCarriedDice(carriedDiceRef.current, runtimeRef.current, keepRef.current);
       }
-
-      wakeUnkeptDice();
 
       draggingRef.current = true;
       cupPhaseRef.current = 'dragging';
@@ -381,7 +444,7 @@ export default function DicePhysics({
       setCupPhase('dragging');
       onDragChangeRef.current?.(true);
     },
-    [recordSample, wakeUnkeptDice],
+    [recordSample],
   );
 
   const handleKoozieGrab = useCallback(
@@ -468,6 +531,13 @@ export default function DicePhysics({
     };
   }, [dragging, finishDrag, recordSample]);
 
+  useLayoutEffect(() => {
+    if (cupPhase !== 'dragging') return;
+    const pose = dragStateRef.current?.pose;
+    if (!pose || carriedDiceRef.current.size === 0) return;
+    syncCarriedDice(carriedDiceRef.current, pose, dieRefs.current);
+  }, [cupPhase]);
+
   useEffect(() => {
     if (!active) {
       rollingRef.current = false;
@@ -510,7 +580,7 @@ export default function DicePhysics({
       for (const { rt, i } of unkept) {
         const body = dieRefs.current[i]?.body;
         if (!body) continue;
-        body.setBodyType(RigidBodyType.Dynamic, true);
+        body.setBodyType(rt.inCup ? RigidBodyType.Fixed : RigidBodyType.Dynamic, true);
         body.setTranslation({ x: rt.position[0], y: rt.position[1], z: rt.position[2] }, true);
         if (rt.rotation) {
           _euler.set(rt.rotation[0], rt.rotation[1], rt.rotation[2]);
@@ -561,6 +631,7 @@ export default function DicePhysics({
           z: pose.quaternion.z,
           w: pose.quaternion.w,
         });
+        syncCarriedDice(carriedDiceRef.current, pose, dieRefs.current);
       }
       return;
     }
@@ -712,7 +783,8 @@ export default function DicePhysics({
               dieRefs.current[i] = el;
             }}
             locked={rt.locked || (rt.inCup && cupPhase === 'idle')}
-            pickable={!(rt.inCup && cupPhase === 'idle')}
+            driven={rt.inCup && cupPhase === 'dragging' && !rt.locked}
+            pickable={!(rt.inCup && (cupPhase === 'idle' || cupPhase === 'dragging'))}
             position={rt.position}
             rotation={rt.rotation ?? randomRotation()}
           />

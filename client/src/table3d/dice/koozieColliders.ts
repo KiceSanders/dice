@@ -22,7 +22,7 @@ export function koozieWallSegments(): WallSegment[] {
     segments.push({
       position: [x, wallCenterY, z],
       rotation: [0, -angle + Math.PI / 2, 0],
-      halfExtents: [wallThickness * 0.5, wallHalfH, arcLen * 0.5],
+      halfExtents: [wallThickness * 0.5, wallHalfH, arcLen * 0.5 * KOOZIE.wallArcOverlap],
     });
   }
   return segments;

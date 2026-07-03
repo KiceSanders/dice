@@ -4,6 +4,7 @@ import {
   computeReleaseTiltTarget,
   createDragState,
   createHomePose,
+  pourDirectionFromRelease,
   pourDirectionFromVelocity,
   stepDragPose,
   tippingPoseAt,
@@ -73,14 +74,44 @@ describe('kooziePose', () => {
     expect(tilt).toBeLessThanOrEqual(KOOZIE.maxDragTilt + 0.02);
   });
 
-  it('computeReleaseTiltTarget tips open end toward the felt', () => {
+  it('pourDirectionFromRelease differs for opposing horizontal flicks', () => {
     const home = createHomePose();
-    const target = computeReleaseTiltTarget(home, { x: 2, y: 0, z: 0 });
-    const up = new THREE.Vector3(0, 1, 0);
-    const openDir = new THREE.Vector3(0, 1, 0).applyQuaternion(target);
-    expect(up.dot(openDir)).toBeLessThan(0.15);
-    expect(openDir.y).toBeLessThan(-0.5);
-    expect(openDir.z).toBeGreaterThan(0.2);
+    const right = pourDirectionFromRelease(home, { x: 3, y: 0, z: 0 });
+    const left = pourDirectionFromRelease(home, { x: -3, y: 0, z: 0 });
+    const back = pourDirectionFromRelease(home, { x: 0, y: 0, z: -3 });
+
+    expect(right.dot(left)).toBeLessThan(0.85);
+    expect(right.dot(back)).toBeLessThan(0.85);
+    expect(left.dot(back)).toBeLessThan(0.85);
+  });
+
+  it('pourDirectionFromRelease shifts with cup tilt at same velocity', () => {
+    const home = createHomePose();
+    const slowVel = { x: 0, y: 0, z: 0 };
+    const upright = pourDirectionFromRelease(home, slowVel);
+
+    const tiltedPose = {
+      position: home.position.clone(),
+      quaternion: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), KOOZIE.maxDragTilt),
+    };
+    const tiltedPour = pourDirectionFromRelease(tiltedPose, slowVel);
+
+    const delta = Math.hypot(
+      tiltedPour.x - upright.x,
+      tiltedPour.y - upright.y,
+      tiltedPour.z - upright.z,
+    );
+    expect(delta).toBeGreaterThan(0.08);
+  });
+
+  it('computeReleaseTiltTarget rotates open end toward pour direction', () => {
+    const home = createHomePose();
+    const pourDir = pourDirectionFromRelease(home, { x: 2, y: 0, z: 0 });
+    const target = computeReleaseTiltTarget(home, pourDir);
+    const openBefore = new THREE.Vector3(0, 1, 0).applyQuaternion(home.quaternion);
+    const openAfter = new THREE.Vector3(0, 1, 0).applyQuaternion(target);
+    expect(openAfter.dot(pourDir)).toBeGreaterThan(openBefore.dot(pourDir));
+    expect(openAfter.dot(pourDir)).toBeGreaterThan(0.4);
   });
 
   it('tippingPoseAt lowers cup while tipping', () => {
@@ -89,8 +120,9 @@ describe('kooziePose', () => {
     const state = {
       origin: home.position.clone(),
       from: home.quaternion.clone(),
-      to: computeReleaseTiltTarget(home, { x: 1, y: 0, z: 0 }),
+      to: computeReleaseTiltTarget(home, pourDir),
       pourDir,
+      releaseSpeed: 2,
       startMs: 0,
     };
     const { pose } = tippingPoseAt(state, 680);

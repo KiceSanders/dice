@@ -185,24 +185,58 @@ export type TippingState = {
   to: THREE.Quaternion;
   /** World direction the open end should point at full pour. */
   pourDir: THREE.Vector3;
+  /** Horizontal release speed — scales tip slide distance. */
+  releaseSpeed: number;
   startMs: number;
 };
 
-/** Down + toward the player (+Z) — dice exit over the near rim. */
-export function pourDirectionFromVelocity(velocity: ThrowVelocity): THREE.Vector3 {
+/** Cup local +Y (open rim) in world space. */
+export function openAxisFromPose(pose: KooziePose): THREE.Vector3 {
+  return _scratch.set(0, 1, 0).applyQuaternion(pose.quaternion).clone();
+}
+
+/** Blend release velocity, current cup tilt, and downward pull into a pour direction. */
+export function pourDirectionFromRelease(
+  pose: KooziePose,
+  velocity: ThrowVelocity,
+  gripVel?: THREE.Vector3,
+): THREE.Vector3 {
+  const vx = velocity.x + (gripVel?.x ?? 0) * KOOZIE.gripVelReleaseBlend;
+  const vz = velocity.z + (gripVel?.z ?? 0) * KOOZIE.gripVelReleaseBlend;
+  const speed = Math.hypot(vx, vz);
+
+  const velocityHoriz =
+    speed >= KOOZIE.pourSpeedThreshold
+      ? _axis.set(vx, 0, vz).normalize()
+      : _axis.set(0, 0, 1);
+
+  const tiltDir = openAxisFromPose(pose);
+  const wVel = THREE.MathUtils.clamp(speed / KOOZIE.pourSpeedFull, KOOZIE.pourVelMin, KOOZIE.pourVelMax);
+
   return new THREE.Vector3(
-    THREE.MathUtils.clamp(velocity.x * 0.05, -0.22, 0.22),
-    -0.96,
-    THREE.MathUtils.clamp(0.58 + velocity.z * 0.04, 0.32, 0.82),
+    velocityHoriz.x * wVel + tiltDir.x * KOOZIE.pourTilt,
+    velocityHoriz.y * wVel + tiltDir.y * KOOZIE.pourTilt - KOOZIE.pourDown,
+    velocityHoriz.z * wVel + tiltDir.z * KOOZIE.pourTilt,
   ).normalize();
 }
 
-/** Target rotation: open end points down toward the felt (not just a partial drag-axis tilt). */
-export function computeReleaseTiltTarget(pose: KooziePose, velocity: ThrowVelocity): THREE.Quaternion {
-  const pour = pourDirectionFromVelocity(velocity);
-  const target = new THREE.Quaternion().setFromUnitVectors(_up, pour);
-  // Continue from drag pose but finish at a full pour (past horizontal).
-  return pose.quaternion.clone().slerp(target, 0.92);
+/** @deprecated Use pourDirectionFromRelease */
+export function pourDirectionFromVelocity(velocity: ThrowVelocity): THREE.Vector3 {
+  return pourDirectionFromRelease(createHomePose(), velocity);
+}
+
+/** Rotate from current pose so the open end tips toward pourDir by up to releaseTipAngle. */
+export function computeReleaseTiltTarget(pose: KooziePose, pourDir: THREE.Vector3): THREE.Quaternion {
+  const openAxis = openAxisFromPose(pose);
+  const axis = new THREE.Vector3().crossVectors(openAxis, pourDir);
+  if (axis.lengthSq() < 1e-8) {
+    return pose.quaternion.clone();
+  }
+  axis.normalize();
+  const angle = Math.acos(THREE.MathUtils.clamp(openAxis.dot(pourDir), -1, 1));
+  const step = Math.min(angle, KOOZIE.releaseTipAngle);
+  const delta = new THREE.Quaternion().setFromAxisAngle(axis, step);
+  return delta.multiply(pose.quaternion);
 }
 
 /** Kinematic tip — lowers slightly while rotating so dice can fall out. */
@@ -211,7 +245,7 @@ export function tippingPoseAt(state: TippingState, nowMs: number): { pose: Koozi
   const eased = u * u * (3 - 2 * u);
   const q = state.from.clone().slerp(state.to, eased);
   const drop = eased * KOOZIE.tipDropY;
-  const slide = eased * 0.1;
+  const slide = eased * (0.08 + Math.min(state.releaseSpeed * 0.04, 0.12));
   return {
     progress: u,
     pose: {

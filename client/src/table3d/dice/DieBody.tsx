@@ -9,6 +9,8 @@ export interface DieBodyHandle {
 
 interface Props {
   locked: boolean;
+  /** Kinematic body driven each frame (e.g. carried inside a moving cup). */
+  driven?: boolean;
   /** When false, pointer rays pass through to the koozie pick mesh. */
   pickable?: boolean;
   position: [number, number, number];
@@ -16,7 +18,7 @@ interface Props {
 }
 
 const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
-  { locked, pickable = true, position, rotation },
+  { locked, driven = false, pickable = true, position, rotation },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -27,17 +29,19 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
     },
   }));
 
+  const bodyType = driven ? 'kinematicPosition' : locked ? 'fixed' : 'dynamic';
+
   return (
     <RigidBody
       ref={bodyRef}
-      type={locked ? 'fixed' : 'dynamic'}
+      type={bodyType}
       position={position}
       rotation={rotation}
       colliders={false}
       linearDamping={PHYSICS.linearDamping}
       angularDamping={PHYSICS.angularDamping}
       canSleep
-      ccd={!locked}
+      ccd={!locked && !driven}
     >
       <CuboidCollider
         args={[DIE_HALF * 0.96, DIE_HALF * 0.96, DIE_HALF * 0.96]}
