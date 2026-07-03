@@ -72,6 +72,43 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'turn:roll', keepIndices: [0, 1, 2, 3, 4] })).toMatchObject({ ok: true });
   });
 
+  it('validates turn:throwStart keepIndices like turn:roll', () => {
+    expect(parse({ type: 'turn:throwStart', keepIndices: [] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [0, 3] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [5] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwStart' })).toMatchObject({ ok: false });
+  });
+
+  it('validates turn:throwResult dice', () => {
+    expect(parse({ type: 'turn:throwResult', dice: [1, 2, 3, 4, 5] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:throwResult', dice: [1, 2, 3, 4] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwResult', dice: [0, 2, 3, 4, 5] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwResult', dice: [1, 2, 3, 4, 7] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwResult', dice: [1, 2, 3, 4, 5.5] })).toMatchObject({
+      ok: false,
+    });
+    expect(parse({ type: 'turn:throwResult' })).toMatchObject({ ok: false });
+  });
+
+  it('validates dice:frames pose batches', () => {
+    const pose = [0, 0.1, 0, 0, 0, 0, 1];
+    const frame = { t: 16, bodies: [pose, pose, pose, pose, pose, pose] };
+    expect(parse({ type: 'dice:frames', frames: [frame] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'dice:frames', frames: [] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'dice:frames', frames: Array(11).fill(frame) })).toMatchObject({
+      ok: false,
+    });
+    expect(
+      parse({ type: 'dice:frames', frames: [{ t: 0, bodies: [[1, 2, 3]] }] }),
+    ).toMatchObject({ ok: false });
+    expect(
+      parse({ type: 'dice:frames', frames: [{ t: 0, bodies: Array(9).fill(pose) }] }),
+    ).toMatchObject({ ok: false });
+    expect(
+      parse({ type: 'dice:frames', frames: [{ t: 'now', bodies: [pose] }] }),
+    ).toMatchObject({ ok: false });
+  });
+
   it('validates payload-less messages', () => {
     expect(parse({ type: 'game:start' })).toMatchObject({ ok: true });
     expect(parse({ type: 'turn:stand' })).toMatchObject({ ok: true });

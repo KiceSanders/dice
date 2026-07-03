@@ -38,3 +38,5 @@ Tradeoffs, follow-ups, what we explicitly did *not* do.
 |-----|-------|
 | [001](./001-shared-geometry-physics-colliders.md) | Shared geometry for table and koozie physics colliders |
 | [002](./002-rapier-physics-stack.md) | Rapier via `@react-three/rapier` for 3D dice |
+| [003](./003-3d-round-play-visual-flow.md) | 3D round-play visual flow (Playground selecting phase) |
+| [004](./004-physics-authoritative-rolls.md) | Physics-authoritative rolls with live pose streaming |

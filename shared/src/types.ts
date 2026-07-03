@@ -9,6 +9,22 @@ export type RoomId = string;
 /** A single die face. */
 export type Die = 1 | 2 | 3 | 4 | 5 | 6;
 
+/** One rigid-body pose on the wire: [x, y, z, qx, qy, qz, qw]. */
+export type BodyPose = [number, number, number, number, number, number, number];
+
+/**
+ * One sampled moment of a live physics throw, streamed by the roller and
+ * relayed verbatim to spectators (ADR 004). Ephemeral — never persisted.
+ */
+export interface PoseFrame {
+  /** Ms since the roller started streaming this throw. */
+  t: number;
+  /** Koozie pose first, then one pose per die in hand-index order. */
+  bodies: BodyPose[];
+  /** False once the cup is set down out of view (settling/selecting). */
+  cupVisible?: boolean;
+}
+
 export type StraightKind = 'none' | 'little' | 'big';
 
 export interface StraightBonusConfig {
@@ -85,6 +101,8 @@ export interface TurnState {
   rollCap: number;
   /** Epoch ms when the turn auto-stands. */
   deadline: number;
+  /** True while a physics throw is in flight (throwStart → throwResult, ADR 004). */
+  throwing: boolean;
 }
 
 export interface SubRoundState {

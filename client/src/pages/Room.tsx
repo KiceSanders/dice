@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
+import { useRemoteRoll } from '../game/useRemoteRoll';
+import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import ConnectionBanner from '../components/ConnectionBanner';
@@ -16,7 +18,7 @@ import ChatPanel from '../components/ChatPanel';
 
 export default function Room() {
   const { roomId = '' } = useParams();
-  const { state, send, dispatch } = useApp();
+  const { state, send, dispatch, ws } = useApp();
   const [name, setName] = useState(loadName() ?? '');
   const [nameConfirmed, setNameConfirmed] = useState(() => Boolean(loadName()));
   const [copied, setCopied] = useState(false);
@@ -24,6 +26,11 @@ export default function Room() {
   const alreadyInRoom = state.roomId === roomId && state.me !== null;
   const joinSentRef = useRef(false);
   const connected = state.connection === 'open';
+
+  // 3D physics roll for the active roller; streamed playback of everyone
+  // else's throws, with passive slot dice when no stream arrived (ADR 004).
+  const roll3d = useTableRoll(state.snapshot, state.me?.playerId ?? null, send, connected);
+  const remoteRoll = useRemoteRoll(ws, state.snapshot, state.me?.playerId ?? null);
 
   useEffect(() => {
     document.title = roomId ? `Room ${roomId} — Dice` : 'Dice';
@@ -159,9 +166,24 @@ export default function Room() {
         myId={myId}
         onKick={(playerId) => send({ type: 'player:kick', playerId })}
         winnerId={state.roundEnd?.winnerId ?? null}
+        dice={roll3d.tableDice ?? (remoteRoll.live ? undefined : roll3d.passiveDice)}
+        remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
+        diceAiming={roll3d.diceAiming}
+        onTablePointer={roll3d.onTablePointer}
       />
 
-      {inGame && <GameArea snapshot={snapshot} myId={myId} lastRoll={state.lastRoll} />}
+      {inGame && (
+        <GameArea
+          snapshot={snapshot}
+          myId={myId}
+          lastRoll={state.lastRoll}
+          hide2DDice
+          mouseThrow={roll3d.active}
+          pendingKeep={roll3d.pendingKeep}
+          onPendingKeepChange={roll3d.setPendingKeep}
+          turnActions={roll3d.turnActions}
+        />
+      )}
 
       <section className="room-controls">
         {snapshot.phase === 'lobby' &&

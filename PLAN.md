@@ -118,7 +118,7 @@ Hand A beats hand B if, in order:
 
 ## WebSocket Protocol (contract — defined in `shared/src/protocol.ts`)
 
-All messages are JSON: `{ "type": string, ...payload }`. The server is authoritative; the client never computes outcomes.
+All messages are JSON: `{ "type": string, ...payload }`. The server is authoritative over game state; dice values come from the roller's physics sim with a server RNG fallback (ADR 004), or from server RNG on the legacy `turn:roll` path.
 
 ### Client → Server
 
@@ -131,7 +131,10 @@ All messages are JSON: `{ "type": string, ...payload }`. The server is authorita
 | `player:kick` | `{ playerId }` | Host only |
 | `settings:update` | `{ settings }` | Host only, between rounds only |
 | `game:start` | `{}` | Host only, ≥2 seated players |
-| `turn:roll` | `{ keepIndices: number[] }` | Roll non-kept dice |
+| `turn:roll` | `{ keepIndices: number[] }` | Roll non-kept dice (server RNG; legacy/2D fallback) |
+| `turn:throwStart` | `{ keepIndices: number[] }` | Physics roll begins (koozie released); locks keeps (ADR 004) |
+| `turn:throwResult` | `{ dice: Die[] }` | Faces read from the roller's settled sim; kept positions must be unchanged |
+| `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed to the room, never persisted |
 | `turn:stand` | `{}` | End turn with current hand |
 | `chat:send` | `{ text }` | Max 500 chars |
 
@@ -144,6 +147,8 @@ All messages are JSON: `{ "type": string, ...payload }`. The server is authorita
 | `room:state` | `{ snapshot }` | Full authoritative snapshot, pushed after **every** state change |
 | `seat:requested` | `{ playerId, playerName, buyIn }` | Sent to host |
 | `turn:rolled` | `{ playerId, dice, rollNumber, kept }` | Triggers koozie animation client-side |
+| `turn:throwStarted` | `{ playerId, kept, rollNumber }` | A physics throw is in flight (ADR 004) |
+| `dice:frames` | `{ playerId, frames }` | Relay of the roller's throw poses |
 | `round:ended` | `{ winnerId, potWon, scores }` | |
 | `subround:started` | `{ tiedPlayerIds, anteAmount, depth }` | |
 | `bonus:awarded` | `{ playerId, amount, kind: 'little'\|'big', target: 'pot'\|'direct', streak }` | |

@@ -1,6 +1,8 @@
 /**
  * WebSocket message contracts. All messages are JSON: { type, ...payload }.
- * The server is authoritative; the client never computes game outcomes.
+ * The server is authoritative over game state; dice values come from the
+ * current roller's physics sim (turn:throwResult, ADR 004) with a server-side
+ * RNG fallback, or from server RNG on the legacy turn:roll path.
  * Keep this file in sync with the protocol tables in PLAN.md.
  */
 
@@ -8,6 +10,7 @@ import type {
   Die,
   HandScore,
   PlayerId,
+  PoseFrame,
   RoomId,
   RoomSettings,
   RoomSnapshot,
@@ -28,6 +31,12 @@ export type ClientMessage =
   | { type: 'settings:update'; settings: RoomSettings }
   | { type: 'game:start' }
   | { type: 'turn:roll'; keepIndices: number[] }
+  /** Physics roll, phase 1: koozie released. Locks the keep set (ADR 004). */
+  | { type: 'turn:throwStart'; keepIndices: number[] }
+  /** Physics roll, phase 2: the sim settled on these faces. */
+  | { type: 'turn:throwResult'; dice: Die[] }
+  /** Live throw poses; relayed to everyone else in the room, never persisted. */
+  | { type: 'dice:frames'; frames: PoseFrame[] }
   | { type: 'turn:stand' }
   | { type: 'chat:send'; text: string };
 
@@ -53,6 +62,10 @@ export type ServerMessage =
   | { type: 'seat:requested'; playerId: PlayerId; playerName: string; buyIn: number }
   | { type: 'seat:denied' }
   | { type: 'turn:rolled'; playerId: PlayerId; dice: Die[]; rollNumber: number; kept: number[] }
+  /** A physics throw is in flight; final values arrive via turn:rolled. */
+  | { type: 'turn:throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
+  /** Relay of the current roller's throw poses (ADR 004). */
+  | { type: 'dice:frames'; playerId: PlayerId; frames: PoseFrame[] }
   | {
       type: 'round:ended';
       winnerId: PlayerId;

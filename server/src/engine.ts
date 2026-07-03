@@ -29,6 +29,7 @@ export interface EnginePlayer {
 
 export type EngineEvent =
   | { type: 'roundStarted'; roundNumber: number; antes: { playerId: PlayerId; amount: number }[] }
+  | { type: 'throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   | { type: 'rolled'; playerId: PlayerId; dice: Die[]; rollNumber: number; kept: number[] }
   | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
   | {
@@ -65,10 +66,17 @@ export interface EngineOptions {
   rng?: Rng;
   turnTimeoutMs?: number;
   roundEndDelayMs?: number;
+  throwTimeoutMs?: number;
 }
 
 export const TURN_TIMEOUT_MS = 60_000;
 export const ROUND_END_DELAY_MS = 5_000;
+/**
+ * Grace period for the roller's client to report a physics result after
+ * turn:throwStart (ADR 004). Client-side settle timeout is 10s; past this the
+ * server rolls with its own rng so a dead client cannot stall the game.
+ */
+export const THROW_TIMEOUT_MS = 15_000;
 /** Beyond this sub-round depth, antes stop and sudden-death single rolls decide it. */
 export const MAX_SUBROUND_DEPTH = 10;
 
@@ -127,11 +135,16 @@ export class GameEngine {
   /** Consecutive turns (any player) ending in a straight; resets on a non-straight. */
   private straightStreak = 0;
 
+  /** In-flight physics throw (ADR 004): keeps locked at throwStart. */
+  private pendingThrow: { playerId: PlayerId; keepIndices: number[] } | null = null;
+
   private readonly rng: Rng;
   private readonly turnTimeoutMs: number;
   private readonly roundEndDelayMs: number;
+  private readonly throwTimeoutMs: number;
   private turnTimer: NodeJS.Timeout | null = null;
   private roundTimer: NodeJS.Timeout | null = null;
+  private throwTimer: NodeJS.Timeout | null = null;
   /** True for recovered engines until a player reconnects (PLAN.md 6.2). */
   private paused = false;
 
@@ -144,6 +157,7 @@ export class GameEngine {
     this.rng = opts.rng ?? cryptoRng;
     this.turnTimeoutMs = opts.turnTimeoutMs ?? TURN_TIMEOUT_MS;
     this.roundEndDelayMs = opts.roundEndDelayMs ?? ROUND_END_DELAY_MS;
+    this.throwTimeoutMs = opts.throwTimeoutMs ?? THROW_TIMEOUT_MS;
   }
 
   start(): void {
@@ -236,6 +250,7 @@ export class GameEngine {
 
   private nextTurn(): void {
     this.clearTurnTimer();
+    this.clearPendingThrow();
     const player = this.queue.shift();
     if (!player) {
       this.endRound();
@@ -307,6 +322,7 @@ export class GameEngine {
   roll(playerId: PlayerId, keepIndices: number[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
+    if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
 
     if (turn.dice === null) {
       // First roll: nothing to keep yet.
@@ -338,9 +354,98 @@ export class GameEngine {
     return null;
   }
 
+  /**
+   * Physics roll, phase 1 (ADR 004): the roller released the koozie. Locks
+   * the keep set and waits for `commitThrow`. If the result never arrives,
+   * `expireThrow` falls back to a server-side roll so the game cannot stall.
+   */
+  beginThrow(playerId: PlayerId, keepIndices: number[]): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is already in flight');
+
+    if (turn.dice === null) {
+      if (keepIndices.length > 0) return err('BAD_REQUEST', 'nothing to keep on the first roll');
+    } else {
+      const valid = this.validateKeep(turn, keepIndices);
+      if (valid) return valid;
+      if (keepIndices.length === HAND_SIZE) {
+        return err('BAD_REQUEST', 'all dice kept — stand instead');
+      }
+    }
+
+    this.pendingThrow = { playerId, keepIndices: [...keepIndices] };
+    this.throwTimer = setTimeout(() => this.expireThrow(), this.throwTimeoutMs);
+    this.throwTimer.unref?.();
+    this.emit({
+      type: 'throwStarted',
+      playerId,
+      kept: [...keepIndices],
+      rollNumber: turn.rollsUsed + 1,
+    });
+    this.emit({ type: 'stateChanged' });
+    return null;
+  }
+
+  /**
+   * Physics roll, phase 2: the roller's sim settled on these faces. Kept
+   * positions must be unchanged — that plus the range check is the entire
+   * integrity check available under client-reported rolls. Applying the dice
+   * verbatim stays replay-compatible: the logged `rolled` event feeds back
+   * through `roll()`/`keepAndReroll`, which reproduces it exactly.
+   */
+  commitThrow(playerId: PlayerId, dice: Die[]): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    const pending = this.pendingThrow;
+    if (!pending || pending.playerId !== playerId) {
+      return err('BAD_REQUEST', 'no throw in flight');
+    }
+    if (dice.length !== HAND_SIZE) return err('BAD_REQUEST', `expected ${HAND_SIZE} dice`);
+    if (!dice.every((d) => Number.isInteger(d) && d >= 1 && d <= 6)) {
+      return err('BAD_REQUEST', 'dice must be integers in [1, 6]');
+    }
+    if (turn.dice !== null) {
+      for (const i of pending.keepIndices) {
+        if (dice[i] !== turn.dice[i]) return err('BAD_REQUEST', 'kept dice cannot change value');
+      }
+    }
+
+    this.clearPendingThrow();
+    turn.dice = [...dice];
+    turn.rollsUsed += 1;
+    turn.keptIndices = [...pending.keepIndices];
+    this.emit({
+      type: 'rolled',
+      playerId,
+      dice: [...turn.dice],
+      rollNumber: turn.rollsUsed,
+      kept: [...turn.keptIndices],
+    });
+
+    if (turn.rollsUsed >= turn.rollCap) return this.stand(playerId);
+    this.emit({ type: 'stateChanged' });
+    return null;
+  }
+
+  /** Throw result never arrived (crash/disconnect mid-throw): server rolls instead. */
+  private expireThrow(): void {
+    const pending = this.pendingThrow;
+    if (!pending) return;
+    this.clearPendingThrow();
+    this.roll(pending.playerId, pending.keepIndices);
+  }
+
+  private clearPendingThrow(): void {
+    if (this.throwTimer) clearTimeout(this.throwTimer);
+    this.throwTimer = null;
+    this.pendingThrow = null;
+  }
+
   stand(playerId: PlayerId): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
+    if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
     if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
 
     const score = this.scoreFor(turn);
@@ -391,6 +496,8 @@ export class GameEngine {
   forceStand(playerId: PlayerId): void {
     const turn = this.currentTurn;
     if (!turn || turn.playerId !== playerId) return;
+    // A pending physics result is abandoned; the auto-stand outcome wins.
+    this.clearPendingThrow();
     if (turn.dice === null) {
       turn.dice = rollDice(HAND_SIZE, this.rng);
       turn.rollsUsed = 1;
@@ -438,6 +545,7 @@ export class GameEngine {
           rollsUsed: this.currentTurn.rollsUsed,
           rollCap: this.currentTurn.rollCap,
           deadline: this.currentTurn.deadline,
+          throwing: this.pendingThrow !== null,
         }
       : null;
 
@@ -490,6 +598,7 @@ export class GameEngine {
   pause(): void {
     this.paused = true;
     this.clearTurnTimer();
+    this.clearPendingThrow();
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;
   }
@@ -519,6 +628,7 @@ export class GameEngine {
 
   stop(): void {
     this.clearTurnTimer();
+    this.clearPendingThrow();
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;
   }

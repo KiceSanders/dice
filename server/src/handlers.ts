@@ -34,6 +34,24 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
     return error !== null;
   }
 
+  /**
+   * dice:frames budget: a healthy roller sends ~10 msgs/s (20 Hz poses,
+   * batched); anything past this is dropped without relaying.
+   */
+  const FRAME_MSGS_PER_SECOND = 40;
+  const frameBudgets = new WeakMap<Connection, { windowStart: number; count: number }>();
+
+  function withinFrameBudget(conn: Connection): boolean {
+    const now = Date.now();
+    const budget = frameBudgets.get(conn);
+    if (!budget || now - budget.windowStart >= 1_000) {
+      frameBudgets.set(conn, { windowStart: now, count: 1 });
+      return true;
+    }
+    budget.count += 1;
+    return budget.count <= FRAME_MSGS_PER_SECOND;
+  }
+
   return {
     'room:create': (conn, msg) => {
       if (conn.roomId) {
@@ -126,6 +144,42 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       }
       const error = c.room.engine.roll(c.playerId, msg.keepIndices);
       if (error) conn.sendError(error.code, error.message);
+    },
+
+    'turn:throwStart': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.engine) {
+        conn.sendError('BAD_REQUEST', 'no game in progress');
+        return;
+      }
+      const error = c.room.engine.beginThrow(c.playerId, msg.keepIndices);
+      if (error) conn.sendError(error.code, error.message);
+    },
+
+    'turn:throwResult': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.engine) {
+        conn.sendError('BAD_REQUEST', 'no game in progress');
+        return;
+      }
+      const error = c.room.engine.commitThrow(c.playerId, msg.dice);
+      if (error) conn.sendError(error.code, error.message);
+    },
+
+    'dice:frames': (conn, msg) => {
+      // Ephemeral pose relay (ADR 004). Invalid senders are dropped silently:
+      // frames straddle turn boundaries, and erroring at stream rate would flood.
+      const room = conn.roomId ? rooms.get(conn.roomId) : undefined;
+      if (!room || !conn.playerId || !room.engine) return;
+      if (room.engine.currentTurnPlayerId !== conn.playerId) return;
+      if (!withinFrameBudget(conn)) return;
+      room.broadcastExcept(conn.playerId, {
+        type: 'dice:frames',
+        playerId: conn.playerId,
+        frames: msg.frames,
+      });
     },
 
     'turn:stand': (conn) => {

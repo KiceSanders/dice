@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { RoomSnapshot, TurnState } from '@dice/shared';
 import { HAND_SIZE } from '@dice/shared';
+import { togglePendingKeep } from '../game/keepSelection';
 import { useApp } from '../state/context';
 import type { LastRoll } from '../state/store';
 import DiceRow from './DiceRow';
@@ -64,12 +65,9 @@ export default function GameArea({
   const nameOf = (id: string) => snapshot.players.find((p) => p.id === id)?.name ?? 'unknown';
 
   const toggleKeep = (i: number) => {
-    if (!turn || !isMyTurn || turn.rollsUsed === 0) return;
-    if (turn.keptIndices.includes(i)) return; // locked
-    const next = pendingKeep.includes(i)
-      ? pendingKeep.filter((x) => x !== i)
-      : [...pendingKeep, i];
-    setPendingKeep(next);
+    if (!turn || !isMyTurn) return;
+    const next = togglePendingKeep(i, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
+    if (next) setPendingKeep(next);
   };
 
   // Animate only the roll the snapshot currently shows.
@@ -95,19 +93,15 @@ export default function GameArea({
                 {turnActions?.aiming
                   ? 'Drag to aim — release to throw.'
                   : mouseThrow
-                    ? 'Click the koozie on the table, drag it around, then release to roll.'
+                    ? turn.rollsUsed > 0 && turn.dice.length > 0 && !turnActions?.disabled
+                      ? 'Click dice on the table to keep them. Click the koozie to roll again.'
+                      : 'Click the koozie on the table, drag it around, then release to roll.'
                     : turn.dice.length > 0 || turnActions?.disabled
                       ? 'Dice on the table…'
-                      : 'Dice in the cup — roll to throw onto the table.'}
+                      : isMyTurn
+                        ? 'Dice in the cup — roll to throw onto the table.'
+                        : 'Dice in the cup — waiting for the roll…'}
               </p>
-              {turn.dice.length > 0 && turn.rollsUsed > 0 && (
-                <DiceRow
-                  dice={turn.dice}
-                  kept={turn.keptIndices}
-                  selected={pendingKeep}
-                  onToggle={isMyTurn ? toggleKeep : undefined}
-                />
-              )}
             </div>
           ) : (
             <Koozie rollId={rollId}>
@@ -132,7 +126,7 @@ export default function GameArea({
               mouseThrow={mouseThrow}
             />
           )}
-          {isMyTurn && turn.rollsUsed > 0 && turn.rollsUsed < turn.rollCap && (
+          {isMyTurn && turn.rollsUsed > 0 && turn.rollsUsed < turn.rollCap && !hide2DDice && (
             <small className="muted keep-hint">Click dice to keep them — kept dice stay locked for the turn.</small>
           )}
         </div>

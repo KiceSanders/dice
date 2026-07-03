@@ -175,6 +175,14 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       return { ...state, snapshot: next, toasts, chat: pushChat(state.chat, systemLines) };
     }
 
+    // Physics-roll messages (ADR 004): the 3D table consumes these directly
+    // off the ws client; app state only changes via the snapshot and the
+    // turn:rolled that follow. dice:frames especially must never churn the
+    // reducer — it arrives at stream rate.
+    case 'turn:throwStarted':
+    case 'dice:frames':
+      return state;
+
     case 'turn:rolled':
       return {
         ...state,

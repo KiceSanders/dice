@@ -49,6 +49,34 @@ function isIndexArray(v: unknown): v is number[] {
   );
 }
 
+/** Reported physics faces: exactly 5 integers in [1, 6]. */
+function isDiceArray(v: unknown): v is number[] {
+  return (
+    Array.isArray(v) &&
+    v.length === 5 &&
+    v.every((d) => Number.isInteger(d) && (d as number) >= 1 && (d as number) <= 6)
+  );
+}
+
+const MAX_FRAMES_PER_MESSAGE = 10;
+/** Koozie + 5 dice today; small headroom so a new prop isn't a protocol break. */
+const MAX_BODIES_PER_FRAME = 8;
+
+/** [x, y, z, qx, qy, qz, qw] */
+function isBodyPose(v: unknown): boolean {
+  return Array.isArray(v) && v.length === 7 && v.every(isFiniteNumber);
+}
+
+function isPoseFrame(v: unknown): boolean {
+  return (
+    isRecord(v) &&
+    isFiniteNumber(v.t) &&
+    Array.isArray(v.bodies) &&
+    v.bodies.length <= MAX_BODIES_PER_FRAME &&
+    v.bodies.every(isBodyPose)
+  );
+}
+
 type Validator = (m: Record<string, unknown>) => string | null;
 
 /** Per-type payload validators. Return an error string or null if valid. */
@@ -83,6 +111,19 @@ const validators: Record<ClientMessage['type'], Validator> = {
     isIndexArray(m.keepIndices)
       ? null
       : 'keepIndices must be an array of ≤5 unique integers in [0, 4]',
+  'turn:throwStart': (m) =>
+    isIndexArray(m.keepIndices)
+      ? null
+      : 'keepIndices must be an array of ≤5 unique integers in [0, 4]',
+  'turn:throwResult': (m) =>
+    isDiceArray(m.dice) ? null : 'dice must be exactly 5 integers in [1, 6]',
+  'dice:frames': (m) =>
+    Array.isArray(m.frames) &&
+    m.frames.length >= 1 &&
+    m.frames.length <= MAX_FRAMES_PER_MESSAGE &&
+    m.frames.every(isPoseFrame)
+      ? null
+      : `frames must be 1-${MAX_FRAMES_PER_MESSAGE} pose frames`,
   'turn:stand': () => null,
   'chat:send': (m) =>
     isNonEmptyString(m.text, 500) ? null : 'text must be a 1-500 char string',

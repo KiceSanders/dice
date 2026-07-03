@@ -4,6 +4,7 @@ import { Leva, button, folder, useControls } from 'leva';
 import type { Die } from '@dice/shared';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
+import { togglePendingKeep } from '../game/keepSelection';
 import {
   DEFAULT_DICE_PHYSICS_TUNING,
   clearLiveTuning,
@@ -406,12 +407,22 @@ export default function Playground() {
     setPointerOnTable(inside);
   };
 
+  const onKeepToggle = useCallback(
+    (index: number) => {
+      if (!turn || !isMyTurn) return;
+      const next = togglePendingKeep(index, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
+      if (next) setPendingKeepState(next);
+    },
+    [turn, isMyTurn, pendingKeep],
+  );
+
   const tableDice =
     turn && isMyTurn
       ? {
           releaseSignal,
           releaseVelocity,
           keepIndices: pendingKeep,
+          lockedKeepIndices: turn.keptIndices,
           dice: turn.dice,
           canDrag: true,
           active: true,
@@ -419,6 +430,7 @@ export default function Playground() {
           onRelease: releaseThrow,
           onDragChange: setDragging,
           onRollingChange: setRolling,
+          onKeepToggle,
         }
       : turn
         ? {
@@ -504,9 +516,13 @@ export default function Playground() {
       <p className="playground-hint muted">
         {dragging
           ? 'Drag the koozie to aim — release to spill the dice.'
-          : isMyTurn
-            ? 'Click the koozie on the table, drag it around, then release to roll.'
-            : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
+          : rolling
+            ? 'Rolling…'
+            : isMyTurn && turn && turn.rollsUsed > 0 && turn.dice.length > 0
+              ? 'Click dice on the table to keep them. Click the koozie to roll again.'
+              : isMyTurn
+                ? 'Click the koozie on the table, drag it around, then release to roll.'
+                : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
       </p>
 
       <PhysicsTuningControls rerack={rerackDice} />

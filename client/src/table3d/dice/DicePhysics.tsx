@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RigidBodyType } from '@dimforge/rapier3d-compat';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import type { Die } from '@dice/shared';
+import type { BodyPose, Die, PoseFrame } from '@dice/shared';
 import { HAND_SIZE } from '@dice/shared';
 import * as THREE from 'three';
 import DieBody, { type DieBodyHandle } from './DieBody';
@@ -27,6 +27,11 @@ import {
   type KoozieHeldState,
   type KooziePourState,
 } from './koozieMotion';
+import {
+  keepSlotForIndex,
+  keptDieRailPosition,
+  koozieParkedPosition,
+} from './diceLayout';
 import { canvasLayoutElement, hitCup, pointerOnPlane } from './pointerToFelt';
 import { quaternionForFace, readTopFace } from './faceValue';
 import {
@@ -40,7 +45,7 @@ const _quat = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _vec = new THREE.Vector3();
 
-type CupPhase = 'idle' | 'held' | 'pouring' | 'settling' | 'hidden';
+type CupPhase = 'idle' | 'held' | 'pouring' | 'settling' | 'selecting' | 'hidden';
 
 type DieRuntime = {
   visible: boolean;
@@ -50,11 +55,21 @@ type DieRuntime = {
   rotation?: [number, number, number];
 };
 
+type DiePose = {
+  position: [number, number, number];
+  rotation: [number, number, number];
+};
+
 type Sample = { x: number; y: number; z: number; t: number };
 
 function quatToEuler(q: THREE.Quaternion): [number, number, number] {
   _euler.setFromQuaternion(q);
   return [_euler.x, _euler.y, _euler.z];
+}
+
+function eulerToQuat(euler: [number, number, number]): THREE.Quaternion {
+  _euler.set(euler[0], euler[1], euler[2]);
+  return new THREE.Quaternion().setFromEuler(_euler);
 }
 
 function homePosition(tuning: DicePhysicsTuning): [number, number, number] {
@@ -76,6 +91,18 @@ function randomRotation(): [number, number, number] {
     Math.random() * Math.PI * 2,
     Math.random() * Math.PI * 2,
   ];
+}
+
+/** Pose-stream sampling intervals (ADR 004). */
+const POSE_SAMPLE_FAST_MS = 50; // held / pouring / settling
+const POSE_SAMPLE_SLOW_MS = 250; // selecting (kept-rail moves only)
+
+const roundMm = (v: number) => Math.round(v * 1000) / 1000;
+
+function readBodyPose(body: { translation(): { x: number; y: number; z: number }; rotation(): { x: number; y: number; z: number; w: number } }): BodyPose {
+  const t = body.translation();
+  const r = body.rotation();
+  return [roundMm(t.x), roundMm(t.y), roundMm(t.z), roundMm(r.x), roundMm(r.y), roundMm(r.z), roundMm(r.w)];
 }
 
 function buildRuntime(
@@ -287,6 +314,9 @@ export default function DicePhysics({
   onRelease,
   onDragChange,
   canDrag = true,
+  lockedKeepIndices = [],
+  onKeepToggle,
+  onPoseFrame,
 }: TableDiceProps) {
   const { camera, gl } = useThree();
   const tuning = useDicePhysicsTuning();
@@ -295,6 +325,9 @@ export default function DicePhysics({
   const rollingRef = useRef(false);
   const settleCountRef = useRef(0);
   const keepRef = useRef(keepIndices);
+  const lockedKeepRef = useRef(lockedKeepIndices);
+  const onKeepToggleRef = useRef(onKeepToggle);
+  const feltPoseRef = useRef<(DiePose | null)[]>(Array(DICE_COUNT).fill(null));
   const onSettledRef = useRef(onSettled);
   const onRollingChangeRef = useRef(onRollingChange);
   const onReleaseRef = useRef(onRelease);
@@ -317,10 +350,27 @@ export default function DicePhysics({
   const finishPendingRef = useRef(false);
   const skipDiceLayoutRef = useRef(false);
 
+  // Pose streaming (ADR 004). Last-known poses cover bodies that are briefly
+  // gone from the world (the cup rigid body unmounts while hidden).
+  const onPoseFrameRef = useRef(onPoseFrame);
+  const streamStartRef = useRef<number | null>(null);
+  const lastPoseSampleRef = useRef(0);
+  const lastCupPoseRef = useRef<BodyPose>([0, tuning.cup.floatCenterY, tuning.cup.homeZ, 0, 0, 0, 1]);
+  const lastDiePosesRef = useRef<BodyPose[]>(
+    Array.from({ length: DICE_COUNT }, (_, i) => {
+      const [x, y, z] = dieSlotPosition(i);
+      return [x, y, z, 0, 0, 0, 1];
+    }),
+  );
+
   const [cupPhase, setCupPhase] = useState<CupPhase>(active && canDrag ? 'idle' : 'hidden');
+  const [cupPosition, setCupPosition] = useState<[number, number, number]>(() => homePosition(tuning));
   const [cupVisible, setCupVisible] = useState(active && canDrag);
   const [dragging, setDragging] = useState(false);
   const [simRolling, setSimRolling] = useState(false);
+  const [hoveringKoozie, setHoveringKoozie] = useState(false);
+  const [hoveringDie, setHoveringDie] = useState(false);
+  const dieHoverCountRef = useRef(0);
   const [layoutGen, setLayoutGen] = useState(0);
   const [runtime, setRuntime] = useState<DieRuntime[]>(() =>
     buildRuntime(dice, keepIndices, canDrag, tuning),
@@ -335,18 +385,23 @@ export default function DicePhysics({
   onRollingChangeRef.current = onRollingChange;
   onReleaseRef.current = onRelease;
   onDragChangeRef.current = onDragChange;
+  onPoseFrameRef.current = onPoseFrame;
   canDragRef.current = canDrag;
   keepRef.current = keepIndices;
+  lockedKeepRef.current = lockedKeepIndices;
+  onKeepToggleRef.current = onKeepToggle;
   draggingRef.current = dragging;
   cupPhaseRef.current = cupPhase;
 
   const resetToIdleInCup = useCallback((nextDice?: Die[]) => {
     const latestTuning = getDicePhysicsTuning();
     const cupMode = canDragRef.current;
+    const home = homePosition(latestTuning);
     skipDiceLayoutRef.current = true;
     layoutGenRef.current += 1;
     setLayoutGen(layoutGenRef.current);
     setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
+    setCupPosition(home);
     setCupPhase(cupMode ? 'idle' : 'hidden');
     setCupVisible(cupMode);
     rollingRef.current = false;
@@ -355,27 +410,225 @@ export default function DicePhysics({
     settleCountRef.current = 0;
     heldStateRef.current = null;
     pourStateRef.current = null;
+    feltPoseRef.current = Array(DICE_COUNT).fill(null);
 
     const cup = liveBody(koozieRef.current?.body);
     if (cup && cupMode) {
-      const [x, y, z] = homePosition(latestTuning);
       cup.setBodyType(RigidBodyType.Fixed, true);
-      cup.setTranslation({ x, y, z }, true);
+      cup.setTranslation({ x: home[0], y: home[1], z: home[2] }, true);
       cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
       cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
   }, []);
 
+  const enterSelectingPhase = useCallback(
+    (values: Die[]) => {
+      const latestTuning = getDicePhysicsTuning();
+      const kept = keepRef.current;
+      const keptSorted = [...kept].sort((a, b) => a - b);
+
+      const nextRuntime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
+        visible: false,
+        locked: true,
+        inCup: false,
+        position: dieSlotPosition(i),
+      }));
+
+      for (let i = 0; i < DICE_COUNT; i++) {
+        const value = values[i] ?? diceRef.current[i];
+        if (value === undefined && !kept.includes(i)) continue;
+
+        if (kept.includes(i)) {
+          const slot = keepSlotForIndex(i, keptSorted);
+          const pos = keptDieRailPosition(slot, keptSorted.length);
+          nextRuntime[i] = {
+            visible: true,
+            locked: true,
+            inCup: false,
+            position: pos,
+            rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
+          };
+          const body = liveBody(dieRefs.current[i]?.body);
+          if (body) {
+            body.setBodyType(RigidBodyType.Fixed, true);
+            body.setTranslation({ x: pos[0], y: pos[1], z: pos[2] }, true);
+            if (value) {
+              const q = quaternionForFace(value);
+              body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+            }
+            body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+            body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          }
+          continue;
+        }
+
+        const body = liveBody(dieRefs.current[i]?.body);
+        let pose: DiePose;
+        if (body) {
+          const t = body.translation();
+          const r = body.rotation();
+          _quat.set(r.x, r.y, r.z, r.w);
+          pose = {
+            position: [t.x, t.y, t.z],
+            rotation: quatToEuler(_quat),
+          };
+          body.setBodyType(RigidBodyType.Fixed, true);
+          body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        } else {
+          const slot = dieSlotPosition(i);
+          pose = { position: slot, rotation: [0, 0, 0] };
+        }
+        feltPoseRef.current[i] = pose;
+        nextRuntime[i] = {
+          visible: true,
+          locked: true,
+          inCup: false,
+          position: pose.position,
+          rotation: pose.rotation,
+        };
+      }
+
+      skipDiceLayoutRef.current = true;
+      setRuntime(nextRuntime);
+
+      const parked = koozieParkedPosition(
+        latestTuning.cup.floatCenterY,
+        latestTuning.cup.homeZ,
+      );
+      setCupPosition(parked);
+      const cup = liveBody(koozieRef.current?.body);
+      if (cup) {
+        cup.setBodyType(RigidBodyType.Fixed, true);
+        cup.setTranslation({ x: parked[0], y: parked[1], z: parked[2] }, true);
+        cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+        cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      }
+
+      setCupPhase('selecting');
+      cupPhaseRef.current = 'selecting';
+      setCupVisible(canDragRef.current);
+      rollingRef.current = false;
+      rollElapsedMsRef.current = 0;
+      setSimRolling(false);
+      settleCountRef.current = 0;
+      heldStateRef.current = null;
+      pourStateRef.current = null;
+    },
+    [],
+  );
+
+  const applyKeepLayout = useCallback((kept: number[]) => {
+    const phase = cupPhaseRef.current;
+    if (phase !== 'selecting' && phase !== 'held') return;
+    const keptSorted = [...kept].sort((a, b) => a - b);
+
+    setRuntime((prev) => {
+      const next = [...prev];
+      for (let i = 0; i < DICE_COUNT; i++) {
+        const rt = next[i];
+        if (!rt?.visible) continue;
+
+        if (kept.includes(i)) {
+          const slot = keepSlotForIndex(i, keptSorted);
+          const pos = keptDieRailPosition(slot, keptSorted.length);
+          const value = diceRef.current[i];
+          const rotation = value ? quatToEuler(quaternionForFace(value)) : rt.rotation;
+          next[i] = { ...rt, locked: true, inCup: false, position: pos, rotation };
+          const body = liveBody(dieRefs.current[i]?.body);
+          if (body) {
+            body.setBodyType(RigidBodyType.Fixed, true);
+            body.setTranslation({ x: pos[0], y: pos[1], z: pos[2] }, true);
+            if (value) {
+              const q = quaternionForFace(value);
+              body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+            }
+            body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+            body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          }
+        } else {
+          const felt = feltPoseRef.current[i];
+          if (!felt) continue;
+          next[i] = {
+            ...rt,
+            locked: true,
+            inCup: false,
+            position: felt.position,
+            rotation: felt.rotation,
+          };
+          const body = liveBody(dieRefs.current[i]?.body);
+          if (body) {
+            const q = eulerToQuat(felt.rotation);
+            body.setBodyType(RigidBodyType.Fixed, true);
+            body.setTranslation(
+              { x: felt.position[0], y: felt.position[1], z: felt.position[2] },
+              true,
+            );
+            body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+            body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+            body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          }
+        }
+      }
+      return next;
+    });
+  }, []);
+
   const wakeUnkeptDice = useCallback(() => {
     for (let i = 0; i < DICE_COUNT; i++) {
       const rt = runtimeRef.current[i];
-      if (!rt?.visible || rt.locked) continue;
+      if (!rt?.visible || rt.locked || !rt.inCup) continue;
       const body = liveBody(dieRefs.current[i]?.body);
       if (!body) continue;
       body.setBodyType(RigidBodyType.Dynamic, true);
       body.wakeUp();
     }
+  }, []);
+
+  const pullUnkeptDiceIntoCup = useCallback(() => {
+    const latestTuning = tuningRef.current;
+    const cup = liveBody(koozieRef.current?.body);
+    if (!cup) return;
+
+    const t = cup.translation();
+    const cupPos = new THREE.Vector3(t.x, t.y, t.z);
+    const r = cup.rotation();
+    const cupQuat = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+
+    const kept = new Set(keepRef.current);
+    const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter(
+      (i) => !kept.has(i) && runtimeRef.current[i]?.visible && !runtimeRef.current[i]?.inCup,
+    );
+    if (unkeptIndices.length === 0) return;
+
+    const nextRuntime = [...runtimeRef.current];
+    for (const i of unkeptIndices) {
+      const cupSlot = unkeptIndices.indexOf(i);
+      const local = spawnDiceInCupLocal(cupSlot, unkeptIndices.length, latestTuning.cup);
+      const worldPos = cupLocalToWorld(local.position, cupPos, cupQuat);
+      nextRuntime[i] = {
+        visible: true,
+        locked: false,
+        inCup: true,
+        position: worldPos,
+        rotation: local.rotation,
+      };
+      const body = liveBody(dieRefs.current[i]?.body);
+      if (body) {
+        const rot = local.rotation ?? [0, 0, 0];
+        const q = eulerToQuat(rot);
+        body.setBodyType(RigidBodyType.Dynamic, true);
+        body.setTranslation({ x: worldPos[0], y: worldPos[1], z: worldPos[2] }, true);
+        body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+        body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        body.wakeUp();
+      }
+    }
+    runtimeRef.current = nextRuntime;
+    setRuntime(nextRuntime);
   }, []);
 
   const readCurrentDieValues = useCallback((fallbackDice?: Die[]): Die[] => {
@@ -409,11 +662,29 @@ export default function DicePhysics({
         setSimRolling(false);
         onRollingChangeRef.current?.(false);
         onSettledRef.current(values);
-        resetToIdleInCup(values);
+        enterSelectingPhase(values);
       });
     },
-    [readCurrentDieValues, resetToIdleInCup],
+    [readCurrentDieValues, enterSelectingPhase],
   );
+
+  const samplePoseFrame = useCallback((now: number): PoseFrame => {
+    const phase = cupPhaseRef.current;
+    const cup = liveBody(koozieRef.current?.body);
+    if (cup) lastCupPoseRef.current = readBodyPose(cup);
+    const bodies: BodyPose[] = [lastCupPoseRef.current];
+    for (let i = 0; i < DICE_COUNT; i++) {
+      const body = liveBody(dieRefs.current[i]?.body);
+      if (body) lastDiePosesRef.current[i] = readBodyPose(body);
+      bodies.push(lastDiePosesRef.current[i]!);
+    }
+    return {
+      t: Math.round(now - (streamStartRef.current ?? now)),
+      bodies,
+      // Parked/hidden cup is roller-only UX; spectators see it while carried.
+      cupVisible: phase === 'held' || phase === 'pouring',
+    };
+  }, []);
 
   const recordSample = useCallback(
     (clientX: number, clientY: number) => {
@@ -438,6 +709,7 @@ export default function DicePhysics({
 
       if (cup && pose) {
         cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
+        pullUnkeptDiceIntoCup();
         pourStateRef.current = createPourState(pose, velocity, heldState?.pivotVel, latestTuning);
         const { pose: pourPose } = pouringPoseAt(pourStateRef.current, 0, latestTuning);
         setCupPose(cup, pourPose);
@@ -455,7 +727,7 @@ export default function DicePhysics({
       onRollingChangeRef.current?.(true);
       onReleaseRef.current(velocity);
     },
-    [recordSample, wakeUnkeptDice],
+    [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup],
   );
 
   const beginDrag = useCallback(
@@ -469,10 +741,36 @@ export default function DicePhysics({
       clientYRef.current = clientY;
       recordSample(clientX, clientY);
 
+      const latestTuning = tuningRef.current;
+      const fromSelecting = cupPhaseRef.current === 'selecting';
       const cup = liveBody(koozieRef.current?.body);
-      if (cup) {
+
+      if (fromSelecting && cup) {
+        const canvas = gl.domElement;
+        const pivot = pointerOnPlane(
+          clientX,
+          clientY,
+          canvas,
+          camera,
+          latestTuning.cup.floatCenterY,
+        );
+        clampPivotToTable(pivot, latestTuning);
+        const cupPose: [number, number, number] = [
+          pivot.x,
+          latestTuning.cup.floatCenterY,
+          pivot.z,
+        ];
+        setCupPosition(cupPose);
         cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
-        cup.wakeUp();
+        cup.setTranslation({ x: cupPose[0], y: cupPose[1], z: cupPose[2] }, true);
+        cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
+      }
+
+      if (cup) {
+        if (!fromSelecting) {
+          cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
+          cup.wakeUp();
+        }
         const t = cup.translation();
         const cupPos = new THREE.Vector3(t.x, t.y, t.z);
         const r = cup.rotation();
@@ -482,19 +780,41 @@ export default function DicePhysics({
             position: cupPos,
             quaternion: _quat.clone(),
           },
-          tuningRef.current,
+          latestTuning,
         );
       }
 
-      wakeUnkeptDice();
+      if (!fromSelecting) {
+        wakeUnkeptDice();
+      }
       draggingRef.current = true;
       cupPhaseRef.current = 'held';
       setDragging(true);
       setCupPhase('held');
+      setHoveringKoozie(false);
       onDragChangeRef.current?.(true);
     },
-    [recordSample, wakeUnkeptDice],
+    [recordSample, wakeUnkeptDice, gl, camera],
   );
+
+  const handleDieClick = useCallback((index: number) => {
+    const phase = cupPhaseRef.current;
+    if ((phase !== 'selecting' && phase !== 'held') || !canDragRef.current) return;
+    const locked = lockedKeepRef.current;
+    const kept = keepRef.current;
+    if (kept.includes(index) && locked.includes(index)) return;
+    onKeepToggleRef.current?.(index);
+  }, []);
+
+  const handleDiePointerEnter = useCallback(() => {
+    dieHoverCountRef.current += 1;
+    setHoveringDie(true);
+  }, []);
+
+  const handleDiePointerLeave = useCallback(() => {
+    dieHoverCountRef.current = Math.max(0, dieHoverCountRef.current - 1);
+    setHoveringDie(dieHoverCountRef.current > 0);
+  }, []);
 
   const handleKoozieGrab = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
@@ -509,6 +829,7 @@ export default function DicePhysics({
 
   useEffect(() => {
     if (rollingRef.current || dragging) return;
+    if (cupPhaseRef.current === 'selecting') return;
     if (skipDiceLayoutRef.current) {
       skipDiceLayoutRef.current = false;
       return;
@@ -517,6 +838,17 @@ export default function DicePhysics({
     setLayoutGen(layoutGenRef.current);
     setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current));
   }, [dice, keepIndices, dragging, canDrag]);
+
+  useEffect(() => {
+    if (cupPhaseRef.current !== 'selecting' && cupPhaseRef.current !== 'held') return;
+    applyKeepLayout(keepIndices);
+  }, [keepIndices, applyKeepLayout]);
+
+  // Self-heal: enterSelectingPhase snapshots canDrag into cup visibility; if it
+  // was transiently false at settle (disconnect blip), re-sync when it returns.
+  useEffect(() => {
+    if (cupPhaseRef.current === 'selecting') setCupVisible(canDrag);
+  }, [canDrag]);
 
   useEffect(() => {
     if (!active) {
@@ -540,12 +872,16 @@ export default function DicePhysics({
     }
 
     if (!rollingRef.current && !draggingRef.current) {
-      resetToIdleInCup();
+      if (diceRef.current.length === 0) {
+        resetToIdleInCup();
+      }
     }
   }, [active, resetToIdleInCup]);
 
   useEffect(() => {
-    if (!active || rollingRef.current || draggingRef.current) return;
+    if (!active || rollingRef.current || draggingRef.current || cupPhaseRef.current === 'selecting') {
+      return;
+    }
     resetToIdleInCup();
   }, [
     active,
@@ -566,6 +902,7 @@ export default function DicePhysics({
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0 || rollingRef.current || draggingRef.current || !canDragRef.current) return;
+      if (cupPhaseRef.current !== 'idle' && cupPhaseRef.current !== 'selecting') return;
       if (camera instanceof THREE.PerspectiveCamera) {
         const el = canvasLayoutElement(canvas);
         const h = el.clientHeight;
@@ -644,16 +981,46 @@ export default function DicePhysics({
 
   useEffect(() => {
     const target = pointerTarget(gl.domElement);
+    const canGrabKoozie =
+      canDrag && (cupPhase === 'idle' || cupPhase === 'selecting') && !simRolling;
     if (!active || !canDrag) {
       target.style.cursor = dragging ? 'grabbing' : '';
       return;
     }
-    target.style.cursor = dragging ? 'grabbing' : simRolling ? '' : 'grab';
-  }, [dragging, active, canDrag, simRolling, gl]);
+    target.style.cursor = dragging
+      ? 'grabbing'
+      : simRolling
+        ? ''
+        : hoveringDie
+          ? 'pointer'
+          : hoveringKoozie && canGrabKoozie
+            ? 'grab'
+            : '';
+  }, [dragging, active, canDrag, simRolling, hoveringKoozie, hoveringDie, cupPhase, gl]);
 
   useFrame((_, delta) => {
     const latestTuning = tuningRef.current;
     const scaledDelta = delta * latestTuning.world.timeScale;
+
+    // Pose streaming runs before the phase logic — 'held' returns early below.
+    if (onPoseFrameRef.current) {
+      const phase = cupPhaseRef.current;
+      const fast = phase === 'held' || phase === 'pouring' || phase === 'settling';
+      const slow = phase === 'selecting';
+      if (fast || slow) {
+        const now = performance.now();
+        if (streamStartRef.current === null) {
+          streamStartRef.current = now;
+          lastPoseSampleRef.current = 0;
+        }
+        if (now - lastPoseSampleRef.current >= (fast ? POSE_SAMPLE_FAST_MS : POSE_SAMPLE_SLOW_MS)) {
+          lastPoseSampleRef.current = now;
+          onPoseFrameRef.current(samplePoseFrame(now));
+        }
+      } else {
+        streamStartRef.current = null;
+      }
+    }
 
     if (draggingRef.current && cupPhaseRef.current === 'held') {
       const cup = liveBody(koozieRef.current?.body);
@@ -752,6 +1119,8 @@ export default function DicePhysics({
   const cupBodyType: 'fixed' | 'kinematicPosition' =
     cupPhase === 'held' || cupPhase === 'pouring' ? 'kinematicPosition' : 'fixed';
   const cupLid = cupPhase === 'idle' || cupPhase === 'held';
+  const canGrabKoozie =
+    canDrag && (cupPhase === 'idle' || cupPhase === 'selecting') && !simRolling;
   const cupGeometryKey = [
     tuning.cup.radius,
     tuning.cup.height,
@@ -768,27 +1137,46 @@ export default function DicePhysics({
         key={`cup-${cupGeometryKey}-${layoutGen}`}
         ref={koozieRef}
         bodyType={cupBodyType}
-        position={homePosition(tuning)}
+        position={cupPosition}
         visible={cupVisible}
         lid={cupLid}
         ccd={cupPhase === 'held' || cupPhase === 'pouring'}
         tuning={tuning}
-        onGrabStart={cupPhase === 'idle' && canDrag ? handleKoozieGrab : undefined}
+        onGrabStart={canGrabKoozie ? handleKoozieGrab : undefined}
+        onPointerEnter={canGrabKoozie ? () => setHoveringKoozie(true) : undefined}
+        onPointerLeave={canGrabKoozie ? () => setHoveringKoozie(false) : undefined}
       />
-      {runtime.map((rt, i) =>
-        rt.visible ? (
+      {runtime.map((rt, i) => {
+        if (!rt.visible) return null;
+        const isLockedKeep = lockedKeepIndices.includes(i);
+        const canToggleKeep =
+          (cupPhase === 'selecting' || cupPhase === 'held') &&
+          canDrag &&
+          !rt.inCup &&
+          (!keepIndices.includes(i) || !isLockedKeep);
+        return (
           <DieBody
             key={rt.locked ? `die-${i}-locked-${layoutGen}` : `die-${i}-dynamic-${layoutGen}`}
             ref={(el) => {
               dieRefs.current[i] = el;
             }}
             locked={rt.locked}
-            pickable={!(rt.inCup && (cupPhase === 'idle' || cupPhase === 'held'))}
+            pickable={canToggleKeep}
+            onPointerDown={
+              canToggleKeep
+                ? (e) => {
+                    e.stopPropagation();
+                    handleDieClick(i);
+                  }
+                : undefined
+            }
+            onPointerEnter={canToggleKeep ? handleDiePointerEnter : undefined}
+            onPointerLeave={canToggleKeep ? handleDiePointerLeave : undefined}
             position={rt.position}
             rotation={rt.rotation ?? randomRotation()}
           />
-        ) : null,
-      )}
+        );
+      })}
     </>
   );
 }

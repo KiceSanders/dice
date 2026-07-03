@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
+import type { ThreeEvent } from '@react-three/fiber';
 import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
 import PipDie from './PipDie';
 import { DIE_HALF } from './constants';
@@ -14,12 +15,15 @@ interface Props {
   driven?: boolean;
   /** When false, pointer rays pass through to the koozie pick mesh. */
   pickable?: boolean;
+  onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerLeave?: (event: ThreeEvent<PointerEvent>) => void;
   position: [number, number, number];
   rotation?: [number, number, number];
 }
 
 const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
-  { locked, driven = false, pickable = true, position, rotation },
+  { locked, driven = false, pickable = true, onPointerDown, onPointerEnter, onPointerLeave, position, rotation },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -51,7 +55,12 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
         restitution={tuning.dice.restitution}
         density={tuning.dice.density}
       />
-      <group raycast={pickable ? undefined : () => null}>
+      <group
+        raycast={pickable ? undefined : () => null}
+        onPointerDown={pickable ? onPointerDown : undefined}
+        onPointerEnter={pickable ? onPointerEnter : undefined}
+        onPointerLeave={pickable ? onPointerLeave : undefined}
+      >
         <PipDie />
       </group>
     </RigidBody>

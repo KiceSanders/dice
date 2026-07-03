@@ -4,12 +4,14 @@ import { Physics } from '@react-three/rapier';
 import FixedCamera from './FixedCamera';
 import PokerTableMesh from './PokerTableMesh';
 import DicePhysics from './dice/DicePhysics';
+import RemoteDiceView from './dice/RemoteDiceView';
 import TableColliders from './dice/TableColliders';
+import type { RemoteRollFeed } from './dice/remoteFeed';
 import { useDicePhysicsTuning } from './dice/tuning';
 import type { TableDiceProps } from './dice/types';
 import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
 
-function SceneContent({ dice }: { dice?: TableDiceProps }) {
+function SceneContent({ dice, remoteFeed }: { dice?: TableDiceProps; remoteFeed?: RemoteRollFeed }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
 
@@ -46,16 +48,20 @@ function SceneContent({ dice }: { dice?: TableDiceProps }) {
       >
         {dice ? <DicePhysics {...dice} /> : <TableColliders />}
       </Physics>
+
+      {/* Remote throw playback: plain meshes outside the physics world. */}
+      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
     </>
   );
 }
 
 interface Props {
   dice?: TableDiceProps;
+  remoteFeed?: RemoteRollFeed;
 }
 
 /** WebGL canvas — table mesh + physics dice; labels are 2D overlays in Table.tsx. */
-export default function TableCanvas({ dice }: Props) {
+export default function TableCanvas({ dice, remoteFeed }: Props) {
   return (
     <Canvas
       className="table-canvas"
@@ -73,7 +79,7 @@ export default function TableCanvas({ dice }: Props) {
       }}
     >
       <Suspense fallback={null}>
-        <SceneContent dice={dice} />
+        <SceneContent dice={dice} remoteFeed={remoteFeed} />
       </Suspense>
     </Canvas>
   );

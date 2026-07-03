@@ -5,6 +5,7 @@ import SeatOverlay from '../table3d/SeatOverlay';
 import TableCenterOverlay from '../table3d/TableCenterOverlay';
 import type { OverlayRect } from '../table3d/layout';
 
+import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   onKick: (playerId: string) => void;
   winnerId?: string | null;
   dice?: TableDiceProps;
+  /** Streamed pose feed of another player's throw (ADR 004). */
+  remoteFeed?: RemoteRollFeed;
   /** Crosshair cursor while aiming a throw on the felt. */
   diceAiming?: boolean;
   /** Pointer entered or left the playing area (viewport). */
@@ -57,7 +60,7 @@ function useLayoutRects(
 }
 
 /** 3D poker table with 2D player overlays that stay off the felt. */
-export default function Table({ snapshot, myId, onKick, winnerId = null, dice, diceAiming = false, onTablePointer }: Props) {
+export default function Table({ snapshot, myId, onKick, winnerId = null, dice, remoteFeed, diceAiming = false, onTablePointer }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
@@ -70,7 +73,7 @@ export default function Table({ snapshot, myId, onKick, winnerId = null, dice, d
         onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
         onPointerLeave={() => onTablePointer?.(false)}
       >
-        <TableCanvas dice={dice} />
+        <TableCanvas dice={dice} remoteFeed={remoteFeed} />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
       {layout && (

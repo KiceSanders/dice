@@ -27,10 +27,12 @@ interface Props {
   ccd?: boolean;
   tuning: DicePhysicsTuning;
   onGrabStart?: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerLeave?: (event: ThreeEvent<PointerEvent>) => void;
 }
 
 const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
-  { bodyType, position, rotation, visible = true, lid = false, ccd = false, tuning, onGrabStart },
+  { bodyType, position, rotation, visible = true, lid = false, ccd = false, tuning, onGrabStart, onPointerEnter, onPointerLeave },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -93,6 +95,14 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
           onPointerDown={(event) => {
             event.stopPropagation();
             onGrabStart(event);
+          }}
+          onPointerEnter={(event) => {
+            event.stopPropagation();
+            onPointerEnter?.(event);
+          }}
+          onPointerLeave={(event) => {
+            event.stopPropagation();
+            onPointerLeave?.(event);
           }}
         >
           <primitive object={pickGeometry} attach="geometry" />

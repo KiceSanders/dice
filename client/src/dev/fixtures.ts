@@ -76,6 +76,7 @@ function turn(
     rollsUsed: opts.rollsUsed ?? 0,
     rollCap: opts.rollCap ?? DEFAULT_SETTINGS.maxRolls,
     deadline: TURN_DEADLINE(),
+    throwing: false,
   };
 }
 

@@ -408,6 +408,15 @@ export class Room {
           antes: event.antes,
         });
         break;
+      case 'throwStarted':
+        // Not recorded: replay only needs the final values (the 'rolled' event).
+        this.broadcast({
+          type: 'turn:throwStarted',
+          playerId: event.playerId,
+          kept: event.kept,
+          rollNumber: event.rollNumber,
+        });
+        break;
       case 'rolled':
         this.recorder?.append({
           type: 'rolled',
@@ -628,6 +637,13 @@ export class Room {
   /** Send the same message to every connected player. */
   broadcast(msg: ServerMessage): void {
     for (const link of this.links.values()) link.send(msg);
+  }
+
+  /** Send the same message to everyone but one player (dice:frames relay). */
+  broadcastExcept(excludeId: PlayerId, msg: ServerMessage): void {
+    for (const [playerId, link] of this.links) {
+      if (playerId !== excludeId) link.send(msg);
+    }
   }
 
   sendTo(playerId: PlayerId, msg: ServerMessage): void {

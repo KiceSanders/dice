@@ -122,6 +122,52 @@ describe('persistence & crash recovery (Phase 6)', () => {
     await store2.flush();
   });
 
+  it('replays physics-thrown rolls exactly (ADR 004)', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create(DEFAULT_SETTINGS);
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const p1 = seatPlayer(room, 'P1', 50);
+
+    // Every roll below is client-reported physics; the rng stub throws if the
+    // live path ever consults server randomness.
+    room.engineOpts = { rng: rngFor([]) };
+    expect(room.startGame(host.id)).toBeNull();
+
+    const engine = room.engine!;
+    expect(engine.beginThrow(host.id, [])).toBeNull();
+    expect(engine.commitThrow(host.id, [3, 3, 4, 5, 6])).toBeNull();
+    expect(engine.beginThrow(host.id, [0, 1])).toBeNull();
+    expect(engine.commitThrow(host.id, [3, 3, 2, 2, 1])).toBeNull();
+    expect(engine.stand(host.id)).toBeNull();
+
+    expect(engine.beginThrow(p1.id, [])).toBeNull();
+    expect(engine.commitThrow(p1.id, [2, 2, 6, 6, 5])).toBeNull();
+    expect(engine.beginThrow(p1.id, [2, 3])).toBeNull(); // in flight at "crash"
+
+    await store.flush();
+
+    const store2 = new RoomLogStore(dir);
+    const manager2 = new RoomManager(undefined, undefined, store2);
+    expect(await recoverRooms(store2, manager2)).toBe(1);
+    const after = manager2.get(room.id)!.engine!.publicState();
+
+    // Committed physics dice reproduced exactly via roll()/keepAndReroll.
+    expect(after.rollToBeat?.playerId).toBe(host.id);
+    expect(after.rollToBeat?.dice).toEqual([3, 3, 2, 2, 1]);
+    expect(after.currentTurn?.playerId).toBe(p1.id);
+    expect(after.currentTurn?.dice).toEqual([2, 2, 6, 6, 5]);
+    expect(after.currentTurn?.rollsUsed).toBe(1);
+    // The un-committed throw is not in the log: p1 just re-throws after rejoin.
+    expect(after.currentTurn?.throwing).toBe(false);
+
+    manager.stop();
+    manager2.stop();
+    await store.flush();
+    await store2.flush();
+  });
+
   it('compacts the log to a single snapshot at round end and recovers from it (6.3)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
