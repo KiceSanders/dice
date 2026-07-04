@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
 import Seat from '../components/Seat';
-import { clampSeatCount, type OverlayRect, seatOverlayPosition } from './layout';
+import { displaySeatIndex, TABLE_SEAT_COUNT, type OverlayRect, seatOverlayPosition } from './layout';
 
 /** Anchor the inner edge of the card toward the table center. */
 function seatAnchorStyle(angle: number): CSSProperties {
@@ -32,12 +32,17 @@ export default function SeatOverlay({ snapshot, myId, onKick, winnerId, frame, v
     if (p.seat !== null) bySeat.set(p.seat, p);
   }
 
-  const seatCount = clampSeatCount(snapshot.settings.maxPlayers);
+  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
 
   return (
     <div className="seat-overlay">
-      {Array.from({ length: seatCount }, (_, i) => {
-        const { leftPct, topPct, angle } = seatOverlayPosition(i, seatCount, frame, viewport);
+      {Array.from({ length: TABLE_SEAT_COUNT }, (_, i) => {
+        const { leftPct, topPct, angle } = seatOverlayPosition(
+          displaySeatIndex(i, mySeat),
+          TABLE_SEAT_COUNT,
+          frame,
+          viewport,
+        );
         const player = bySeat.get(i) ?? null;
         return (
           <div

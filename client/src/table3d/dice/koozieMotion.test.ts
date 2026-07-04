@@ -13,15 +13,16 @@ import { KOOZIE } from './constants';
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 describe('koozieMotion', () => {
-  it('createHomePose uses configured home position', () => {
+  it('createHomePose rests outside the far rail for seat 0', () => {
     const home = createHomePose();
-    expect(home.position.z).toBeCloseTo(DEFAULT_DICE_PHYSICS_TUNING.cup.homeZ, 2);
+    expect(home.position.z).toBeLessThan(-2);
+    expect(home.position.x).toBeCloseTo(0, 2);
     expect(home.quaternion.w).toBeCloseTo(1, 2);
   });
 
   it('stepHeldPose tracks the pivot target smoothly', () => {
     const state = createHeldState();
-    const target = new THREE.Vector3(0.2, KOOZIE.dragPlaneY, 0.5);
+    const target = state.pivot.clone().add(new THREE.Vector3(0.2, 0, -0.12));
     for (let i = 0; i < 45; i++) {
       stepHeldPose(state, target, 1 / 60, true);
     }

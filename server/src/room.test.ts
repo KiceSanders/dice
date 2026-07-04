@@ -44,7 +44,7 @@ describe('clampSettings / sanitizeName', () => {
     });
     expect(clamped.chipsPerRound).toBe(1);
     expect(clamped.maxRolls).toBe(10);
-    expect(clamped.maxPlayers).toBe(8);
+    expect(clamped.maxPlayers).toBe(3);
     expect(clamped.maxBuyIn).toBe(50);
   });
 

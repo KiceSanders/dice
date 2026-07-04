@@ -15,6 +15,8 @@ interface Props {
   driven?: boolean;
   /** When false, pointer rays pass through to the koozie pick mesh. */
   pickable?: boolean;
+  /** Keep the rigid body alive while hiding the die mesh. */
+  meshVisible?: boolean;
   onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerLeave?: (event: ThreeEvent<PointerEvent>) => void;
@@ -23,7 +25,17 @@ interface Props {
 }
 
 const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
-  { locked, driven = false, pickable = true, onPointerDown, onPointerEnter, onPointerLeave, position, rotation },
+  {
+    locked,
+    driven = false,
+    pickable = true,
+    meshVisible = true,
+    onPointerDown,
+    onPointerEnter,
+    onPointerLeave,
+    position,
+    rotation,
+  },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -56,6 +68,7 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
         density={tuning.dice.density}
       />
       <group
+        visible={meshVisible}
         raycast={pickable ? undefined : () => null}
         onPointerDown={pickable ? onPointerDown : undefined}
         onPointerEnter={pickable ? onPointerEnter : undefined}

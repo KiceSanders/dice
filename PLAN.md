@@ -110,7 +110,7 @@ Hand A beats hand B if, in order:
 |---|---|---|---|
 | `chipsPerRound` | number | 1 | Ante per player per round |
 | `maxRolls` | number | 3 | Absolute max rolls for the round's first player |
-| `maxPlayers` | number | 8 | 2–8 |
+| `maxPlayers` | number | 3 | 2–3 |
 | `minBuyIn` / `maxBuyIn` | number | 10 / 1000 | Seat buy-in bounds |
 | `straightBonus` | object | see above | `{ enabled: true, type: 'pot', baseAmount: 5, multiplier: 2, incremental: false, maxBonus: 50 }` |
 

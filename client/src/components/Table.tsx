@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { RoomSnapshot } from '@dice/shared';
+import type { PoseFrame, RoomSnapshot } from '@dice/shared';
 import TableCanvas from '../table3d/TableCanvas';
 import SeatOverlay from '../table3d/SeatOverlay';
 import TableCenterOverlay from '../table3d/TableCenterOverlay';
@@ -16,6 +16,8 @@ interface Props {
   dice?: TableDiceProps;
   /** Streamed pose feed of another player's throw (ADR 004). */
   remoteFeed?: RemoteRollFeed;
+  /** Frozen last hand pose shown until the next throw starts. */
+  heldPose?: PoseFrame | null;
   /** Crosshair cursor while aiming a throw on the felt. */
   diceAiming?: boolean;
   /** Pointer entered or left the playing area (viewport). */
@@ -60,10 +62,22 @@ function useLayoutRects(
 }
 
 /** 3D poker table with 2D player overlays that stay off the felt. */
-export default function Table({ snapshot, myId, onKick, winnerId = null, dice, remoteFeed, diceAiming = false, onTablePointer }: Props) {
+export default function Table({
+  snapshot,
+  myId,
+  onKick,
+  winnerId = null,
+  dice,
+  remoteFeed,
+  heldPose = null,
+  diceAiming = false,
+  onTablePointer,
+}: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
+
+  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
 
   return (
     <div ref={frameRef} className="table table-3d">
@@ -73,7 +87,12 @@ export default function Table({ snapshot, myId, onKick, winnerId = null, dice, r
         onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
         onPointerLeave={() => onTablePointer?.(false)}
       >
-        <TableCanvas dice={dice} remoteFeed={remoteFeed} />
+        <TableCanvas
+          dice={dice}
+          remoteFeed={remoteFeed}
+          heldPose={heldPose}
+          mySeat={mySeat}
+        />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
       {layout && (

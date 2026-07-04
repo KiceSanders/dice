@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
 import { useRemoteRoll } from '../game/useRemoteRoll';
 import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
+import { staticPoseFromDice } from '../table3d/dice/staticPose';
 import ConnectionBanner from '../components/ConnectionBanner';
 import ConnectionStatus from '../components/ConnectionStatus';
 import Table from '../components/Table';
@@ -16,21 +17,46 @@ import RoundEndModal from '../components/RoundEndModal';
 import BonusBanner from '../components/BonusBanner';
 import ChatPanel from '../components/ChatPanel';
 
+const ROUND_END_REVEAL_DELAY_MS = 3_000;
+
 export default function Room() {
   const { roomId = '' } = useParams();
   const { state, send, dispatch, ws } = useApp();
   const [name, setName] = useState(loadName() ?? '');
   const [nameConfirmed, setNameConfirmed] = useState(() => Boolean(loadName()));
   const [copied, setCopied] = useState(false);
+  const [revealedRoundEndAt, setRevealedRoundEndAt] = useState<number | null>(null);
 
   const alreadyInRoom = state.roomId === roomId && state.me !== null;
   const joinSentRef = useRef(false);
   const connected = state.connection === 'open';
+  const snapshot = state.snapshot;
 
   // 3D physics roll for the active roller; streamed playback of everyone
   // else's throws, with passive slot dice when no stream arrived (ADR 004).
   const roll3d = useTableRoll(state.snapshot, state.me?.playerId ?? null, send, connected);
   const remoteRoll = useRemoteRoll(ws, state.snapshot, state.me?.playerId ?? null);
+  const fallbackHeldPose = useMemo(
+    () => {
+      if (state.lastRoll) return staticPoseFromDice(state.lastRoll.dice, state.lastRoll.kept);
+      const rollToBeat = snapshot?.game?.rollToBeat;
+      return rollToBeat ? staticPoseFromDice(rollToBeat.dice) : null;
+    },
+    [state.lastRoll, snapshot?.game?.rollToBeat],
+  );
+
+  useEffect(() => {
+    const receivedAt = state.roundEnd?.receivedAt ?? null;
+    if (receivedAt === null) {
+      setRevealedRoundEndAt(null);
+      return;
+    }
+    setRevealedRoundEndAt(null);
+    const timer = window.setTimeout(() => {
+      setRevealedRoundEndAt(receivedAt);
+    }, ROUND_END_REVEAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [state.roundEnd?.receivedAt]);
 
   useEffect(() => {
     document.title = roomId ? `Room ${roomId} — Dice` : 'Dice';
@@ -94,7 +120,6 @@ export default function Room() {
     );
   }
 
-  const snapshot = state.snapshot;
   if (!snapshot || !state.me) {
     return (
       <main className="home">
@@ -114,6 +139,17 @@ export default function Room() {
   const spectators = snapshot.players.filter((p) => p.seat === null);
   const myRequest = snapshot.seatRequests.find((r) => r.playerId === myId) ?? null;
   const inviteUrl = `${window.location.origin}/room/${snapshot.roomId}`;
+  const turn = snapshot.game?.currentTurn ?? null;
+  const inGame = snapshot.phase !== 'lobby' && snapshot.game !== null;
+  const heldPose = roll3d.heldPose ?? remoteRoll.heldPose ?? fallbackHeldPose;
+  const showHeldPose =
+    inGame &&
+    heldPose !== null &&
+    !remoteRoll.live &&
+    !turn?.throwing &&
+    !turn?.dice.length &&
+    !roll3d.dragging &&
+    !roll3d.rolling;
 
   async function copyInvite() {
     try {
@@ -124,8 +160,6 @@ export default function Room() {
       /* clipboard unavailable */
     }
   }
-
-  const inGame = snapshot.phase !== 'lobby' && snapshot.game !== null;
 
   return (
     <main className="room">
@@ -141,7 +175,7 @@ export default function Room() {
         />
       )}
 
-      {state.roundEnd && (
+      {state.roundEnd && revealedRoundEndAt === state.roundEnd.receivedAt && (
         <RoundEndModal
           roundEnd={state.roundEnd}
           players={snapshot.players}
@@ -168,6 +202,7 @@ export default function Room() {
         winnerId={state.roundEnd?.winnerId ?? null}
         dice={roll3d.tableDice ?? (remoteRoll.live ? undefined : roll3d.passiveDice)}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
+        heldPose={showHeldPose ? heldPose : null}
         diceAiming={roll3d.diceAiming}
         onTablePointer={roll3d.onTablePointer}
       />

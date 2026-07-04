@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { RoomSnapshot } from '@dice/shared';
+import type { PoseFrame, RoomSnapshot } from '@dice/shared';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { WsClient } from '../ws/client';
 
@@ -7,6 +7,8 @@ export interface RemoteRoll {
   feed: RemoteRollFeed;
   /** True once the current remote turn has streamed at least one frame. */
   live: boolean;
+  /** Last sampled remote table pose, preserved after a turn switch. */
+  heldPose: PoseFrame | null;
 }
 
 /**
@@ -25,6 +27,7 @@ export function useRemoteRoll(
   if (feedRef.current === null) feedRef.current = new RemoteRollFeed();
   const feed = feedRef.current;
   const [live, setLive] = useState(false);
+  const [heldPose, setHeldPose] = useState<PoseFrame | null>(null);
 
   const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
   const remote = turnPlayerId !== null && turnPlayerId !== myId;
@@ -40,13 +43,18 @@ export function useRemoteRoll(
       if (msg.type === 'dice:frames' && msg.playerId === turnPlayerId) {
         feed.push(msg.frames);
         setLive(true);
+        setHeldPose(null);
       }
     });
     return () => {
       off();
+      const sample = feed.sample(performance.now(), 0);
+      if (sample && !sample.cupVisible) {
+        setHeldPose({ t: 0, bodies: sample.bodies, cupVisible: sample.cupVisible });
+      }
       feed.clear();
     };
   }, [ws, feed, remote, turnPlayerId]);
 
-  return { feed, live: remote && live };
+  return { feed, live: remote && live, heldPose };
 }

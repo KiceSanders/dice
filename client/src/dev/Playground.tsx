@@ -366,6 +366,7 @@ export default function Playground() {
 
   const turn = snapshot.game?.currentTurn ?? null;
   const isMyTurn = turn !== null && turn.playerId === myId;
+  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
 
   useEffect(() => {
     setPendingKeepState(turn ? [...turn.keptIndices] : []);
@@ -411,7 +412,9 @@ export default function Playground() {
     (index: number) => {
       if (!turn || !isMyTurn) return;
       const next = togglePendingKeep(index, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
-      if (next) setPendingKeepState(next);
+      if (!next) return;
+      setPendingKeepState(next);
+      return next;
     },
     [turn, isMyTurn, pendingKeep],
   );
@@ -426,6 +429,7 @@ export default function Playground() {
           dice: turn.dice,
           canDrag: true,
           active: true,
+          rollerSeat: mySeat,
           onSettled: commitRoll,
           onRelease: releaseThrow,
           onDragChange: setDragging,
@@ -521,7 +525,7 @@ export default function Playground() {
             : isMyTurn && turn && turn.rollsUsed > 0 && turn.dice.length > 0
               ? 'Click dice on the table to keep them. Click the koozie to roll again.'
               : isMyTurn
-                ? 'Click the koozie on the table, drag it around, then release to roll.'
+                ? 'Click the koozie beside the table, drag it around, then release to roll.'
                 : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
       </p>
 

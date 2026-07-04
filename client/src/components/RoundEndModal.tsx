@@ -3,8 +3,8 @@ import type { PlayerPublic } from '@dice/shared';
 import type { RoundEndInfo } from '../state/store';
 import { describeScore } from './GameHud';
 
-/** Auto-dismiss just before the server starts the next round (5s delay). */
-const AUTO_DISMISS_MS = 4_200;
+/** Mounted after a 3s reveal delay; clear just before the server's 5s next-round timer. */
+const AUTO_DISMISS_MS = 1_800;
 
 interface Props {
   roundEnd: RoundEndInfo;

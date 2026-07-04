@@ -54,11 +54,11 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           id="set-maxplayers"
           type="number"
           min={2}
-          max={8}
+          max={3}
           value={value.maxPlayers}
           onChange={(e) => set({ maxPlayers: num(e.target.value, value.maxPlayers) })}
         />
-        <small>Seats at the table (2–8). Extra joiners spectate.</small>
+        <small>Seats at the table (2–3). Extra joiners spectate.</small>
       </div>
 
       <div className="field-row">

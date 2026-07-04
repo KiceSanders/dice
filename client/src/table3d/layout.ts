@@ -75,7 +75,20 @@ export function seatAngle(seatIndex: number, seatCount: number): number {
 }
 
 export function clampSeatCount(maxPlayers: number): number {
-  return Math.min(Math.max(maxPlayers, 2), 8);
+  return Math.min(Math.max(maxPlayers, 2), 3);
+}
+
+/** Fixed seat count for the 3-player table. */
+export const TABLE_SEAT_COUNT = 3;
+
+/** Rotate a server seat index so the local player always maps to display slot 0 (bottom). */
+export function displaySeatIndex(seatIndex: number, mySeat: number): number {
+  return (seatIndex - mySeat + TABLE_SEAT_COUNT) % TABLE_SEAT_COUNT;
+}
+
+/** Y rotation applied to the 3D scene so mySeat appears at +Z (bottom of screen). */
+export function viewRotationY(mySeat: number): number {
+  return Math.PI / 2 - seatAngle(mySeat, TABLE_SEAT_COUNT);
 }
 
 /** Fixed front-seat camera — not interactive. Target sits on the near felt so the oval fills 16:9. */

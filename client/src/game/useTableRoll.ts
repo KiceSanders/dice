@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMessage, Die, PoseFrame, RoomSnapshot } from '@dice/shared';
 import type { TurnActions } from '../components/GameArea';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
+import { poseFrameToCanonical } from '../table3d/seatTransform';
 import { togglePendingKeep } from './keepSelection';
 
 const ZERO_VELOCITY: ThrowVelocity = { x: 0, y: 0, z: 0 };
@@ -9,6 +10,10 @@ const ZERO_VELOCITY: ThrowVelocity = { x: 0, y: 0, z: 0 };
 /** Batch pose frames so a 20 Hz sample rate costs ~10 messages/s on the wire. */
 const FRAMES_PER_MESSAGE = 2;
 const FRAME_FLUSH_MS = 200;
+
+function isValidPoseFrame(frame: PoseFrame): boolean {
+  return frame.bodies.every((b) => b.every((n) => Number.isFinite(n)));
+}
 
 /**
  * Live-game counterpart of the Playground's turn wiring (ADR 004): binds the
@@ -33,14 +38,21 @@ export function useTableRoll(
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [releaseSignal, setReleaseSignal] = useState(0);
   const [releaseVelocity, setReleaseVelocity] = useState<ThrowVelocity>(ZERO_VELOCITY);
+  const [heldPose, setHeldPose] = useState<PoseFrame | null>(null);
+  const pendingKeepRef = useRef<number[]>([]);
+  const latestPoseRef = useRef<PoseFrame | null>(null);
+  const wasMyTurnRef = useRef(false);
 
   const turn = snapshot?.game?.currentTurn ?? null;
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
+  const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
 
   // New roll confirmed or turn changed: sync selection to the server's locked
   // keeps and drop any stale interaction state.
   useEffect(() => {
-    setPendingKeep(turn ? [...turn.keptIndices] : []);
+    const next = turn ? [...turn.keptIndices] : [];
+    pendingKeepRef.current = next;
+    setPendingKeep(next);
     setDragging(false);
     setRolling(false);
   }, [turn?.playerId, turn?.rollsUsed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -50,9 +62,10 @@ export function useTableRoll(
       setReleaseVelocity(velocity);
       setReleaseSignal((s) => s + 1);
       setRolling(true);
-      send({ type: 'turn:throwStart', keepIndices: pendingKeep });
+      setHeldPose(null);
+      send({ type: 'turn:throwStart', keepIndices: pendingKeepRef.current });
     },
-    [send, pendingKeep],
+    [send],
   );
 
   const onSettled = useCallback(
@@ -78,25 +91,50 @@ export function useTableRoll(
 
   const onPoseFrame = useCallback(
     (frame: PoseFrame) => {
-      frameBufRef.current.push(frame);
-      if (frameBufRef.current.length >= FRAMES_PER_MESSAGE) flushFrames();
+      const canonical = poseFrameToCanonical(frame, mySeat);
+      if (!isValidPoseFrame(canonical)) return;
+      latestPoseRef.current = canonical;
+      frameBufRef.current.push(canonical);
+      if (!canonical.cupVisible || frameBufRef.current.length >= FRAMES_PER_MESSAGE) flushFrames();
       else if (flushTimerRef.current === null) {
         flushTimerRef.current = window.setTimeout(flushFrames, FRAME_FLUSH_MS);
       }
     },
-    [flushFrames],
+    [flushFrames, mySeat],
   );
 
   useEffect(() => () => flushFrames(), [flushFrames]);
 
+  useEffect(() => {
+    const wasMyTurn = wasMyTurnRef.current;
+    if (wasMyTurn && !isMyTurn) {
+      const lastPose = latestPoseRef.current;
+      if (lastPose && !lastPose.cupVisible) setHeldPose(lastPose);
+    }
+    wasMyTurnRef.current = isMyTurn;
+  }, [isMyTurn, turn?.playerId]);
+
   const onKeepToggle = useCallback(
     (index: number) => {
       if (!turn || !isMyTurn) return;
-      const next = togglePendingKeep(index, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
-      if (next) setPendingKeep(next);
+      const next = togglePendingKeep(
+        index,
+        pendingKeepRef.current,
+        turn.keptIndices,
+        turn.rollsUsed > 0,
+      );
+      if (!next) return;
+      pendingKeepRef.current = next;
+      setPendingKeep(next);
+      return next;
     },
-    [turn, isMyTurn, pendingKeep],
+    [turn, isMyTurn],
   );
+
+  const updatePendingKeep = useCallback((indices: number[]) => {
+    pendingKeepRef.current = indices;
+    setPendingKeep(indices);
+  }, []);
 
   const onTablePointer = useCallback((inside: boolean) => {
     setPointerOnTable(inside);
@@ -117,6 +155,7 @@ export function useTableRoll(
           dice: turn.dice,
           canDrag,
           active: true,
+          rollerSeat: mySeat,
           onSettled,
           onRelease,
           onDragChange: setDragging,
@@ -160,11 +199,13 @@ export function useTableRoll(
     /** Stand / keep-all controls routed over the socket; undefined off-turn. */
     turnActions,
     pendingKeep,
-    setPendingKeep,
+    setPendingKeep: updatePendingKeep,
     /** True while this client's 3D roll owns the dice display (hide 2D dice). */
     active: tableDice !== undefined,
     diceAiming: dragging || (pointerOnTable && isMyTurn && !rolling),
     onTablePointer,
     rolling,
+    dragging,
+    heldPose,
   };
 }

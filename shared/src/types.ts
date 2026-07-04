@@ -44,7 +44,7 @@ export interface RoomSettings {
   chipsPerRound: number;
   /** Absolute max rolls for the round's first player. */
   maxRolls: number;
-  /** 2–8 seats. */
+  /** 2–3 seats. */
   maxPlayers: number;
   minBuyIn: number;
   maxBuyIn: number;
@@ -54,7 +54,7 @@ export interface RoomSettings {
 export const DEFAULT_SETTINGS: RoomSettings = {
   chipsPerRound: 1,
   maxRolls: 3,
-  maxPlayers: 8,
+  maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightBonus: {

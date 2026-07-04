@@ -48,7 +48,7 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
-    maxPlayers: clampInt(s.maxPlayers, 2, 8),
+    maxPlayers: clampInt(s.maxPlayers, 2, 3),
     minBuyIn,
     maxBuyIn: clampInt(s.maxBuyIn, minBuyIn, 10_000_000),
     straightBonus: {
