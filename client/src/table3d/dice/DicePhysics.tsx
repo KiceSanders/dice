@@ -28,9 +28,24 @@ import {
   stepHeldPose,
 } from './koozieMotion';
 import { canvasLayoutElement, hitCup, pointerOnPlane } from './pointerToFelt';
+import { STRAIGHT_GLOW } from './straightGlow';
 import TableColliders from './TableColliders';
 import { type DicePhysicsTuning, getDicePhysicsTuning, useDicePhysicsTuning } from './tuning';
 import type { TableDiceProps, ThrowVelocity } from './types';
+import { useStraightGlow } from './useStraightGlow';
+
+declare global {
+  interface Window {
+    /**
+     * Dev-only settle override: with 5 faces set, the next settle reports them
+     * instead of the physics read (kept dice keep their committed values so
+     * the server's kept-unchanged check still passes). The only way to force a
+     * straight through the physics path — e.g. in the console:
+     * `window.__forceSettleFaces = [1, 2, 3, 4, 5]` (delete to stop).
+     */
+    __forceSettleFaces?: number[];
+  }
+}
 
 const _quat = new THREE.Quaternion();
 const _euler = new THREE.Euler();
@@ -339,6 +354,7 @@ export default function DicePhysics({
   lockedKeepIndices = [],
   onKeepToggle,
   onPoseFrame,
+  straightCue,
 }: TableDiceProps) {
   const { camera, gl } = useThree();
   const tuning = useDicePhysicsTuning();
@@ -407,6 +423,12 @@ export default function DicePhysics({
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
 
+  const {
+    glow: straightGlow,
+    start: startStraightGlow,
+    clear: clearStraightGlow,
+  } = useStraightGlow();
+
   const reducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -422,96 +444,105 @@ export default function DicePhysics({
   draggingRef.current = dragging;
   cupPhaseRef.current = cupPhase;
 
-  const resetToIdleInCup = useCallback((nextDice?: Die[]) => {
-    const latestTuning = getDicePhysicsTuning();
-    const cupMode = canDragRef.current;
-    // The layoutGen bump remounts the cup and dice at their declarative
-    // positions — never mix in imperative teleports (rapier skips mesh sync
-    // for fixed bodies, and the old bodies unmount anyway).
-    skipDiceLayoutRef.current = true;
-    layoutGenRef.current += 1;
-    setLayoutGen(layoutGenRef.current);
-    setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
-    setCupPosition(homePosition(latestTuning));
-    setCupPhase(cupMode ? 'idle' : 'hidden');
-    setCupVisible(cupMode);
-    rollingRef.current = false;
-    rollElapsedMsRef.current = 0;
-    setSimRolling(false);
-    settleCountRef.current = 0;
-    heldStateRef.current = null;
-    pourStateRef.current = null;
-    feltPoseRef.current = Array(DICE_COUNT).fill(null);
-  }, []);
+  const resetToIdleInCup = useCallback(
+    (nextDice?: Die[]) => {
+      const latestTuning = getDicePhysicsTuning();
+      const cupMode = canDragRef.current;
+      clearStraightGlow();
+      // The layoutGen bump remounts the cup and dice at their declarative
+      // positions — never mix in imperative teleports (rapier skips mesh sync
+      // for fixed bodies, and the old bodies unmount anyway).
+      skipDiceLayoutRef.current = true;
+      layoutGenRef.current += 1;
+      setLayoutGen(layoutGenRef.current);
+      setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
+      setCupPosition(homePosition(latestTuning));
+      setCupPhase(cupMode ? 'idle' : 'hidden');
+      setCupVisible(cupMode);
+      rollingRef.current = false;
+      rollElapsedMsRef.current = 0;
+      setSimRolling(false);
+      settleCountRef.current = 0;
+      heldStateRef.current = null;
+      pourStateRef.current = null;
+      feltPoseRef.current = Array(DICE_COUNT).fill(null);
+    },
+    [clearStraightGlow],
+  );
 
-  const enterSelectingPhase = useCallback((values: Die[]) => {
-    const latestTuning = getDicePhysicsTuning();
-    const kept = keepRef.current;
-    const keptSorted = [...kept].sort((a, b) => a - b);
+  const enterSelectingPhase = useCallback(
+    (values: Die[]) => {
+      const latestTuning = getDicePhysicsTuning();
+      const kept = keepRef.current;
+      const keptSorted = [...kept].sort((a, b) => a - b);
 
-    const nextRuntime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
-      visible: false,
-      locked: true,
-      inCup: false,
-      position: dieSlotPosition(i),
-    }));
+      const nextRuntime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
+        visible: false,
+        locked: true,
+        inCup: false,
+        position: dieSlotPosition(i),
+      }));
 
-    // All placement is declarative: unkept dice flip dynamic → locked (key
-    // change remounts them at their settled pose), kept dice move via the
-    // position prop, and the cup remounts at the parked spot when it turns
-    // visible again below.
-    for (let i = 0; i < DICE_COUNT; i++) {
-      const value = values[i] ?? diceRef.current[i];
-      if (value === undefined && !kept.includes(i)) continue;
+      // All placement is declarative: unkept dice flip dynamic → locked (key
+      // change remounts them at their settled pose), kept dice move via the
+      // position prop, and the cup remounts at the parked spot when it turns
+      // visible again below.
+      for (let i = 0; i < DICE_COUNT; i++) {
+        const value = values[i] ?? diceRef.current[i];
+        if (value === undefined && !kept.includes(i)) continue;
 
-      if (kept.includes(i)) {
-        const slot = keepSlotForIndex(i, keptSorted);
+        if (kept.includes(i)) {
+          const slot = keepSlotForIndex(i, keptSorted);
+          nextRuntime[i] = {
+            visible: true,
+            locked: true,
+            inCup: false,
+            position: keptDieRailPosition(slot, keptSorted.length),
+            rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
+          };
+          continue;
+        }
+
+        const body = liveBody(dieRefs.current[i]?.body);
+        let pose: DiePose;
+        if (body) {
+          const t = body.translation();
+          const r = body.rotation();
+          _quat.set(r.x, r.y, r.z, r.w);
+          pose = {
+            position: [t.x, t.y, t.z],
+            rotation: quatToEuler(_quat),
+          };
+        } else {
+          const slot = dieSlotPosition(i);
+          pose = { position: slot, rotation: [0, 0, 0] };
+        }
+        feltPoseRef.current[i] = pose;
         nextRuntime[i] = {
           visible: true,
           locked: true,
           inCup: false,
-          position: keptDieRailPosition(slot, keptSorted.length),
-          rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
+          position: pose.position,
+          rotation: pose.rotation,
         };
-        continue;
       }
 
-      const body = liveBody(dieRefs.current[i]?.body);
-      let pose: DiePose;
-      if (body) {
-        const t = body.translation();
-        const r = body.rotation();
-        _quat.set(r.x, r.y, r.z, r.w);
-        pose = {
-          position: [t.x, t.y, t.z],
-          rotation: quatToEuler(_quat),
-        };
-      } else {
-        const slot = dieSlotPosition(i);
-        pose = { position: slot, rotation: [0, 0, 0] };
-      }
-      feltPoseRef.current[i] = pose;
-      nextRuntime[i] = {
-        visible: true,
-        locked: true,
-        inCup: false,
-        position: pose.position,
-        rotation: pose.rotation,
-      };
-    }
-
-    setRuntime(nextRuntime);
-    setCupPosition(homePosition(latestTuning));
-    setCupPhase('selecting');
-    cupPhaseRef.current = 'selecting';
-    setCupVisible(canDragRef.current);
-    rollingRef.current = false;
-    rollElapsedMsRef.current = 0;
-    setSimRolling(false);
-    settleCountRef.current = 0;
-    heldStateRef.current = null;
-    pourStateRef.current = null;
-  }, []);
+      setRuntime(nextRuntime);
+      setCupPosition(homePosition(latestTuning));
+      setCupPhase('selecting');
+      cupPhaseRef.current = 'selecting';
+      setCupVisible(canDragRef.current);
+      rollingRef.current = false;
+      rollElapsedMsRef.current = 0;
+      setSimRolling(false);
+      settleCountRef.current = 0;
+      heldStateRef.current = null;
+      pourStateRef.current = null;
+      // Straight celebration: the dice are frozen for selecting — light them up.
+      startStraightGlow(values);
+    },
+    [startStraightGlow],
+  );
 
   const applyKeepLayout = useCallback((kept: number[]) => {
     const phase = cupPhaseRef.current;
@@ -611,10 +642,23 @@ export default function DicePhysics({
   }, []);
 
   const readCurrentDieValues = useCallback((fallbackDice?: Die[]): Die[] => {
+    // Dev-only settle override (see the Window declaration above): substitutes
+    // unkept faces only, so the server's kept-unchanged check still passes.
+    const forcedRaw = import.meta.env.DEV ? window.__forceSettleFaces : undefined;
+    const forced =
+      forcedRaw?.length === HAND_SIZE &&
+      forcedRaw.every((d) => Number.isInteger(d) && d >= 1 && d <= 6)
+        ? (forcedRaw as Die[])
+        : null;
+
     const values: Die[] = [];
     for (let i = 0; i < HAND_SIZE; i++) {
       if (keepRef.current.includes(i) && diceRef.current[i]) {
         values.push(diceRef.current[i]!);
+        continue;
+      }
+      if (forced) {
+        values.push(forced[i]!);
         continue;
       }
       const body = liveBody(dieRefs.current[i]?.body);
@@ -721,6 +765,9 @@ export default function DicePhysics({
       if (rollingRef.current || draggingRef.current || !canDragRef.current) {
         return;
       }
+
+      // Picking the cup back up ends the celebration early.
+      clearStraightGlow();
 
       moveSamples.current = [];
       clientXRef.current = clientX;
@@ -851,6 +898,15 @@ export default function DicePhysics({
     if (cupPhaseRef.current === 'selecting') setCupVisible(canDrag);
   }, [canDrag]);
 
+  // Straight celebration for the passive (non-roller) view: no local settle
+  // happens here, so the cue from turn:rolled triggers the glow instead. The
+  // roller ignores it (their own settle already fired startStraightGlow).
+  useEffect(() => {
+    if (!straightCue || canDragRef.current) return;
+    if (Date.now() - straightCue.receivedAt > STRAIGHT_GLOW.cueMaxAgeMs) return;
+    startStraightGlow(straightCue.dice);
+  }, [straightCue, startStraightGlow]);
+
   useEffect(() => {
     if (!active) {
       rollingRef.current = false;
@@ -861,6 +917,7 @@ export default function DicePhysics({
       setSimRolling(false);
       setCupPhase('hidden');
       setCupVisible(false);
+      clearStraightGlow();
       setRuntime(
         Array.from({ length: DICE_COUNT }, () => ({
           visible: false,
@@ -877,7 +934,7 @@ export default function DicePhysics({
         resetToIdleInCup();
       }
     }
-  }, [active, resetToIdleInCup]);
+  }, [active, resetToIdleInCup, clearStraightGlow]);
 
   useEffect(() => {
     if (
@@ -1183,6 +1240,7 @@ export default function DicePhysics({
             position={rt.position}
             rotation={rt.rotation ?? randomRotation()}
             meshVisible={rt.meshVisible ?? true}
+            glow={straightGlow[i]}
           />
         );
       })}

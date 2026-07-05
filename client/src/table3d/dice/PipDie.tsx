@@ -1,8 +1,10 @@
 import type { Die as DieValue } from '@dice/shared';
 import { RoundedBox } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { DIE_HALF, DIE_SIZE } from './constants';
+import { type GlowHandle, STRAIGHT_GLOW } from './straightGlow';
 
 const PIP = '#141414';
 const FACE = '#f5efe0';
@@ -106,8 +108,28 @@ function PipFace({ value, axis, sign, material }: FaceProps) {
   );
 }
 
-/** Visual die mesh — physics collider is a separate cuboid on the RigidBody. */
-export default function PipDie() {
+/**
+ * Visual die mesh — physics collider is a separate cuboid on the RigidBody.
+ *
+ * `glow` drives the straight celebration: a mutable 0..1 handle written by
+ * useStraightGlow and applied here as an emissive pulse on the body material
+ * only. Keep the glow off the pips — pipMaterial must stay per-instance (a
+ * module-scope pip material would leak one die's glow onto all of them).
+ */
+export default function PipDie({ glow }: { glow?: GlowHandle }) {
+  const bodyMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const appliedGlowRef = useRef(-1); // -1 → sync on first frame after (re)mount
+
+  useFrame(() => {
+    if (!glow) return;
+    const mat = bodyMatRef.current;
+    if (!mat) return;
+    const intensity = glow.current * STRAIGHT_GLOW.maxIntensity;
+    if (intensity === appliedGlowRef.current) return;
+    appliedGlowRef.current = intensity;
+    mat.emissiveIntensity = intensity;
+  });
+
   const pipMaterial = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -132,7 +154,16 @@ export default function PipDie() {
         receiveShadow
         renderOrder={0}
       >
-        <meshStandardMaterial color={FACE} roughness={0.62} metalness={0.03} />
+        {/* Static emissive color + zero intensity: runtime glow writes touch
+            only emissiveIntensity, so no shader recompile and no re-render. */}
+        <meshStandardMaterial
+          ref={bodyMatRef}
+          color={FACE}
+          roughness={0.62}
+          metalness={0.03}
+          emissive={STRAIGHT_GLOW.color}
+          emissiveIntensity={0}
+        />
       </RoundedBox>
       <PipFace value={1} axis="y" sign={1} material={pipMaterial} />
       <PipFace value={6} axis="y" sign={-1} material={pipMaterial} />

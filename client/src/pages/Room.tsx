@@ -1,5 +1,5 @@
 // biome-ignore-all lint/a11y/noAutofocus: the join form's name field is this page's single purpose
-import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
+import { detectStraight, type PlayerPublic, type RoomSnapshot } from '@dice/shared';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ChatPanel from '../components/ChatPanel';
@@ -41,6 +41,13 @@ export default function Room() {
     const rollToBeat = snapshot?.game?.rollToBeat;
     return rollToBeat ? staticPoseFromDice(rollToBeat.dice) : null;
   }, [state.lastRoll, snapshot?.game?.rollToBeat]);
+  // Straight celebration cue for spectator views (the roller's own glow fires
+  // locally at settle). Recency is checked at the consumers.
+  const straightCue = useMemo(() => {
+    const roll = state.lastRoll;
+    if (!roll || detectStraight(roll.dice) === 'none') return undefined;
+    return { dice: roll.dice, receivedAt: roll.receivedAt };
+  }, [state.lastRoll]);
 
   useEffect(() => {
     const receivedAt = state.roundEnd?.receivedAt ?? null;
@@ -207,8 +214,14 @@ export default function Room() {
         myId={myId}
         onKick={(playerId) => send({ type: 'player:kick', playerId })}
         winnerId={state.roundEnd?.winnerId ?? null}
-        dice={roll3d.tableDice ?? (remoteRoll.live ? undefined : roll3d.passiveDice)}
+        dice={
+          roll3d.tableDice ??
+          (remoteRoll.live || !roll3d.passiveDice
+            ? undefined
+            : { ...roll3d.passiveDice, straightCue })
+        }
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
+        straightCue={straightCue}
         heldPose={showHeldPose ? heldPose : null}
         diceAiming={roll3d.diceAiming}
         onTablePointer={roll3d.onTablePointer}

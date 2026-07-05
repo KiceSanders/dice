@@ -1,8 +1,11 @@
 // Claude Code PostToolUse hook (Edit|Write): lint the edited file and typecheck
 // its workspace. Exit 2 blocks the edit and feeds stderr back to the agent —
 // the fastest feedback loop we have. See .claude/settings.json.
-import { execSync } from 'node:child_process';
-import { relative } from 'node:path';
+//
+// Check logic lives in scripts/hooks/lib/checks.mjs, shared with the Cursor mirror at
+// .cursor/hooks/post-edit-check.mjs (which is observational only — Cursor's afterFileEdit
+// hook can't block).
+import { maybeSyncCursorCommands, postEditChecks } from './lib/checks.mjs';
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 
@@ -26,35 +29,10 @@ try {
 } catch {
   process.exit(0);
 }
-if (!filePath || !/\.(ts|tsx)$/.test(filePath)) process.exit(0);
 
-const rel = relative(root, filePath);
-if (rel.startsWith('..')) process.exit(0);
-const workspace = ['shared', 'server', 'client'].find((w) => rel.startsWith(`${w}/`));
-if (!workspace) process.exit(0);
+maybeSyncCursorCommands(root, filePath);
 
-const failures = [];
-const run = (cmd) => {
-  try {
-    execSync(cmd, { cwd: root, stdio: 'pipe', timeout: 60_000 });
-  } catch (err) {
-    failures.push(`$ ${cmd}\n${err.stdout ?? ''}${err.stderr ?? ''}`);
-  }
-};
-
-run(`npx biome check "${rel}"`);
-run(`npm run check:${workspace} --silent`);
-
-// The shared contract touches both sides — typecheck them all and point at the checklist.
-if (rel === 'shared/src/protocol.ts' || rel === 'shared/src/types.ts') {
-  for (const w of ['server', 'client']) if (w !== workspace) run(`npm run check:${w} --silent`);
-  if (failures.length > 0) {
-    failures.push(
-      'Protocol/types touched — follow the ripple checklist in docs/CODING_GUIDELINES.md §1 (or the protocol-change skill).',
-    );
-  }
-}
-
+const failures = postEditChecks(root, filePath);
 if (failures.length > 0) {
   process.stderr.write(failures.join('\n\n'));
   process.exit(2); // blocking: errors are fed back to the agent

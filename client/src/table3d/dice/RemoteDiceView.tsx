@@ -1,11 +1,21 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type * as THREE from 'three';
 import { DICE_COUNT } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
 import type { RemoteRollFeed } from './remoteFeed';
+import { STRAIGHT_GLOW } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
+import type { StraightCue } from './types';
+import { useStraightGlow } from './useStraightGlow';
+
+/**
+ * Playback runs ~150ms in the past and the roller flushes the final frames
+ * before reporting the result, so hold the celebration until the streamed
+ * dice have visually finished snapping into place.
+ */
+const REMOTE_GLOW_DELAY_MS = 250;
 
 /**
  * Spectator playback of a remote roller's throw (ADR 004): the same cup and
@@ -13,11 +23,32 @@ import { useDicePhysicsTuning } from './tuning';
  * feed — no rigid bodies, no simulation, nothing to diverge. Hidden whenever
  * the feed is empty.
  */
-export default function RemoteDiceView({ feed }: { feed: RemoteRollFeed }) {
+export default function RemoteDiceView({
+  feed,
+  straightCue,
+}: {
+  feed: RemoteRollFeed;
+  straightCue?: StraightCue;
+}) {
   const tuning = useDicePhysicsTuning();
   const rootRef = useRef<THREE.Group>(null);
   const cupRef = useRef<THREE.Group>(null);
   const dieRefs = useRef<(THREE.Group | null)[]>(Array(DICE_COUNT).fill(null));
+  const { glow, start: startStraightGlow, clear: clearStraightGlow } = useStraightGlow();
+
+  // Straight celebration: pose stream index i is die index i, the same index
+  // space as the cue's dice array, so the glow handles line up 1:1.
+  useEffect(() => {
+    if (!straightCue) return;
+    if (Date.now() - straightCue.receivedAt > STRAIGHT_GLOW.cueMaxAgeMs) return;
+    const timer = window.setTimeout(
+      () => startStraightGlow(straightCue.dice),
+      REMOTE_GLOW_DELAY_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [straightCue, startStraightGlow]);
+
+  useEffect(() => clearStraightGlow, [clearStraightGlow]);
 
   useFrame(() => {
     const root = rootRef.current;
@@ -62,7 +93,7 @@ export default function RemoteDiceView({ feed }: { feed: RemoteRollFeed }) {
             dieRefs.current[i] = el;
           }}
         >
-          <PipDie />
+          <PipDie glow={glow[i]} />
         </group>
       ))}
     </group>

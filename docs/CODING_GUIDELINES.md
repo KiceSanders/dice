@@ -5,8 +5,8 @@ enforces most of them; this file explains the ones it can't.
 
 ## 1. Protocol-change ripple checklist
 
-Any change to a message or event union follows this order. (The `protocol-change` skill
-walks it interactively.)
+Any change to a message or event union follows this order. (The `protocol-change`
+skill/command walks it interactively — see [AGENTS.md § Skills and commands](../AGENTS.md#skills-and-commands).)
 
 1. Edit **`shared/src/protocol.ts`** (and `shared/src/types.ts` if payload types change).
 2. Run `npm run check` — **the compiler now hands you the TODO list.** Expect errors in:
@@ -56,7 +56,7 @@ just-in-case.
 | 3D math (`table3d/*`) | `npm run test:client` |
 | protocol shape | `npx vitest run server/src/protocol.test.ts` |
 | anything before you stop | `npm run verify` (lint + typecheck + all tests) |
-| live game behavior | `verify-game-flow` skill (smoke scripts + browser flows) |
+| live game behavior | `verify-game-flow` skill/command (smoke scripts + browser flows) |
 
 Engine tests script dice with `server/src/engine.testkit.ts` — `roll(engine, id, dice,
 keep)` performs one full throw with explicit faces. There is no rng to stub (ADR 004).

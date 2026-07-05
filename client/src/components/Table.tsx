@@ -1,7 +1,7 @@
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
-import type { TableDiceProps } from '../table3d/dice/types';
+import type { StraightCue, TableDiceProps } from '../table3d/dice/types';
 import type { OverlayRect } from '../table3d/layout';
 import SeatOverlay from '../table3d/SeatOverlay';
 import TableCanvas from '../table3d/TableCanvas';
@@ -26,6 +26,8 @@ interface Props {
   dice?: TableDiceProps;
   /** Streamed pose feed of another player's throw (ADR 004). */
   remoteFeed?: RemoteRollFeed;
+  /** Straight celebration cue for the streamed-playback view. */
+  straightCue?: StraightCue;
   /** Frozen last hand pose shown until the next throw starts. */
   heldPose?: PoseFrame | null;
   /** Crosshair cursor while aiming a throw on the felt. */
@@ -81,6 +83,7 @@ export default function Table({
   winnerId = null,
   dice,
   remoteFeed,
+  straightCue,
   heldPose = null,
   diceAiming = false,
   onTablePointer,
@@ -98,7 +101,12 @@ export default function Table({
         onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
         onPointerLeave={() => onTablePointer?.(false)}
       >
-        <TableCanvas dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} />
+        <TableCanvas
+          dice={dice}
+          remoteFeed={remoteFeed}
+          straightCue={straightCue}
+          heldPose={heldPose}
+        />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
       {layout && (

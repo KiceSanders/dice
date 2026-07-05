@@ -8,7 +8,7 @@ import type { RemoteRollFeed } from './dice/remoteFeed';
 import StaticDiceView from './dice/StaticDiceView';
 import TableColliders from './dice/TableColliders';
 import { useDicePhysicsTuning } from './dice/tuning';
-import type { TableDiceProps } from './dice/types';
+import type { StraightCue, TableDiceProps } from './dice/types';
 import FixedCamera from './FixedCamera';
 import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
 import PokerTableMesh from './PokerTableMesh';
@@ -22,10 +22,12 @@ import PokerTableMesh from './PokerTableMesh';
 function SceneContent({
   dice,
   remoteFeed,
+  straightCue,
   heldPose,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
+  straightCue?: StraightCue;
   heldPose?: PoseFrame | null;
 }) {
   const tuning = useDicePhysicsTuning();
@@ -66,7 +68,7 @@ function SceneContent({
       </Physics>
 
       {/* Remote throw playback: plain meshes outside the physics world. */}
-      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
+      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} straightCue={straightCue} />}
       {heldPose && !remoteFeed && <StaticDiceView frame={heldPose} />}
     </>
   );
@@ -75,11 +77,13 @@ function SceneContent({
 interface Props {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
+  /** Straight celebration cue for the streamed-playback view. */
+  straightCue?: StraightCue;
   heldPose?: PoseFrame | null;
 }
 
 /** WebGL canvas — table mesh + physics dice; labels are 2D overlays in Table.tsx. */
-export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props) {
+export default function TableCanvas({ dice, remoteFeed, straightCue, heldPose = null }: Props) {
   return (
     <Canvas
       className="table-canvas"
@@ -97,7 +101,12 @@ export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props
       }}
     >
       <Suspense fallback={null}>
-        <SceneContent dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} />
+        <SceneContent
+          dice={dice}
+          remoteFeed={remoteFeed}
+          straightCue={straightCue}
+          heldPose={heldPose}
+        />
       </Suspense>
     </Canvas>
   );

@@ -3,6 +3,7 @@ import { CuboidCollider, type RapierRigidBody, RigidBody } from '@react-three/ra
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { DIE_HALF } from './constants';
 import PipDie from './PipDie';
+import type { GlowHandle } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
 
 export interface DieBodyHandle {
@@ -17,6 +18,8 @@ interface Props {
   pickable?: boolean;
   /** Keep the rigid body alive while hiding the die mesh. */
   meshVisible?: boolean;
+  /** Straight-celebration glow level for this die (see useStraightGlow). */
+  glow?: GlowHandle;
   onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerLeave?: (event: ThreeEvent<PointerEvent>) => void;
@@ -30,6 +33,7 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
     driven = false,
     pickable = true,
     meshVisible = true,
+    glow,
     onPointerDown,
     onPointerEnter,
     onPointerLeave,
@@ -74,7 +78,7 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
         onPointerEnter={pickable ? onPointerEnter : undefined}
         onPointerLeave={pickable ? onPointerLeave : undefined}
       >
-        <PipDie />
+        <PipDie glow={glow} />
       </group>
     </RigidBody>
   );

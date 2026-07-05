@@ -1,4 +1,4 @@
-import type { Die } from '@dice/shared';
+import { type Die, detectStraight } from '@dice/shared';
 import { button, folder, Leva, useControls } from 'leva';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -425,6 +425,13 @@ export default function Playground() {
     [turn, isMyTurn, pendingKeep],
   );
 
+  // Straight celebration for the passive "view as" path (the roller's own
+  // view triggers locally at settle) — mirrors Room.tsx's cue wiring.
+  const straightCue = useMemo(() => {
+    if (!lastRoll || detectStraight(lastRoll.dice) === 'none') return undefined;
+    return { dice: lastRoll.dice, receivedAt: lastRoll.receivedAt };
+  }, [lastRoll]);
+
   const tableDice =
     turn && isMyTurn
       ? {
@@ -451,6 +458,7 @@ export default function Playground() {
             active: true,
             onSettled: () => {},
             onRelease: () => {},
+            straightCue,
           }
         : undefined;
 
