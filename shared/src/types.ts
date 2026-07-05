@@ -27,17 +27,17 @@ export interface PoseFrame {
 
 export type StraightKind = 'none' | 'little' | 'big';
 
-export interface StraightBonusConfig {
+/**
+ * Instant side payment when a roll settles showing a straight (once per turn):
+ * every other seated player immediately pays the roller from their own pile,
+ * clamped to what they have. Separate from the round-winner pot.
+ */
+export interface StraightPayoutConfig {
   enabled: boolean;
-  /** 'pot' adds the bonus to the central pot; 'direct' pays the player immediately. */
-  type: 'pot' | 'direct';
-  baseAmount: number;
-  /** Big straight pays baseAmount * multiplier; little straight pays baseAmount. */
-  multiplier: number;
-  /** If true, consecutive straights scale the payout by streak length (before the cap). */
-  incremental: boolean;
-  /** Hard cap on any single bonus payout. */
-  maxBonus: number;
+  /** Chips each other seated player pays the roller (little straight). */
+  amountPerPlayer: number;
+  /** Big straight: each player pays amountPerPlayer * bigMultiplier. */
+  bigMultiplier: number;
 }
 
 export interface RoomSettings {
@@ -48,7 +48,7 @@ export interface RoomSettings {
   maxPlayers: number;
   minBuyIn: number;
   maxBuyIn: number;
-  straightBonus: StraightBonusConfig;
+  straightPayout: StraightPayoutConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -57,13 +57,10 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightBonus: {
+  straightPayout: {
     enabled: true,
-    type: 'pot',
-    baseAmount: 5,
-    multiplier: 2,
-    incremental: false,
-    maxBonus: 50,
+    amountPerPlayer: 5,
+    bigMultiplier: 2,
   },
 };
 
@@ -119,8 +116,6 @@ export interface GameStatePublic {
   currentTurn: TurnState | null;
   rollToBeat: { playerId: PlayerId; score: HandScore; dice: Die[] } | null;
   subRound: SubRoundState | null;
-  /** Consecutive-straight streak length (for incremental bonuses). */
-  straightStreak: number;
 }
 
 /** Authoritative room snapshot pushed to clients after every state change. */

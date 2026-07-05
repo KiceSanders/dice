@@ -25,21 +25,21 @@ Orchestration lives in [`DicePhysics.tsx`](../../client/src/table3d/dice/DicePhy
 
 | Element | Placement |
 |---------|-----------|
-| **Parked / idle koozie** | Outside the rail on the **far side from the active roller** (`koozieRestPositionForSeat`) — same spot for idle and park so the grab target stays stable. Visible only when `canDrag` (roller). |
-| **Kept dice** | On the **near rail toward the roller** (`keptDieRailPositionForSeat`): row side-by-side with gap `DIE_SIZE + 0.025`, Y on top of padded rail. |
+| **Parked / idle koozie** | On the felt against the **far rail**, straight across from the roller (`koozieRestPosition`) — same spot for idle and park so the grab target stays stable, outside play bounds but **inside the fixed camera frame** (a framing test projects it through `SEAT_VIEW`; an earlier outside-the-rail spot was off-screen). Visible only when `canDrag` (roller). |
+| **Kept dice** | On the **near rail** (+Z, toward the roller): row centered on X with gap `DIE_SIZE + 0.025`, Y on top of padded rail. Also framing-tested. |
 | **Unkept dice** | Stay on felt at settled physics pose; pose snapshotted in `feltPoseRef` for un-keep restore. |
 
 ### 3-player table orientation
 
 - Fixed **3 seats** at 120° spacing ([`TABLE_SEAT_COUNT`](../../client/src/table3d/layout.ts)).
-- Each client rotates the 3D scene by `viewRotationY(mySeat)` so the local player always appears at the bottom (+Z).
-- Pose frames on the wire stay in **canonical** table space; the roller converts outbound via [`seatTransform.ts`](../../client/src/table3d/seatTransform.ts).
+- The scene, camera, and physics **never rotate**: every client simulates and renders in its own view space with the local player at the bottom (+Z). `DicePhysics` is seat-agnostic.
+- Seat identity is applied to pose **data** at the wire boundary ([`seatTransform.ts`](../../client/src/table3d/seatTransform.ts)): the roller canonicalizes outbound frames (`poseFrameToCanonical`), viewers localize inbound frames (`poseFrameFromCanonical`). `rotateBodyPoseY` is pinned to three.js rotation conventions by test — a rotated `<group>` around the scene was rejected because rapier bodies simulate in world space, so imperative teleports and declarative props ended up in different coordinate spaces (and the group also rotated the elliptical table itself).
 
 Positions use world/table constants from [`layout.ts`](../../client/src/table3d/layout.ts), not viewport gutter projection.
 
 ### Interaction
 
-- **Click-to-keep** on 3D dice during `selecting` and `held` (while dragging koozie). Server-locked indices (`turn.keptIndices`) are not clickable.
+- **Click-to-keep** on 3D dice during `selecting`. Server-locked indices (`turn.keptIndices`) are not clickable.
 - **Clicking the parked koozie commits the keep set** — cup pull into koozie happens on **grab** (`pullUnkeptDiceIntoCup`), so dice cannot sit underneath the parked cup and become unselectable.
 - **Cursors:** `grab` on koozie hover (idle/selecting), `pointer` on selectable dice hover, `grabbing` while dragging. Handled via pointer enter/leave on [`KoozieBody`](../../client/src/table3d/dice/KoozieBody.tsx) and [`DieBody`](../../client/src/table3d/dice/DieBody.tsx).
 - **Teleport on grab** from `idle` or `selecting` when the koozie is outside play bounds — instant snap to a table-bounded point at the cursor; no dragging while off-table.
@@ -59,11 +59,12 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 
 ## Consequences
 
-- `TableDiceProps` adds `rollerSeat` for seat-relative koozie/kept-die layout ([`types.ts`](../../client/src/table3d/dice/types.ts)).
 - `releaseSignal` remains unused; roll is pointer-driven.
 - Spectators (`canDrag: false`) do not see the parked koozie; they still get fixed die slots from `buildRuntime` without cup mode.
+- Fixed/locked bodies are placed **declaratively only** (position props, remounts via `layoutGen`); rapier skips mesh sync for sleeping fixed bodies, so imperative `setTranslation` on them moves physics without the visual. Imperative teleports remain only for dynamic dice mid-interaction (`pullUnkeptDiceIntoCup`) and the grabbed kinematic cup.
 - **Follow-ups:** production Room WebSocket wiring, animated lerp instead of teleport, spectator 3D selection view.
 - **2026-07-03 update:** production Room keeps the last settled table pose visible across turn switches and delays the round-end modal 3 seconds, so the final roll remains readable before winner reveal.
+- **2026-07-04 update:** a **Stand** button renders on the table frame gutter (outside the play area, like the parked koozie). Voluntary stands are gated by the shared `canStandVoluntarily` rule — blocked while the current hand loses to the roll-to-beat (ties allowed; they force the sub-round) — and the server enforces the same rule on `turn:stand` (`STAND_NOT_ALLOWED`). Forced stands (roll cap, keep-all, timeout/disconnect/kick) bypass the gate.
 
 ## Verification
 

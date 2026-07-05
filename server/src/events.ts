@@ -13,7 +13,7 @@ import type {
  * room is recorded as one of these and appended to `server/logs/<roomId>.log`
  * as a JSON line. Replay applies the same events through the same reducers
  * the live path uses (`Room.applyEvent` + the engine, with logged dice values
- * fed back through the engine's injected rng).
+ * re-applied verbatim through `engine.replayRolled`).
  */
 
 /** A `PlayerRecord` minus the transient `connected` flag. */
@@ -33,7 +33,6 @@ export interface PersistedGame {
   roundNumber: number;
   pot: number;
   lastWinnerId: PlayerId | null;
-  straightStreak: number;
 }
 
 export interface ChatHistoryEntry {
@@ -79,6 +78,8 @@ export type RoomEvent =
     }
   | { type: 'rolled'; playerId: PlayerId; dice: Die[]; kept: number[]; rollNumber: number }
   | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
+  /** Turn ended with no completed roll: replay must advance past the player. */
+  | { type: 'forfeited'; playerId: PlayerId }
   | { type: 'gameEnded'; reason: string }
   // -- audit-only (outcomes are recomputed deterministically on replay) --------
   | {
@@ -89,14 +90,14 @@ export type RoomEvent =
       antes: { playerId: PlayerId; amount: number }[];
     }
   | {
-      type: 'bonusAwarded';
+      type: 'straightPaid';
       playerId: PlayerId;
-      amount: number;
       kind: Exclude<StraightKind, 'none'>;
-      target: 'pot' | 'direct';
-      streak: number;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
     }
-  | { type: 'roundEnded'; winnerId: PlayerId; potWon: number }
+  | { type: 'roundEnded'; winnerId: PlayerId | null; potWon: number }
   // -- chat (Phase 10) ---------------------------------------------------------
   | { type: 'chat'; playerId: PlayerId; playerName: string; text: string; ts: number };
 

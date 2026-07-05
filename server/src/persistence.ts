@@ -1,8 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { appendFile, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Die, RoomId, RoomSettings } from '@dice/shared';
-import { cryptoRng } from './engine.js';
+import type { RoomId, RoomSettings } from '@dice/shared';
 import type { PersistedRoomState, RoomEvent } from './events.js';
 import { Room } from './room.js';
 import type { RoomManager } from './roomManager.js';
@@ -77,30 +76,11 @@ export class RoomLogStore {
 }
 
 /**
- * Rng that replays logged dice values, falling back to crypto randomness once
- * replay completes (so a recovered engine keeps working after resume).
- */
-class ReplayRng {
-  private readonly queue: Die[] = [];
-  strict = true;
-
-  prime(dice: Die[]): void {
-    this.queue.push(...dice);
-  }
-
-  readonly rng = (): number => {
-    const face = this.queue.shift();
-    if (face !== undefined) return (face - 1) / 6;
-    if (this.strict) throw new Error('replay rng exhausted: log/state desync');
-    return cryptoRng();
-  };
-}
-
-/**
  * Rebuild a room by replaying its event log through the same reducers the
- * live path uses. Returns null if the log is unusable. The recovered room
- * comes back paused with every player marked disconnected (6.2); play resumes
- * when someone rejoins with their rejoinToken.
+ * live path uses (logged dice re-applied verbatim via `engine.replayRolled`).
+ * Returns null if the log is unusable. The recovered room comes back paused
+ * with every player marked disconnected (6.2); play resumes when someone
+ * rejoins with their rejoinToken.
  */
 export function replayRoom(roomId: RoomId, events: RoomEvent[]): Room | null {
   const first = events[0];
@@ -108,39 +88,29 @@ export function replayRoom(roomId: RoomId, events: RoomEvent[]): Room | null {
   const settings: RoomSettings =
     first.type === 'created' ? first.settings : first.state.settings;
 
-  const rng = new ReplayRng();
-  const room = new Room(roomId, settings, undefined, { rng: rng.rng });
+  const room = new Room(roomId, settings);
 
   try {
-    for (const event of events) applyReplayEvent(room, rng, event);
+    for (const event of events) applyReplayEvent(room, event);
   } catch (error) {
     // Best effort: keep the room at the last successfully applied event.
     console.error(`[persistence] replay of room ${roomId} stopped early:`, error);
   }
 
-  rng.strict = false;
-  room.engineOpts = {}; // future games (after recovery) roll with crypto rng
   for (const player of room.players.values()) player.connected = false;
   room.engine?.pause();
   room.emptySince = Date.now();
   return room;
 }
 
-function applyReplayEvent(room: Room, rng: ReplayRng, event: RoomEvent): void {
+function applyReplayEvent(room: Room, event: RoomEvent): void {
   switch (event.type) {
     case 'created':
       break; // consumed by replayRoom
 
     case 'rolled': {
       const engine = requireEngine(room, event.type);
-      if (event.rollNumber === 1) {
-        rng.prime(event.dice);
-      } else {
-        // The engine re-draws the non-kept positions in index order.
-        const kept = new Set(event.kept);
-        rng.prime(event.dice.filter((_, i) => !kept.has(i)));
-      }
-      const error = engine.roll(event.playerId, event.kept);
+      const error = engine.replayRolled(event.playerId, event.dice, event.kept);
       if (error) throw new Error(`replay roll rejected: ${error.message}`);
       break;
     }
@@ -151,6 +121,15 @@ function applyReplayEvent(room: Room, rng: ReplayRng, event: RoomEvent): void {
       if (engine.currentTurnPlayerId !== event.playerId) break;
       const error = engine.stand(event.playerId);
       if (error) throw new Error(`replay stand rejected: ${error.message}`);
+      break;
+    }
+
+    case 'forfeited': {
+      const engine = requireEngine(room, event.type);
+      if (engine.currentTurnPlayerId !== event.playerId) {
+        throw new Error(`replay forfeit desync: not ${event.playerId}'s turn`);
+      }
+      engine.forceStand(event.playerId);
       break;
     }
 
@@ -167,7 +146,7 @@ function applyReplayEvent(room: Room, rng: ReplayRng, event: RoomEvent): void {
 
     // Audit-only: outcomes are recomputed deterministically from rolls/stands.
     case 'subRoundStarted':
-    case 'bonusAwarded':
+    case 'straightPaid':
     case 'roundEnded':
       break;
 

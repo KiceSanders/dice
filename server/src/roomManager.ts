@@ -1,6 +1,5 @@
 import { randomInt } from 'node:crypto';
 import type { RoomId, RoomSettings } from '@dice/shared';
-import { seededRng } from './engine.js';
 import type { RoomLogStore } from './persistence.js';
 import { Room } from './room.js';
 
@@ -23,10 +22,6 @@ export class RoomManager {
 
   create(settings: RoomSettings): Room {
     const room = new Room(this.generateId(), settings);
-    // DEBUG_SEED (PLAN.md Phase 9 verification): deterministic dice so ties
-    // and straights can be forced. Never set in production.
-    const debugSeed = process.env.DEBUG_SEED;
-    if (debugSeed) room.engineOpts.rng = seededRng(debugSeed);
     this.register(room);
     this.store?.append(room.id, { type: 'created', roomId: room.id, settings: room.settings });
     return room;

@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { DICE_FELT_Y, KOOZIE } from './constants';
 import { koozieRestPosition } from './diceLayout';
-import { TABLE_SEAT_COUNT } from '../layout';
 import {
   getDicePhysicsTuning,
   type DicePhysicsTuning,
@@ -62,18 +61,8 @@ export type KooziePourState = {
   elapsedMs: number;
 };
 
-export function createHomePose(
-  tuning = safeTuning(),
-  seatIndex = 0,
-  seatCount = TABLE_SEAT_COUNT,
-): KooziePose {
-  const [x, y, z] = koozieRestPosition(
-    tuning.cup.floatCenterY,
-    tuning.cup.homeZ,
-    tuning.cup.radius,
-    seatIndex,
-    seatCount,
-  );
+export function createHomePose(tuning = safeTuning()): KooziePose {
+  const [x, y, z] = koozieRestPosition(tuning.cup);
   return {
     position: new THREE.Vector3(x, y, z),
     quaternion: new THREE.Quaternion(),

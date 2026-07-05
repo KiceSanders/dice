@@ -14,24 +14,42 @@ describe('scoreHand', () => {
     });
   });
 
-  it('scores the largest group', () => {
-    expect(scoreHand(h(3, 3, 3, 6, 1), 1)).toMatchObject({ count: 3, face: 3 });
+  it('scores the largest group, with 1s joining as wilds', () => {
+    expect(scoreHand(h(3, 3, 3, 6, 1), 1)).toMatchObject({ count: 4, face: 3 });
   });
 
-  it('breaks group-count ties with the higher face (6,6,3,3,1 → two 6s)', () => {
-    expect(scoreHand(h(6, 6, 3, 3, 1), 1)).toMatchObject({ count: 2, face: 6 });
-    expect(scoreHand(h(2, 2, 5, 5, 1), 3)).toMatchObject({ count: 2, face: 5 });
+  it('breaks group-count ties with the higher face', () => {
+    expect(scoreHand(h(6, 6, 3, 3, 1), 1)).toMatchObject({ count: 3, face: 6 });
+    expect(scoreHand(h(2, 2, 5, 5, 1), 3)).toMatchObject({ count: 3, face: 5 });
   });
 
-  it('scores a no-pair hand as count 1, highest face', () => {
-    expect(scoreHand(h(1, 3, 4, 5, 6) /* not a straight */, 1)).toMatchObject({
-      count: 1,
-      face: 6,
-      straight: 'none',
+  describe('wild ones', () => {
+    it('wilds join the group that maximizes count first', () => {
+      expect(scoreHand(h(1, 1, 3, 3, 3), 1)).toMatchObject({ count: 5, face: 3 });
+    });
+
+    it('wilds break count ties toward the higher face', () => {
+      expect(scoreHand(h(1, 4, 4, 6, 6), 1)).toMatchObject({ count: 3, face: 6 });
+    });
+
+    it('all ones score as five 6s', () => {
+      expect(scoreHand(h(1, 1, 1, 1, 1), 1)).toMatchObject({ count: 5, face: 6 });
+    });
+
+    it('a hand with no ones scores exactly as before', () => {
+      expect(scoreHand(h(2, 2, 4, 5, 6), 1)).toMatchObject({ count: 2, face: 2 });
+    });
+
+    it('a lone wild in a no-pair hand pairs the highest face', () => {
+      expect(scoreHand(h(1, 3, 4, 5, 6), 1)).toMatchObject({
+        count: 2,
+        face: 6,
+        straight: 'none',
+      });
     });
   });
 
-  it('detects a little straight', () => {
+  it('detects a little straight (the 1 is a natural 1, not a wild)', () => {
     expect(scoreHand(h(5, 3, 1, 4, 2), 2)).toMatchObject({ straight: 'little' });
   });
 
@@ -50,6 +68,10 @@ describe('detectStraight', () => {
   it('returns none for non-straights', () => {
     expect(detectStraight(h(1, 1, 3, 4, 5))).toBe('none');
     expect(detectStraight(h(1, 2, 3, 4, 6))).toBe('none');
+  });
+
+  it('never lets a wild 1 complete a straight (1,3,4,5,6 is not a straight)', () => {
+    expect(detectStraight(h(1, 3, 4, 5, 6))).toBe('none');
   });
 
   it('detects straights in any order', () => {

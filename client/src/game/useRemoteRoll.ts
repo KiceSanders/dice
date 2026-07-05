@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
+import { poseFrameFromCanonical } from '../table3d/seatTransform';
 import type { WsClient } from '../ws/client';
 
 export interface RemoteRoll {
@@ -31,6 +32,7 @@ export function useRemoteRoll(
 
   const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
   const remote = turnPlayerId !== null && turnPlayerId !== myId;
+  const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
 
   useEffect(() => {
     if (!remote || turnPlayerId === null) {
@@ -41,7 +43,9 @@ export function useRemoteRoll(
     setLive(false);
     const off = ws.onMessage((msg) => {
       if (msg.type === 'dice:frames' && msg.playerId === turnPlayerId) {
-        feed.push(msg.frames);
+        // Wire frames are canonical table space; the feed (and everything
+        // rendered from it) lives in this viewer's view space.
+        feed.push(msg.frames.map((f) => poseFrameFromCanonical(f, mySeat)));
         setLive(true);
         setHeldPose(null);
       }
@@ -54,7 +58,7 @@ export function useRemoteRoll(
       }
       feed.clear();
     };
-  }, [ws, feed, remote, turnPlayerId]);
+  }, [ws, feed, remote, turnPlayerId, mySeat]);
 
   return { feed, live: remote && live, heldPose };
 }

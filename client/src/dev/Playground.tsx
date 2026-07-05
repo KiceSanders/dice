@@ -350,7 +350,6 @@ export default function Playground() {
     rolling,
     loadScene,
     setPendingKeep,
-    keepAllStand,
     releaseThrow,
     commitRoll,
     stand,
@@ -366,7 +365,6 @@ export default function Playground() {
 
   const turn = snapshot.game?.currentTurn ?? null;
   const isMyTurn = turn !== null && turn.playerId === myId;
-  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
 
   useEffect(() => {
     setPendingKeepState(turn ? [...turn.keptIndices] : []);
@@ -429,7 +427,6 @@ export default function Playground() {
           dice: turn.dice,
           canDrag: true,
           active: true,
-          rollerSeat: mySeat,
           onSettled: commitRoll,
           onRelease: releaseThrow,
           onDragChange: setDragging,
@@ -523,9 +520,9 @@ export default function Playground() {
           : rolling
             ? 'Rolling…'
             : isMyTurn && turn && turn.rollsUsed > 0 && turn.dice.length > 0
-              ? 'Click dice on the table to keep them. Click the koozie to roll again.'
+              ? 'Click dice on the table to keep them. Click the koozie across the table to roll again.'
               : isMyTurn
-                ? 'Click the koozie beside the table, drag it around, then release to roll.'
+                ? 'Grab the koozie across the table, drag it around, then release to roll.'
                 : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
       </p>
 
@@ -538,6 +535,11 @@ export default function Playground() {
         dice={tableDice}
         diceAiming={dragging || (pointerOnTable && isMyTurn && !rolling)}
         onTablePointer={onTablePointer}
+        stand={
+          isMyTurn && turn && turn.rollsUsed > 0 && !dragging
+            ? { onStand: stand, canStand: true, disabled: rolling }
+            : undefined
+        }
       />
 
       <GameArea
@@ -550,7 +552,6 @@ export default function Playground() {
         onPendingKeepChange={setPendingKeepState}
         turnActions={{
           onStand: stand,
-          onKeepAllStand: keepAllStand,
           disabled: rolling,
           aiming: dragging,
         }}

@@ -13,7 +13,6 @@ import {
   DIE_HALF,
   FELT_BOUND_X,
   FELT_BOUND_Z,
-  KOOZIE,
   dieSlotPosition,
 } from './constants';
 import { spawnDiceInCupLocal } from './koozieColliders';
@@ -27,12 +26,7 @@ import {
   type KoozieHeldState,
   type KooziePourState,
 } from './koozieMotion';
-import {
-  keepSlotForIndex,
-  keptDieRailPosition,
-  koozieParkedPosition,
-  koozieRestPosition,
-} from './diceLayout';
+import { keepSlotForIndex, keptDieRailPosition, koozieRestPosition } from './diceLayout';
 import { canvasLayoutElement, hitCup, pointerOnPlane } from './pointerToFelt';
 import { quaternionForFace, readTopFace } from './faceValue';
 import {
@@ -74,13 +68,8 @@ function eulerToQuat(euler: [number, number, number]): THREE.Quaternion {
   return new THREE.Quaternion().setFromEuler(_euler);
 }
 
-function homePosition(tuning: DicePhysicsTuning, seatIndex: number): [number, number, number] {
-  return koozieRestPosition(
-    tuning.cup.floatCenterY,
-    tuning.cup.homeZ,
-    tuning.cup.radius,
-    seatIndex,
-  );
+function homePosition(tuning: DicePhysicsTuning): [number, number, number] {
+  return koozieRestPosition(tuning.cup);
 }
 
 function isOutsidePlayBounds(
@@ -129,7 +118,6 @@ function buildRuntime(
   keepIndices: number[],
   cupMode: boolean,
   tuning: DicePhysicsTuning,
-  rollerSeat: number,
 ): DieRuntime[] {
   if (!cupMode) {
     return Array.from({ length: DICE_COUNT }, (_, i) => {
@@ -155,7 +143,7 @@ function buildRuntime(
 
   const kept = new Set(keepIndices);
   const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => !kept.has(i));
-  const home = createHomePose(tuning, rollerSeat);
+  const home = createHomePose(tuning);
 
   return Array.from({ length: DICE_COUNT }, (_, i) => {
     if (kept.has(i)) {
@@ -241,10 +229,9 @@ function blendReleaseVelocity(
 function cupCenterNow(
   cup: KoozieBodyHandle['body'],
   tuning: DicePhysicsTuning,
-  seatIndex: number,
 ): readonly [number, number, number] {
   const body = liveBody(cup);
-  if (!body) return homePosition(tuning, seatIndex);
+  if (!body) return homePosition(tuning);
   const t = body.translation();
   return [t.x, t.y, t.z];
 }
@@ -345,7 +332,6 @@ export default function DicePhysics({
   lockedKeepIndices = [],
   onKeepToggle,
   onPoseFrame,
-  rollerSeat = 0,
 }: TableDiceProps) {
   const { camera, gl } = useThree();
   const tuning = useDicePhysicsTuning();
@@ -362,7 +348,6 @@ export default function DicePhysics({
   const onReleaseRef = useRef(onRelease);
   const onDragChangeRef = useRef(onDragChange);
   const canDragRef = useRef(canDrag);
-  const rollerSeatRef = useRef(rollerSeat);
   const cupPhaseRef = useRef<CupPhase>('hidden');
   const heldStateRef = useRef<KoozieHeldState | null>(null);
   const pourStateRef = useRef<KooziePourState | null>(null);
@@ -385,7 +370,10 @@ export default function DicePhysics({
   const onPoseFrameRef = useRef(onPoseFrame);
   const streamStartRef = useRef<number | null>(null);
   const lastPoseSampleRef = useRef(0);
-  const lastCupPoseRef = useRef<BodyPose>([0, tuning.cup.floatCenterY, tuning.cup.homeZ, 0, 0, 0, 1]);
+  const lastCupPoseRef = useRef<BodyPose>((() => {
+    const [x, y, z] = homePosition(tuning);
+    return [x, y, z, 0, 0, 0, 1] as BodyPose;
+  })());
   const lastDiePosesRef = useRef<BodyPose[]>(
     Array.from({ length: DICE_COUNT }, (_, i) => {
       const [x, y, z] = dieSlotPosition(i);
@@ -395,7 +383,7 @@ export default function DicePhysics({
 
   const [cupPhase, setCupPhase] = useState<CupPhase>(active && canDrag ? 'idle' : 'hidden');
   const [cupPosition, setCupPosition] = useState<[number, number, number]>(() =>
-    homePosition(tuning, rollerSeat),
+    homePosition(tuning),
   );
   const [cupVisible, setCupVisible] = useState(active && canDrag);
   const [dragging, setDragging] = useState(false);
@@ -405,7 +393,7 @@ export default function DicePhysics({
   const dieHoverCountRef = useRef(0);
   const [layoutGen, setLayoutGen] = useState(0);
   const [runtime, setRuntime] = useState<DieRuntime[]>(() =>
-    buildRuntime(dice, keepIndices, canDrag, tuning, rollerSeat),
+    buildRuntime(dice, keepIndices, canDrag, tuning),
   );
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
@@ -419,7 +407,6 @@ export default function DicePhysics({
   onDragChangeRef.current = onDragChange;
   onPoseFrameRef.current = onPoseFrame;
   canDragRef.current = canDrag;
-  rollerSeatRef.current = rollerSeat;
   keepRef.current = keepIndices;
   lockedKeepRef.current = lockedKeepIndices;
   onKeepToggleRef.current = onKeepToggle;
@@ -429,13 +416,14 @@ export default function DicePhysics({
   const resetToIdleInCup = useCallback((nextDice?: Die[]) => {
     const latestTuning = getDicePhysicsTuning();
     const cupMode = canDragRef.current;
-    const seat = rollerSeatRef.current;
-    const home = homePosition(latestTuning, seat);
+    // The layoutGen bump remounts the cup and dice at their declarative
+    // positions — never mix in imperative teleports (rapier skips mesh sync
+    // for fixed bodies, and the old bodies unmount anyway).
     skipDiceLayoutRef.current = true;
     layoutGenRef.current += 1;
     setLayoutGen(layoutGenRef.current);
-    setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning, seat));
-    setCupPosition(home);
+    setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
+    setCupPosition(homePosition(latestTuning));
     setCupPhase(cupMode ? 'idle' : 'hidden');
     setCupVisible(cupMode);
     rollingRef.current = false;
@@ -445,21 +433,11 @@ export default function DicePhysics({
     heldStateRef.current = null;
     pourStateRef.current = null;
     feltPoseRef.current = Array(DICE_COUNT).fill(null);
-
-    const cup = liveBody(koozieRef.current?.body);
-    if (cup && cupMode) {
-      cup.setBodyType(RigidBodyType.Fixed, true);
-      cup.setTranslation({ x: home[0], y: home[1], z: home[2] }, true);
-      cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-      cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    }
   }, []);
 
   const enterSelectingPhase = useCallback(
     (values: Die[]) => {
       const latestTuning = getDicePhysicsTuning();
-      const seat = rollerSeatRef.current;
       const kept = keepRef.current;
       const keptSorted = [...kept].sort((a, b) => a - b);
 
@@ -470,31 +448,23 @@ export default function DicePhysics({
         position: dieSlotPosition(i),
       }));
 
+      // All placement is declarative: unkept dice flip dynamic → locked (key
+      // change remounts them at their settled pose), kept dice move via the
+      // position prop, and the cup remounts at the parked spot when it turns
+      // visible again below.
       for (let i = 0; i < DICE_COUNT; i++) {
         const value = values[i] ?? diceRef.current[i];
         if (value === undefined && !kept.includes(i)) continue;
 
         if (kept.includes(i)) {
           const slot = keepSlotForIndex(i, keptSorted);
-          const pos = keptDieRailPosition(slot, keptSorted.length, seat);
           nextRuntime[i] = {
             visible: true,
             locked: true,
             inCup: false,
-            position: pos,
+            position: keptDieRailPosition(slot, keptSorted.length),
             rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
           };
-          const body = liveBody(dieRefs.current[i]?.body);
-          if (body) {
-            body.setBodyType(RigidBodyType.Fixed, true);
-            body.setTranslation({ x: pos[0], y: pos[1], z: pos[2] }, true);
-            if (value) {
-              const q = quaternionForFace(value);
-              body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
-            }
-            body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-            body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-          }
           continue;
         }
 
@@ -508,9 +478,6 @@ export default function DicePhysics({
             position: [t.x, t.y, t.z],
             rotation: quatToEuler(_quat),
           };
-          body.setBodyType(RigidBodyType.Fixed, true);
-          body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-          body.setAngvel({ x: 0, y: 0, z: 0 }, true);
         } else {
           const slot = dieSlotPosition(i);
           pose = { position: slot, rotation: [0, 0, 0] };
@@ -525,25 +492,8 @@ export default function DicePhysics({
         };
       }
 
-      skipDiceLayoutRef.current = true;
       setRuntime(nextRuntime);
-
-      const parked = koozieParkedPosition(
-        latestTuning.cup.floatCenterY,
-        latestTuning.cup.homeZ,
-        latestTuning.cup.radius,
-        seat,
-      );
-      setCupPosition(parked);
-      const cup = liveBody(koozieRef.current?.body);
-      if (cup) {
-        cup.setBodyType(RigidBodyType.Fixed, true);
-        cup.setTranslation({ x: parked[0], y: parked[1], z: parked[2] }, true);
-        cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-        cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      }
-
+      setCupPosition(homePosition(latestTuning));
       setCupPhase('selecting');
       cupPhaseRef.current = 'selecting';
       setCupVisible(canDragRef.current);
@@ -560,9 +510,10 @@ export default function DicePhysics({
   const applyKeepLayout = useCallback((kept: number[]) => {
     const phase = cupPhaseRef.current;
     if (phase !== 'selecting') return;
-    const seat = rollerSeatRef.current;
     const keptSorted = [...kept].sort((a, b) => a - b);
 
+    // Declarative-only: DieBody position/rotation props move both the mesh and
+    // (via rapier's prop effect) the fixed body.
     setRuntime((prev) => {
       const next = [...prev];
       for (let i = 0; i < DICE_COUNT; i++) {
@@ -571,21 +522,15 @@ export default function DicePhysics({
 
         if (kept.includes(i)) {
           const slot = keepSlotForIndex(i, keptSorted);
-          const pos = keptDieRailPosition(slot, keptSorted.length, seat);
           const value = diceRef.current[i];
           const rotation = value ? quatToEuler(quaternionForFace(value)) : rt.rotation;
-          next[i] = { ...rt, locked: true, inCup: false, position: pos, rotation };
-          const body = liveBody(dieRefs.current[i]?.body);
-          if (body) {
-            body.setBodyType(RigidBodyType.Fixed, true);
-            body.setTranslation({ x: pos[0], y: pos[1], z: pos[2] }, true);
-            if (value) {
-              const q = quaternionForFace(value);
-              body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
-            }
-            body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-            body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-          }
+          next[i] = {
+            ...rt,
+            locked: true,
+            inCup: false,
+            position: keptDieRailPosition(slot, keptSorted.length),
+            rotation,
+          };
         } else {
           const felt = feltPoseRef.current[i];
           if (!felt) continue;
@@ -596,18 +541,6 @@ export default function DicePhysics({
             position: felt.position,
             rotation: felt.rotation,
           };
-          const body = liveBody(dieRefs.current[i]?.body);
-          if (body) {
-            const q = eulerToQuat(felt.rotation);
-            body.setBodyType(RigidBodyType.Fixed, true);
-            body.setTranslation(
-              { x: felt.position[0], y: felt.position[1], z: felt.position[2] },
-              true,
-            );
-            body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
-            body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-            body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-          }
         }
       }
       return next;
@@ -815,12 +748,12 @@ export default function DicePhysics({
         cup.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
       };
 
+      // The resting/parked cup lives outside the play bounds and cannot be
+      // dragged from there: grabbing it teleports it onto the felt under the
+      // pointer, then the drag continues normally.
       if (fromRest && cup) {
         const t = cup.translation();
-        if (isOutsidePlayBounds({ x: t.x, z: t.z }, latestTuning)) {
-          teleportCupToPlayBounds();
-          pullUnkeptDiceIntoCup();
-        } else if (phase === 'selecting') {
+        if (phase === 'selecting' || isOutsidePlayBounds({ x: t.x, z: t.z }, latestTuning)) {
           teleportCupToPlayBounds();
           pullUnkeptDiceIntoCup();
         }
@@ -899,7 +832,7 @@ export default function DicePhysics({
     }
     layoutGenRef.current += 1;
     setLayoutGen(layoutGenRef.current);
-    setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current, rollerSeatRef.current));
+    setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current));
   }, [dice, keepIndices, dragging, canDrag]);
 
   useEffect(() => {
@@ -955,7 +888,6 @@ export default function DicePhysics({
     tuning.cup.bottomThickness,
     tuning.cup.rimInset,
     tuning.cup.floatCenterY,
-    tuning.cup.homeZ,
     resetToIdleInCup,
   ]);
 
@@ -979,15 +911,13 @@ export default function DicePhysics({
       }
       camera.updateMatrixWorld();
       const latestTuning = tuningRef.current;
-      const center = cupCenterNow(koozieRef.current?.body ?? null, latestTuning, rollerSeatRef.current);
+      const center = cupCenterNow(koozieRef.current?.body ?? null, latestTuning);
       const rect = canvasLayoutElement(canvas).getBoundingClientRect();
       const inTable =
         e.clientX >= rect.left &&
         e.clientX <= rect.right &&
         e.clientY >= rect.top &&
         e.clientY <= rect.bottom;
-      const hitRadiusPx =
-        center[2] < 0 ? latestTuning.cup.hitScreenPx * 1.75 : latestTuning.cup.hitScreenPx;
       if (
         !inTable ||
         !hitCup(
@@ -996,7 +926,7 @@ export default function DicePhysics({
           canvas,
           camera,
           center,
-          hitRadiusPx,
+          latestTuning.cup.hitScreenPx,
           latestTuning.cup.hitRadius,
         )
       ) {

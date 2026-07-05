@@ -86,7 +86,12 @@ export function displaySeatIndex(seatIndex: number, mySeat: number): number {
   return (seatIndex - mySeat + TABLE_SEAT_COUNT) % TABLE_SEAT_COUNT;
 }
 
-/** Y rotation applied to the 3D scene so mySeat appears at +Z (bottom of screen). */
+/**
+ * Y rotation (three.js sign convention) carrying a player's view-local space —
+ * that player at +Z / bottom of screen — to canonical table space. Used only
+ * to transform pose frames at the wire boundary (seatTransform.ts); the
+ * rendered scene, camera, and physics all stay in view-local space.
+ */
 export function viewRotationY(mySeat: number): number {
   return Math.PI / 2 - seatAngle(mySeat, TABLE_SEAT_COUNT);
 }

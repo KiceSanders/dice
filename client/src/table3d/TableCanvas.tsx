@@ -11,22 +11,25 @@ import type { PoseFrame } from '@dice/shared';
 import type { RemoteRollFeed } from './dice/remoteFeed';
 import { useDicePhysicsTuning } from './dice/tuning';
 import type { TableDiceProps } from './dice/types';
-import { FELT_HALF_EXTENT, SEAT_VIEW, viewRotationY } from './layout';
+import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
 
+/**
+ * The scene renders in the local player's view space: the viewer is always at
+ * the bottom (+Z), the camera and table never rotate. Seat identity is applied
+ * to pose DATA at the wire boundary instead (seatTransform.ts) — remote frames
+ * arrive here already converted to this client's view space.
+ */
 function SceneContent({
   dice,
   remoteFeed,
   heldPose,
-  mySeat,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
-  mySeat: number;
 }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
-  const rotationY = viewRotationY(mySeat);
 
   return (
     <>
@@ -51,22 +54,20 @@ function SceneContent({
       <directionalLight position={[-2, 2.5, -2]} intensity={0.3} />
       <pointLight position={[0.4, 1.6, 1.2]} intensity={0.12} color="#f2b441" />
 
-      <group rotation={[0, rotationY, 0]}>
-        <PokerTableMesh />
+      <PokerTableMesh />
 
-        <Physics
-          gravity={[0, gravityY, 0]}
-          timeStep={tuning.world.timeStep}
-          interpolate
-          debug={tuning.world.debug}
-        >
-          {dice ? <DicePhysics {...dice} /> : <TableColliders />}
-        </Physics>
+      <Physics
+        gravity={[0, gravityY, 0]}
+        timeStep={tuning.world.timeStep}
+        interpolate
+        debug={tuning.world.debug}
+      >
+        {dice ? <DicePhysics {...dice} /> : <TableColliders />}
+      </Physics>
 
-        {/* Remote throw playback: plain meshes outside the physics world. */}
-        {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
-        {heldPose && !remoteFeed && <StaticDiceView frame={heldPose} />}
-      </group>
+      {/* Remote throw playback: plain meshes outside the physics world. */}
+      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
+      {heldPose && !remoteFeed && <StaticDiceView frame={heldPose} />}
     </>
   );
 }
@@ -75,11 +76,10 @@ interface Props {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
-  mySeat?: number;
 }
 
 /** WebGL canvas — table mesh + physics dice; labels are 2D overlays in Table.tsx. */
-export default function TableCanvas({ dice, remoteFeed, heldPose = null, mySeat = 0 }: Props) {
+export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props) {
   return (
     <Canvas
       className="table-canvas"
@@ -97,7 +97,7 @@ export default function TableCanvas({ dice, remoteFeed, heldPose = null, mySeat 
       }}
     >
       <Suspense fallback={null}>
-        <SceneContent dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} mySeat={mySeat} />
+        <SceneContent dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} />
       </Suspense>
     </Canvas>
   );

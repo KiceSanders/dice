@@ -151,6 +151,18 @@ export default function Room() {
     !roll3d.dragging &&
     !roll3d.rolling;
 
+  // Stand button on the table frame: only for the active 3D roller after their
+  // first roll, hidden while aiming so it never fights the drag.
+  const standControl =
+    roll3d.turnActions && turn && turn.rollsUsed > 0 && !roll3d.dragging
+      ? {
+          onStand: roll3d.turnActions.onStand,
+          canStand: roll3d.turnActions.canStand ?? true,
+          hint: roll3d.turnActions.standHint,
+          disabled: roll3d.turnActions.disabled,
+        }
+      : undefined;
+
   async function copyInvite() {
     try {
       await navigator.clipboard.writeText(inviteUrl);
@@ -205,6 +217,7 @@ export default function Room() {
         heldPose={showHeldPose ? heldPose : null}
         diceAiming={roll3d.diceAiming}
         onTablePointer={roll3d.onTablePointer}
+        stand={standControl}
       />
 
       {inGame && (

@@ -13,10 +13,11 @@ import { KOOZIE } from './constants';
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 describe('koozieMotion', () => {
-  it('createHomePose rests outside the far rail for seat 0', () => {
+  it('createHomePose rests on the felt across the table from the roller', () => {
     const home = createHomePose();
-    expect(home.position.z).toBeLessThan(-2);
+    expect(home.position.z).toBeLessThan(-1.4);
     expect(home.position.x).toBeCloseTo(0, 2);
+    expect(home.position.y).toBeCloseTo(KOOZIE.height / 2, 2);
     expect(home.quaternion.w).toBeCloseTo(1, 2);
   });
 
@@ -129,10 +130,14 @@ describe('koozieMotion', () => {
   });
 
   it('pouringPoseAt lowers cup while tipping and glides with release speed', () => {
-    const home = createHomePose();
-    const state = createPourState(home, { x: 2, y: 0, z: 0 });
+    // Pours start from a held pose at float height — grabbing lifts the cup.
+    const held = {
+      position: new THREE.Vector3(0, DEFAULT_DICE_PHYSICS_TUNING.cup.floatCenterY, 0.4),
+      quaternion: new THREE.Quaternion(),
+    };
+    const state = createPourState(held, { x: 2, y: 0, z: 0 });
     const { pose } = pouringPoseAt(state, DEFAULT_DICE_PHYSICS_TUNING.release.tipDurationMs);
-    expect(pose.position.y).toBeLessThan(home.position.y);
-    expect(pose.position.x).toBeGreaterThan(home.position.x);
+    expect(pose.position.y).toBeLessThan(held.position.y);
+    expect(pose.position.x).toBeGreaterThan(held.position.x);
   });
 });

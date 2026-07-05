@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientMessage, Die, PoseFrame, RoomSnapshot } from '@dice/shared';
+import { canStandVoluntarily } from '@dice/shared';
 import type { TurnActions } from '../components/GameArea';
+import { describeScore } from '../components/GameHud';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
 import { togglePendingKeep } from './keepSelection';
@@ -91,9 +93,11 @@ export function useTableRoll(
 
   const onPoseFrame = useCallback(
     (frame: PoseFrame) => {
+      if (!isValidPoseFrame(frame)) return;
+      // heldPose renders locally, so keep the view-local frame; only the wire
+      // gets the canonical (seat-rotated) copy.
+      latestPoseRef.current = frame;
       const canonical = poseFrameToCanonical(frame, mySeat);
-      if (!isValidPoseFrame(canonical)) return;
-      latestPoseRef.current = canonical;
       frameBufRef.current.push(canonical);
       if (!canonical.cupVisible || frameBufRef.current.length >= FRAMES_PER_MESSAGE) flushFrames();
       else if (flushTimerRef.current === null) {
@@ -155,7 +159,6 @@ export function useTableRoll(
           dice: turn.dice,
           canDrag,
           active: true,
-          rollerSeat: mySeat,
           onSettled,
           onRelease,
           onDragChange: setDragging,
@@ -165,11 +168,23 @@ export function useTableRoll(
         }
       : undefined;
 
-  // Keeping all five dice is a stand: the hand is already final.
+  // Voluntary-stand gate (shared rule, mirrored by the server): standing while
+  // losing to the roll-to-beat is not allowed — keep rolling instead.
+  const rollToBeat = snapshot?.game?.rollToBeat ?? null;
+  const canStand =
+    turn !== null && canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null);
+  const standHint =
+    turn && !canStand && turn.rollsUsed > 0 && rollToBeat
+      ? `Beat or tie ${
+          snapshot?.players.find((p) => p.id === rollToBeat.playerId)?.name ?? 'the leader'
+        }'s ${describeScore(rollToBeat.score)} to stand`
+      : undefined;
+
   const turnActions: TurnActions | undefined = tableDice
     ? {
         onStand: () => send({ type: 'turn:stand' }),
-        onKeepAllStand: () => send({ type: 'turn:stand' }),
+        canStand,
+        standHint,
         disabled: rolling || !connected,
         aiming: dragging,
       }

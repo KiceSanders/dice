@@ -29,8 +29,6 @@ export interface TableDiceProps {
   onDragChange?: (dragging: boolean) => void;
   /** False while dice are rolling — disables pick-up. */
   canDrag?: boolean;
-  /** Seat index of the active roller — koozie/dice layout is relative to this seat. */
-  rollerSeat?: number;
   /** Server-committed keeps from prior rolls — cannot be un-kept. */
   lockedKeepIndices?: number[];
   /** Click a die on the felt or side tray to toggle keep. */

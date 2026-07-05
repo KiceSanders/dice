@@ -1,8 +1,8 @@
 /**
  * WebSocket message contracts. All messages are JSON: { type, ...payload }.
- * The server is authoritative over game state; dice values come from the
- * current roller's physics sim (turn:throwResult, ADR 004) with a server-side
- * RNG fallback, or from server RNG on the legacy turn:roll path.
+ * The server is authoritative over game state; dice values come exclusively
+ * from the current roller's physics sim (turn:throwResult, ADR 004). There is
+ * no server-side roll — a turn that never produces dice is forfeited.
  * Keep this file in sync with the protocol tables in PLAN.md.
  */
 
@@ -30,7 +30,6 @@ export type ClientMessage =
   | { type: 'player:kick'; playerId: PlayerId }
   | { type: 'settings:update'; settings: RoomSettings }
   | { type: 'game:start' }
-  | { type: 'turn:roll'; keepIndices: number[] }
   /** Physics roll, phase 1: koozie released. Locks the keep set (ADR 004). */
   | { type: 'turn:throwStart'; keepIndices: number[] }
   /** Physics roll, phase 2: the sim settled on these faces. */
@@ -50,6 +49,7 @@ export type ErrorCode =
   | 'ROOM_FULL'
   | 'NOT_HOST'
   | 'NOT_YOUR_TURN'
+  | 'STAND_NOT_ALLOWED'
   | 'NOT_SEATED'
   | 'BANNED'
   | 'RATE_LIMITED'
@@ -66,20 +66,24 @@ export type ServerMessage =
   | { type: 'turn:throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   /** Relay of the current roller's throw poses (ADR 004). */
   | { type: 'dice:frames'; playerId: PlayerId; frames: PoseFrame[] }
+  /** A turn ended with no completed roll (timeout/disconnect/kick): no hand. */
+  | { type: 'turn:forfeited'; playerId: PlayerId }
   | {
       type: 'round:ended';
-      winnerId: PlayerId;
+      /** null when every turn was forfeited — no hands, the pot carries over. */
+      winnerId: PlayerId | null;
       potWon: number;
       scores: { playerId: PlayerId; score: HandScore }[];
     }
   | { type: 'subround:started'; tiedPlayerIds: PlayerId[]; anteAmount: number; depth: number }
+  /** Instant straight side payment: each other seated player paid the roller. */
   | {
-      type: 'bonus:awarded';
+      type: 'straight:paid';
       playerId: PlayerId;
-      amount: number;
       kind: Exclude<StraightKind, 'none'>;
-      target: 'pot' | 'direct';
-      streak: number;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
     }
   | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }
   | { type: 'error'; code: ErrorCode; message: string };

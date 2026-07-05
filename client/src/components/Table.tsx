@@ -8,6 +8,17 @@ import type { OverlayRect } from '../table3d/layout';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
 
+/** Voluntary-stand affordance anchored to the table frame, outside the play area. */
+export interface StandControl {
+  onStand: () => void;
+  /** False while the current hand loses to the roll-to-beat. */
+  canStand: boolean;
+  /** Why standing is blocked (shown under the disabled button). */
+  hint?: string;
+  /** Transient lockout (rolling, disconnected). */
+  disabled?: boolean;
+}
+
 interface Props {
   snapshot: RoomSnapshot;
   myId: string | null;
@@ -22,6 +33,8 @@ interface Props {
   diceAiming?: boolean;
   /** Pointer entered or left the playing area (viewport). */
   onTablePointer?: (inside: boolean, clientX?: number, clientY?: number) => void;
+  /** Stand button rendered in the frame gutter; omit to hide. */
+  stand?: StandControl;
 }
 
 function toOverlayRect(el: HTMLElement): OverlayRect {
@@ -72,12 +85,11 @@ export default function Table({
   heldPose = null,
   diceAiming = false,
   onTablePointer,
+  stand,
 }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
-
-  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
 
   return (
     <div ref={frameRef} className="table table-3d">
@@ -87,12 +99,7 @@ export default function Table({
         onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
         onPointerLeave={() => onTablePointer?.(false)}
       >
-        <TableCanvas
-          dice={dice}
-          remoteFeed={remoteFeed}
-          heldPose={heldPose}
-          mySeat={mySeat}
-        />
+        <TableCanvas dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
       {layout && (
@@ -104,6 +111,21 @@ export default function Table({
           frame={layout.frame}
           viewport={layout.viewport}
         />
+      )}
+      {stand && (
+        <div className="table-stand">
+          <button
+            type="button"
+            className="table-stand-button"
+            disabled={!stand.canStand || stand.disabled}
+            onClick={stand.onStand}
+          >
+            Stand
+          </button>
+          {!stand.canStand && stand.hint && (
+            <small className="table-stand-hint">{stand.hint}</small>
+          )}
+        </div>
       )}
     </div>
   );

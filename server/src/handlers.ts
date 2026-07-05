@@ -135,17 +135,6 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       // Engine events handle the broadcasts.
     },
 
-    'turn:roll': (conn, msg) => {
-      const c = ctx(conn);
-      if (!c) return;
-      if (!c.room.engine) {
-        conn.sendError('BAD_REQUEST', 'no game in progress');
-        return;
-      }
-      const error = c.room.engine.roll(c.playerId, msg.keepIndices);
-      if (error) conn.sendError(error.code, error.message);
-    },
-
     'turn:throwStart': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;
@@ -189,7 +178,7 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
         conn.sendError('BAD_REQUEST', 'no game in progress');
         return;
       }
-      const error = c.room.engine.stand(c.playerId);
+      const error = c.room.engine.standVoluntarily(c.playerId);
       if (error) conn.sendError(error.code, error.message);
     },
 

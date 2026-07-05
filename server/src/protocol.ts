@@ -1,4 +1,4 @@
-import type { ClientMessage, RoomSettings, StraightBonusConfig } from '@dice/shared';
+import type { ClientMessage, RoomSettings, StraightPayoutConfig } from '@dice/shared';
 
 export type ParseResult = { ok: true; message: ClientMessage } | { ok: false; error: string };
 
@@ -14,15 +14,12 @@ function isNonEmptyString(v: unknown, maxLen: number): v is string {
   return typeof v === 'string' && v.trim().length > 0 && v.length <= maxLen;
 }
 
-function isStraightBonusConfig(v: unknown): v is StraightBonusConfig {
+function isStraightPayoutConfig(v: unknown): v is StraightPayoutConfig {
   return (
     isRecord(v) &&
     typeof v.enabled === 'boolean' &&
-    (v.type === 'pot' || v.type === 'direct') &&
-    isFiniteNumber(v.baseAmount) &&
-    isFiniteNumber(v.multiplier) &&
-    typeof v.incremental === 'boolean' &&
-    isFiniteNumber(v.maxBonus)
+    isFiniteNumber(v.amountPerPlayer) &&
+    isFiniteNumber(v.bigMultiplier)
   );
 }
 
@@ -35,7 +32,7 @@ function isRoomSettings(v: unknown): v is RoomSettings {
     isFiniteNumber(v.maxPlayers) &&
     isFiniteNumber(v.minBuyIn) &&
     isFiniteNumber(v.maxBuyIn) &&
-    isStraightBonusConfig(v.straightBonus)
+    isStraightPayoutConfig(v.straightPayout)
   );
 }
 
@@ -107,10 +104,6 @@ const validators: Record<ClientMessage['type'], Validator> = {
   'settings:update': (m) =>
     isRoomSettings(m.settings) ? null : 'settings is missing or malformed',
   'game:start': () => null,
-  'turn:roll': (m) =>
-    isIndexArray(m.keepIndices)
-      ? null
-      : 'keepIndices must be an array of ≤5 unique integers in [0, 4]',
   'turn:throwStart': (m) =>
     isIndexArray(m.keepIndices)
       ? null

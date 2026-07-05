@@ -14,8 +14,10 @@ export function detectStraight(dice: Die[]): StraightKind {
 }
 
 /**
- * Score a finished hand: largest group of identical dice wins; group-count
- * ties within the hand resolve to the higher face (e.g. 6,6,3,3,1 → two 6s).
+ * Score a finished hand. Ones are wild: each 1 joins whatever group gives the
+ * strongest hand — largest group first, then higher face (e.g. 1,1,3,3,3 →
+ * five 3s; 1,4,4,6,6 → three 6s; 1,1,1,1,1 → five 6s). Wilds never count
+ * toward straights: detectStraight matches the literal faces only.
  */
 export function scoreHand(dice: Die[], rollsUsed: number): HandScore {
   if (dice.length !== HAND_SIZE) {
@@ -26,13 +28,17 @@ export function scoreHand(dice: Die[], rollsUsed: number): HandScore {
   }
 
   const counts = new Map<Die, number>();
+  let wilds = 0;
   for (const die of dice) {
-    counts.set(die, (counts.get(die) ?? 0) + 1);
+    if (die === 1) wilds += 1;
+    else counts.set(die, (counts.get(die) ?? 0) + 1);
   }
 
+  const wildableFaces: Die[] = [2, 3, 4, 5, 6];
   let count = 0;
   let face: Die = 1;
-  for (const [d, c] of counts) {
+  for (const d of wildableFaces) {
+    const c = (counts.get(d) ?? 0) + wilds;
     if (c > count || (c === count && d > face)) {
       count = c;
       face = d;

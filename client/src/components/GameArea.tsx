@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { RoomSnapshot, TurnState } from '@dice/shared';
-import { HAND_SIZE } from '@dice/shared';
+import { canStandVoluntarily, HAND_SIZE } from '@dice/shared';
 import { togglePendingKeep } from '../game/keepSelection';
 import { useApp } from '../state/context';
 import type { LastRoll } from '../state/store';
@@ -12,7 +12,10 @@ import TimerRing from './TimerRing';
 export interface TurnActions {
   onRoll?: (keepIndices: number[]) => void;
   onStand: () => void;
-  onKeepAllStand?: () => void;
+  /** Voluntary-stand legality (shared rule vs the roll-to-beat). Default true. */
+  canStand?: boolean;
+  /** Why standing is blocked, e.g. the roll-to-beat to match. */
+  standHint?: string;
   disabled?: boolean;
   /** True while the player is dragging dice before a throw. */
   aiming?: boolean;
@@ -94,8 +97,8 @@ export default function GameArea({
                   ? 'Drag to aim — release to throw.'
                   : mouseThrow
                     ? turn.rollsUsed > 0 && turn.dice.length > 0 && !turnActions?.disabled
-                      ? 'Click dice on the table to keep them. Click the koozie to roll again.'
-                      : 'Click the koozie beside the table, drag it around, then release to roll.'
+                      ? 'Click dice on the table to keep them. Click the koozie across the table to roll again.'
+                      : 'Grab the koozie across the table, drag it around, then release to roll.'
                     : turn.dice.length > 0 || turnActions?.disabled
                       ? 'Dice on the table…'
                       : isMyTurn
@@ -118,13 +121,9 @@ export default function GameArea({
             </Koozie>
           )}
 
-          {isMyTurn && (
-            <TurnControls
-              turn={turn}
-              pendingKeep={pendingKeep}
-              turnActions={turnActions}
-              mouseThrow={mouseThrow}
-            />
+          {/* Mouse-throw turns get the Stand button on the table frame instead. */}
+          {isMyTurn && !mouseThrow && (
+            <TurnControls turn={turn} pendingKeep={pendingKeep} turnActions={turnActions} />
           )}
           {isMyTurn && turn.rollsUsed > 0 && turn.rollsUsed < turn.rollCap && !hide2DDice && (
             <small className="muted keep-hint">Click dice to keep them — kept dice stay locked for the turn.</small>
@@ -148,12 +147,10 @@ function TurnControls({
   turn,
   pendingKeep,
   turnActions,
-  mouseThrow = false,
 }: {
   turn: TurnState;
   pendingKeep: number[];
   turnActions?: TurnActions;
-  mouseThrow?: boolean;
 }) {
   if (turnActions) {
     return (
@@ -161,10 +158,8 @@ function TurnControls({
         turn={turn}
         pendingKeep={pendingKeep}
         disabled={turnActions.disabled ?? false}
-        mouseThrow={mouseThrow}
         onRoll={turnActions.onRoll}
         onStand={turnActions.onStand}
-        onKeepAllStand={turnActions.onKeepAllStand}
       />
     );
   }
@@ -173,11 +168,13 @@ function TurnControls({
 
 function TurnControlsLive({ turn, pendingKeep }: { turn: TurnState; pendingKeep: number[] }) {
   const { send, state } = useApp();
+  const rollToBeat = state.snapshot?.game?.rollToBeat ?? null;
   return (
     <TurnControlsButtons
       turn={turn}
       pendingKeep={pendingKeep}
       disabled={state.connection !== 'open'}
+      canStand={canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null)}
       onRoll={(keep) => send({ type: 'turn:roll', keepIndices: keep })}
       onStand={() => send({ type: 'turn:stand' })}
     />
@@ -188,43 +185,31 @@ function TurnControlsButtons({
   turn,
   pendingKeep,
   disabled,
-  mouseThrow = false,
+  canStand = true,
   onRoll,
   onStand,
-  onKeepAllStand,
 }: {
   turn: TurnState;
   pendingKeep: number[];
   disabled: boolean;
-  mouseThrow?: boolean;
+  canStand?: boolean;
   onRoll?: (keepIndices: number[]) => void;
   onStand: () => void;
-  onKeepAllStand?: () => void;
 }) {
   const hasRolled = turn.rollsUsed > 0;
   const keepingAll = pendingKeep.length === HAND_SIZE;
-
-  if (mouseThrow) {
-    return (
-      <div className="turn-controls">
-        {hasRolled && keepingAll && onKeepAllStand && (
-          <button type="button" disabled={disabled} onClick={onKeepAllStand}>
-            Keep all (stand)
-          </button>
-        )}
-        <button type="button" className="secondary" disabled={!hasRolled || disabled} onClick={onStand}>
-          Stand
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="turn-controls">
       <button type="button" disabled={disabled || !onRoll} onClick={() => onRoll?.(pendingKeep)}>
         {!hasRolled ? 'Roll' : keepingAll ? 'Keep all (stand)' : 'Roll again'}
       </button>
-      <button type="button" className="secondary" disabled={!hasRolled || disabled} onClick={onStand}>
+      <button
+        type="button"
+        className="secondary"
+        disabled={!hasRolled || disabled || !canStand}
+        onClick={onStand}
+      >
         Stand
       </button>
     </div>

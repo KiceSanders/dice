@@ -7,6 +7,7 @@ import type {
   RoomSettings,
   RoomSnapshot,
   ServerMessage,
+  StraightPayoutConfig,
 } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
 import { GameEngine, type EngineEvent, type EngineOptions } from './engine.js';
@@ -44,20 +45,20 @@ const clampInt = (v: number, min: number, max: number) =>
 /** Clamp incoming settings to the ranges documented in PLAN.md. */
 export function clampSettings(s: RoomSettings): RoomSettings {
   const minBuyIn = clampInt(s.minBuyIn, 1, 1_000_000);
-  const d = DEFAULT_SETTINGS.straightBonus;
+  // Lenient on straightPayout: settings replayed from logs written before the
+  // instant-payout rules lack the key entirely and must fall back to defaults.
+  const sp: Partial<StraightPayoutConfig> = s.straightPayout ?? {};
+  const d = DEFAULT_SETTINGS.straightPayout;
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
     maxPlayers: clampInt(s.maxPlayers, 2, 3),
     minBuyIn,
     maxBuyIn: clampInt(s.maxBuyIn, minBuyIn, 10_000_000),
-    straightBonus: {
-      enabled: Boolean(s.straightBonus.enabled),
-      type: s.straightBonus.type === 'direct' ? 'direct' : 'pot',
-      baseAmount: clampInt(s.straightBonus.baseAmount ?? d.baseAmount, 0, 100_000),
-      multiplier: clampInt(s.straightBonus.multiplier ?? d.multiplier, 1, 100),
-      incremental: Boolean(s.straightBonus.incremental),
-      maxBonus: clampInt(s.straightBonus.maxBonus ?? d.maxBonus, 0, 1_000_000),
+    straightPayout: {
+      enabled: sp.enabled === undefined ? d.enabled : Boolean(sp.enabled),
+      amountPerPlayer: clampInt(sp.amountPerPlayer ?? d.amountPerPlayer, 0, 100_000),
+      bigMultiplier: clampInt(sp.bigMultiplier ?? d.bigMultiplier, 1, 100),
     },
   };
 }
@@ -442,6 +443,12 @@ export class Room {
           score: event.score,
         });
         break;
+      case 'forfeited':
+        // Recorded and replayed: a forfeited turn leaves no rolled/stood
+        // events, so replay needs this to advance the queue past the player.
+        this.recorder?.append({ type: 'forfeited', playerId: event.playerId });
+        this.broadcast({ type: 'turn:forfeited', playerId: event.playerId });
+        break;
       case 'subRoundStarted':
         this.recorder?.append({
           type: 'subRoundStarted',
@@ -457,22 +464,22 @@ export class Room {
           depth: event.depth,
         });
         break;
-      case 'bonusAwarded':
+      case 'straightPaid':
         this.recorder?.append({
-          type: 'bonusAwarded',
+          type: 'straightPaid',
           playerId: event.playerId,
-          amount: event.amount,
           kind: event.kind,
-          target: event.target,
-          streak: event.streak,
+          amountPerPlayer: event.amountPerPlayer,
+          total: event.total,
+          payments: event.payments,
         });
         this.broadcast({
-          type: 'bonus:awarded',
+          type: 'straight:paid',
           playerId: event.playerId,
-          amount: event.amount,
           kind: event.kind,
-          target: event.target,
-          streak: event.streak,
+          amountPerPlayer: event.amountPerPlayer,
+          total: event.total,
+          payments: event.payments,
         });
         break;
       case 'roundEnded':

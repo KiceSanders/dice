@@ -1,4 +1,3 @@
-import { randomInt } from 'node:crypto';
 import type {
   Die,
   GameStatePublic,
@@ -9,14 +8,12 @@ import type {
 } from '@dice/shared';
 import type { StraightKind, SubRoundState } from '@dice/shared';
 import {
-  calcStraightBonus,
+  canStandVoluntarily,
   compareHands,
+  detectStraight,
   HAND_SIZE,
-  keepAndReroll,
   resolveRound,
-  rollDice,
   scoreHand,
-  type Rng,
 } from '@dice/shared';
 
 /** Live view of a seated player. The engine mutates `chips` directly. */
@@ -32,9 +29,12 @@ export type EngineEvent =
   | { type: 'throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   | { type: 'rolled'; playerId: PlayerId; dice: Die[]; rollNumber: number; kept: number[] }
   | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
+  /** Turn ended with no completed roll (timeout/disconnect/kick): no hand. */
+  | { type: 'forfeited'; playerId: PlayerId }
   | {
       type: 'roundEnded';
-      winnerId: PlayerId;
+      /** null when every turn was forfeited — no hands, the pot carries over. */
+      winnerId: PlayerId | null;
       potWon: number;
       scores: { playerId: PlayerId; score: HandScore }[];
     }
@@ -45,25 +45,25 @@ export type EngineEvent =
       depth: number;
       antes: { playerId: PlayerId; amount: number }[];
     }
+  /** Instant straight side payment: each other seated player paid the roller. */
   | {
-      type: 'bonusAwarded';
+      type: 'straightPaid';
       playerId: PlayerId;
-      amount: number;
       kind: Exclude<StraightKind, 'none'>;
-      target: 'pot' | 'direct';
-      streak: number;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
     }
   | { type: 'stateChanged' }
   | { type: 'gameEnded'; reason: string };
 
 export type EngineError = {
-  code: 'NOT_YOUR_TURN' | 'BAD_REQUEST';
+  code: 'NOT_YOUR_TURN' | 'BAD_REQUEST' | 'STAND_NOT_ALLOWED';
   message: string;
 };
 const err = (code: EngineError['code'], message: string): EngineError => ({ code, message });
 
 export interface EngineOptions {
-  rng?: Rng;
   turnTimeoutMs?: number;
   roundEndDelayMs?: number;
   throwTimeoutMs?: number;
@@ -74,35 +74,12 @@ export const ROUND_END_DELAY_MS = 5_000;
 /**
  * Grace period for the roller's client to report a physics result after
  * turn:throwStart (ADR 004). Client-side settle timeout is 10s; past this the
- * server rolls with its own rng so a dead client cannot stall the game.
+ * throw is abandoned and the turn force-resolves (stand on previously settled
+ * dice, or forfeit) so a dead client cannot stall the game.
  */
 export const THROW_TIMEOUT_MS = 15_000;
 /** Beyond this sub-round depth, antes stop and sudden-death single rolls decide it. */
 export const MAX_SUBROUND_DEPTH = 10;
-
-/** Default rng: crypto-backed uniform [0, 1). randomInt's max bound is 2^48 - 1. */
-const RNG_MAX = 2 ** 48 - 1;
-export const cryptoRng: Rng = () => randomInt(RNG_MAX) / RNG_MAX;
-
-/**
- * Deterministic rng for the DEBUG_SEED env hook (PLAN.md Phase 9 verification):
- * mulberry32 over an FNV-1a hash of the seed string. Same seed → same dice.
- */
-export function seededRng(seed: string): Rng {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  let s = h >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 interface CurrentTurn {
   playerId: PlayerId;
@@ -111,12 +88,15 @@ interface CurrentTurn {
   rollsUsed: number;
   rollCap: number;
   deadline: number;
+  /** The instant straight payout fired this turn (it pays at most once). */
+  straightPaid: boolean;
 }
 
 /**
  * Socket-free round/turn state machine (PLAN.md Phases 4–5). The room layer
  * owns membership; the engine owns rounds, sub-rounds, turns, dice, pot,
- * chips, and straight bonuses.
+ * chips, and straight payouts. Dice values come exclusively from the roller's
+ * physics sim (ADR 004) — the engine never rolls.
  */
 export class GameEngine {
   phase: 'playing' | 'roundEnd' | 'ended' = 'playing';
@@ -132,13 +112,10 @@ export class GameEngine {
   private roundRollCap: number | null = null;
   private lastWinnerId: PlayerId | null = null;
   private subRound: SubRoundState | null = null;
-  /** Consecutive turns (any player) ending in a straight; resets on a non-straight. */
-  private straightStreak = 0;
 
   /** In-flight physics throw (ADR 004): keeps locked at throwStart. */
   private pendingThrow: { playerId: PlayerId; keepIndices: number[] } | null = null;
 
-  private readonly rng: Rng;
   private readonly turnTimeoutMs: number;
   private readonly roundEndDelayMs: number;
   private readonly throwTimeoutMs: number;
@@ -154,7 +131,6 @@ export class GameEngine {
     private readonly emit: (event: EngineEvent) => void,
     opts: EngineOptions = {},
   ) {
-    this.rng = opts.rng ?? cryptoRng;
     this.turnTimeoutMs = opts.turnTimeoutMs ?? TURN_TIMEOUT_MS;
     this.roundEndDelayMs = opts.roundEndDelayMs ?? ROUND_END_DELAY_MS;
     this.throwTimeoutMs = opts.throwTimeoutMs ?? THROW_TIMEOUT_MS;
@@ -264,6 +240,7 @@ export class GameEngine {
       rollsUsed: 0,
       rollCap: this.roundRollCap ?? this.settings.maxRolls,
       deadline: Date.now() + this.turnTimeoutMs,
+      straightPaid: false,
     };
     this.emit({ type: 'stateChanged' });
 
@@ -279,6 +256,19 @@ export class GameEngine {
   private endRound(): void {
     this.currentTurn = null;
     const scores = new Map([...this.hands].map(([id, h]) => [id, h.score]));
+
+    // Every turn forfeited (no server roll exists to synthesize hands): no
+    // winner, the pot carries over into the next round.
+    if (scores.size === 0) {
+      this.subRound = null;
+      this.phase = 'roundEnd';
+      this.emit({ type: 'roundEnded', winnerId: null, potWon: 0, scores: [] });
+      this.emit({ type: 'stateChanged' });
+      this.roundTimer = setTimeout(() => this.startRound(), this.roundEndDelayMs);
+      this.roundTimer.unref?.();
+      return;
+    }
+
     const { winners } = resolveRound(scores);
 
     if (winners.length > 1) {
@@ -319,45 +309,10 @@ export class GameEngine {
 
   // -- turns -------------------------------------------------------------------
 
-  roll(playerId: PlayerId, keepIndices: number[]): EngineError | null {
-    const turn = this.guardTurn(playerId);
-    if ('code' in turn) return turn;
-    if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
-
-    if (turn.dice === null) {
-      // First roll: nothing to keep yet.
-      if (keepIndices.length > 0) return err('BAD_REQUEST', 'nothing to keep on the first roll');
-      turn.dice = rollDice(HAND_SIZE, this.rng);
-    } else {
-      const valid = this.validateKeep(turn, keepIndices);
-      if (valid) return valid;
-      if (keepIndices.length === HAND_SIZE) {
-        // Keeping everything is a stand.
-        turn.keptIndices = keepIndices;
-        return this.stand(playerId);
-      }
-      turn.dice = keepAndReroll(turn.dice, keepIndices, this.rng);
-    }
-
-    turn.rollsUsed += 1;
-    turn.keptIndices = [...keepIndices];
-    this.emit({
-      type: 'rolled',
-      playerId,
-      dice: [...turn.dice],
-      rollNumber: turn.rollsUsed,
-      kept: [...turn.keptIndices],
-    });
-
-    if (turn.rollsUsed >= turn.rollCap) return this.stand(playerId);
-    this.emit({ type: 'stateChanged' });
-    return null;
-  }
-
   /**
    * Physics roll, phase 1 (ADR 004): the roller released the koozie. Locks
    * the keep set and waits for `commitThrow`. If the result never arrives,
-   * `expireThrow` falls back to a server-side roll so the game cannot stall.
+   * `expireThrow` force-resolves the turn so the game cannot stall.
    */
   beginThrow(playerId: PlayerId, keepIndices: number[]): EngineError | null {
     const turn = this.guardTurn(playerId);
@@ -390,9 +345,7 @@ export class GameEngine {
   /**
    * Physics roll, phase 2: the roller's sim settled on these faces. Kept
    * positions must be unchanged — that plus the range check is the entire
-   * integrity check available under client-reported rolls. Applying the dice
-   * verbatim stays replay-compatible: the logged `rolled` event feeds back
-   * through `roll()`/`keepAndReroll`, which reproduces it exactly.
+   * integrity check available under client-reported rolls.
    */
   commitThrow(playerId: PlayerId, dice: Die[]): EngineError | null {
     const turn = this.guardTurn(playerId);
@@ -412,34 +365,67 @@ export class GameEngine {
     }
 
     this.clearPendingThrow();
+    return this.settleRoll(turn, dice, pending.keepIndices);
+  }
+
+  /** Log replay (PLAN.md Phase 6): re-apply a recorded `rolled` event verbatim. */
+  replayRolled(playerId: PlayerId, dice: Die[], kept: number[]): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    return this.settleRoll(turn, dice, kept);
+  }
+
+  /**
+   * Apply settled faces to the turn — the single dice entry point for the live
+   * physics path and log replay, so the straight payout and auto-stand fire
+   * identically in both.
+   */
+  private settleRoll(turn: CurrentTurn, dice: Die[], kept: number[]): EngineError | null {
     turn.dice = [...dice];
     turn.rollsUsed += 1;
-    turn.keptIndices = [...pending.keepIndices];
+    turn.keptIndices = [...kept];
     this.emit({
       type: 'rolled',
-      playerId,
+      playerId: turn.playerId,
       dice: [...turn.dice],
       rollNumber: turn.rollsUsed,
       kept: [...turn.keptIndices],
     });
+    this.applyStraightPayout(turn);
 
-    if (turn.rollsUsed >= turn.rollCap) return this.stand(playerId);
+    if (turn.rollsUsed >= turn.rollCap) return this.stand(turn.playerId);
     this.emit({ type: 'stateChanged' });
     return null;
   }
 
-  /** Throw result never arrived (crash/disconnect mid-throw): server rolls instead. */
+  /** Throw result never arrived (crash/disconnect mid-throw): force-resolve the turn. */
   private expireThrow(): void {
     const pending = this.pendingThrow;
     if (!pending) return;
     this.clearPendingThrow();
-    this.roll(pending.playerId, pending.keepIndices);
+    this.forceStand(pending.playerId);
   }
 
   private clearPendingThrow(): void {
     if (this.throwTimer) clearTimeout(this.throwTimer);
     this.throwTimer = null;
     this.pendingThrow = null;
+  }
+
+  /**
+   * Player-requested stand: rejected while the current hand loses to the
+   * roll-to-beat (shared `canStandVoluntarily` — ties are allowed). Forced
+   * stands (roll cap, keep-all, timeout/disconnect/kick) call `stand` directly.
+   */
+  standVoluntarily(playerId: PlayerId): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
+    if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
+    if (!canStandVoluntarily(turn.dice, turn.rollsUsed, this.rollToBeat?.score ?? null)) {
+      return err('STAND_NOT_ALLOWED', 'beat or tie the roll to beat, or keep rolling');
+    }
+    return this.stand(playerId);
   }
 
   stand(playerId: PlayerId): EngineError | null {
@@ -451,7 +437,6 @@ export class GameEngine {
     const score = this.scoreFor(turn);
     this.hands.set(playerId, { score, dice: [...turn.dice] });
     this.emit({ type: 'stood', playerId, dice: [...turn.dice], score: { ...score } });
-    this.applyStraightBonus(playerId, score.straight);
 
     if (this.rollToBeat === null || compareHands(score, this.rollToBeat.score) > 0) {
       this.rollToBeat = { playerId, score, dice: [...turn.dice] };
@@ -462,46 +447,63 @@ export class GameEngine {
     return null;
   }
 
-  /** Streak update + bonus payout on every stood hand (PLAN.md "Straights"). */
-  private applyStraightBonus(playerId: PlayerId, kind: StraightKind): void {
-    if (kind === 'none') {
-      this.straightStreak = 0;
-      return;
-    }
-    this.straightStreak += 1;
+  /**
+   * Instant straight side payment (PLAN.md "Straights"): the moment a roll
+   * settles showing a straight, every other seated player pays the roller from
+   * their own pile, clamped to what they have — zero-sum, pot untouched, at
+   * most once per turn. The turn then continues as normal.
+   */
+  private applyStraightPayout(turn: CurrentTurn): void {
+    if (turn.straightPaid || !turn.dice) return;
+    const kind = detectStraight(turn.dice);
+    if (kind === 'none') return;
+    turn.straightPaid = true;
 
-    const config = this.settings.straightBonus;
-    const amount = calcStraightBonus(config, kind, this.straightStreak);
-    if (amount <= 0) return;
+    const config = this.settings.straightPayout;
+    if (!config.enabled) return;
+    const roller = this.participantById(turn.playerId);
+    if (!roller) return;
 
-    if (config.type === 'pot') {
-      this.pot += amount;
-    } else {
-      // 'direct' mints chips straight to the player.
-      const player = this.participantById(playerId);
-      if (player) player.chips += amount;
+    const perPlayer =
+      kind === 'big' ? config.amountPerPlayer * config.bigMultiplier : config.amountPerPlayer;
+    if (perPlayer <= 0) return;
+
+    const payments: { playerId: PlayerId; amount: number }[] = [];
+    let total = 0;
+    for (const p of this.getSeated()) {
+      if (p.id === turn.playerId || p.seat === null) continue;
+      const paid = Math.min(perPlayer, p.chips); // chips never go negative
+      p.chips -= paid;
+      total += paid;
+      payments.push({ playerId: p.id, amount: paid });
     }
+    roller.chips += total;
 
     this.emit({
-      type: 'bonusAwarded',
-      playerId,
-      amount,
+      type: 'straightPaid',
+      playerId: turn.playerId,
       kind,
-      target: config.type,
-      streak: this.straightStreak,
+      amountPerPlayer: perPlayer,
+      total,
+      payments,
     });
   }
 
-  /** Auto-stand for timeouts, disconnects, and kicks. Rolls once if needed. */
+  /**
+   * Auto-resolve a turn on timeout, disconnect, or kick. With settled dice the
+   * player stands on them; with none there is no server roll to fall back on
+   * (ADR 004 — dice come only from client physics), so the turn is forfeited:
+   * no hand, no shot at the pot, and any ante stays in.
+   */
   forceStand(playerId: PlayerId): void {
     const turn = this.currentTurn;
     if (!turn || turn.playerId !== playerId) return;
-    // A pending physics result is abandoned; the auto-stand outcome wins.
+    // A pending physics result is abandoned; the forced outcome wins.
     this.clearPendingThrow();
     if (turn.dice === null) {
-      turn.dice = rollDice(HAND_SIZE, this.rng);
-      turn.rollsUsed = 1;
-      this.emit({ type: 'rolled', playerId, dice: [...turn.dice], rollNumber: 1, kept: [] });
+      this.emit({ type: 'forfeited', playerId });
+      this.nextTurn();
+      return;
     }
     this.stand(playerId);
   }
@@ -562,28 +564,25 @@ export class GameEngine {
           }
         : null,
       subRound: this.subRound ? { ...this.subRound, participantIds: [...this.subRound.participantIds] } : null,
-      straightStreak: this.straightStreak,
     };
   }
 
   // -- persistence (PLAN.md Phase 6) -------------------------------------------------
 
   /** State that survives round-end compaction. Only meaningful in `roundEnd`. */
-  persistedState(): { roundNumber: number; pot: number; lastWinnerId: PlayerId | null; straightStreak: number } {
+  persistedState(): { roundNumber: number; pot: number; lastWinnerId: PlayerId | null } {
     return {
       roundNumber: this.roundNumber,
       pot: this.pot,
       lastWinnerId: this.lastWinnerId,
-      straightStreak: this.straightStreak,
     };
   }
 
   /** Restore from a compaction snapshot (always taken at a round boundary). */
-  restore(state: { roundNumber: number; pot: number; lastWinnerId: PlayerId | null; straightStreak: number }): void {
+  restore(state: { roundNumber: number; pot: number; lastWinnerId: PlayerId | null }): void {
     this.roundNumber = state.roundNumber;
     this.pot = state.pot;
     this.lastWinnerId = state.lastWinnerId;
-    this.straightStreak = state.straightStreak;
     this.phase = 'roundEnd';
   }
 
