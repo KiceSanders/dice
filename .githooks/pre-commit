@@ -1,0 +1,8 @@
+#!/bin/sh
+# Fast pre-commit gate: staged-file lint/format + full typecheck (<15s).
+# Tests are enforced by `npm run verify` and the Claude Code Stop hook.
+set -e
+echo "pre-commit: biome (staged files)"
+npx biome check --staged --no-errors-on-unmatched
+echo "pre-commit: typecheck (all workspaces)"
+npm run check
