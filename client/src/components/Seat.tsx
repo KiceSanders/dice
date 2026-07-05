@@ -46,14 +46,23 @@ export default function Seat({
     <div className={classes}>
       <div className="seat-name-row">
         {isActive && (
-          <span className="seat-turn-marker" role="img" title="their turn" aria-label="current turn" />
+          <span
+            className="seat-turn-marker"
+            role="img"
+            title="their turn"
+            aria-label="current turn"
+          />
         )}
         <span
           className={`conn-dot ${player.connected ? 'conn-on' : 'conn-off'}`}
           title={player.connected ? 'connected' : 'disconnected'}
         />
         <span className="seat-name">{player.name}</span>
-        {player.isHost && <span className="badge badge-host" title="Host">★</span>}
+        {player.isHost && (
+          <span className="badge badge-host" title="Host">
+            ★
+          </span>
+        )}
       </div>
       <div className="seat-chips">{player.chips} chips</div>
       {canKick && (

@@ -1,5 +1,5 @@
-import { DIE_HALF, DIE_SIZE } from './constants';
 import { FELT_SCALE, RAIL_INNER_WORLD, RAIL_MESH_SCALE, RAIL_OUTER, TABLE } from '../layout';
+import { DIE_HALF, DIE_SIZE } from './constants';
 
 /** Gap between kept dice sitting on the near rail. */
 export const KEPT_DIE_GAP = 0.025;

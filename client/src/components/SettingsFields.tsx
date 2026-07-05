@@ -45,7 +45,9 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           value={value.maxRolls}
           onChange={(e) => set({ maxRolls: num(e.target.value, value.maxRolls) })}
         />
-        <small>Roll ceiling for the round's first player; later players are capped by the leader.</small>
+        <small>
+          Roll ceiling for the round's first player; later players are capped by the leader.
+        </small>
       </div>
 
       <div className="field">
@@ -83,7 +85,9 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           />
         </div>
       </div>
-      <small className="field-help">Players pick their own starting chips within these bounds.</small>
+      <small className="field-help">
+        Players pick their own starting chips within these bounds.
+      </small>
 
       <div className="settings-bonus">
         <label className="check">
@@ -94,7 +98,9 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           />
           Straight payout
         </label>
-        <small>Rolling a straight makes every other seated player pay the roller on the spot.</small>
+        <small>
+          Rolling a straight makes every other seated player pay the roller on the spot.
+        </small>
 
         {value.straightPayout.enabled && (
           <div className="bonus-grid">

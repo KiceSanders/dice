@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { BodyPose, PoseFrame } from '@dice/shared';
+import { describe, expect, it } from 'vitest';
 import { lerpPose, RemoteRollFeed } from './remoteFeed';
 
 const pose = (x: number, qw = 1, qz = 0): BodyPose => [x, 0, 0, 0, 0, qz, qw];

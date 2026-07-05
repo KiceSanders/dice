@@ -23,8 +23,8 @@ export default function GameHud({ game, players }: Props) {
       {game.subRound && (
         <div className="subround-banner">
           <strong>Tie-breaker!</strong> Sub-round depth {game.subRound.depth} ·{' '}
-          {game.subRound.anteAmount > 0 ? `ante ${game.subRound.anteAmount} chips` : 'sudden death'} ·{' '}
-          {game.subRound.participantIds.map(nameOf).join(' vs ')}
+          {game.subRound.anteAmount > 0 ? `ante ${game.subRound.anteAmount} chips` : 'sudden death'}{' '}
+          · {game.subRound.participantIds.map(nameOf).join(' vs ')}
         </div>
       )}
 

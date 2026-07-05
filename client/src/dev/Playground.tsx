@@ -1,13 +1,14 @@
+import type { Die } from '@dice/shared';
+import { button, folder, Leva, useControls } from 'leva';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Leva, button, folder, useControls } from 'leva';
-import type { Die } from '@dice/shared';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
 import { togglePendingKeep } from '../game/keepSelection';
 import {
-  DEFAULT_DICE_PHYSICS_TUNING,
   clearLiveTuning,
+  DEFAULT_DICE_PHYSICS_TUNING,
+  type DicePhysicsTuning,
   getDicePhysicsTuning,
   persistLiveTuning,
   readTuningPreset,
@@ -17,15 +18,14 @@ import {
   setDicePhysicsTuning,
   subscribeDicePhysicsTuning,
   updateDicePhysicsTuning,
-  type DicePhysicsTuning,
 } from '../table3d/dice/tuning';
 import {
   DEV_BOB,
   DEV_CAROL,
   DEV_YOU,
   PLAYGROUND_SCENES,
-  sceneById,
   type PlaygroundSceneId,
+  sceneById,
 } from './fixtures';
 import { usePlaygroundTurn } from './usePlaygroundTurn';
 
@@ -136,7 +136,8 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           min: 0,
           max: 1.2,
           step: 0.01,
-          onChange: (angularDamping: number) => updateDicePhysicsTuning({ dice: { angularDamping } }),
+          onChange: (angularDamping: number) =>
+            updateDicePhysicsTuning({ dice: { angularDamping } }),
         },
       }),
       Pendulum: folder({
@@ -159,7 +160,8 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           min: 0.05,
           max: 1.5,
           step: 0.01,
-          onChange: (dampingRatio: number) => updateDicePhysicsTuning({ pendulum: { dampingRatio } }),
+          onChange: (dampingRatio: number) =>
+            updateDicePhysicsTuning({ pendulum: { dampingRatio } }),
         },
         maxTilt: {
           value: defaults.pendulum.maxTilt,
@@ -173,7 +175,8 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           min: 0.5,
           max: 8,
           step: 0.1,
-          onChange: (maxPivotSpeed: number) => updateDicePhysicsTuning({ pendulum: { maxPivotSpeed } }),
+          onChange: (maxPivotSpeed: number) =>
+            updateDicePhysicsTuning({ pendulum: { maxPivotSpeed } }),
         },
       }),
       Release: folder({
@@ -182,7 +185,8 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           min: 180,
           max: 1500,
           step: 10,
-          onChange: (tipDurationMs: number) => updateDicePhysicsTuning({ release: { tipDurationMs } }),
+          onChange: (tipDurationMs: number) =>
+            updateDicePhysicsTuning({ release: { tipDurationMs } }),
         },
         tipAngle: {
           value: defaults.release.tipAngle,
@@ -203,14 +207,16 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           min: 0,
           max: 0.8,
           step: 0.01,
-          onChange: (glideVelocityScale: number) => updateDicePhysicsTuning({ release: { glideVelocityScale } }),
+          onChange: (glideVelocityScale: number) =>
+            updateDicePhysicsTuning({ release: { glideVelocityScale } }),
         },
         glideMaxDistance: {
           value: defaults.release.glideMaxDistance,
           min: 0,
           max: 1.2,
           step: 0.01,
-          onChange: (glideMaxDistance: number) => updateDicePhysicsTuning({ release: { glideMaxDistance } }),
+          onChange: (glideMaxDistance: number) =>
+            updateDicePhysicsTuning({ release: { glideMaxDistance } }),
         },
       }),
       Cup: folder({
@@ -256,14 +262,16 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           min: 0.01,
           max: 0.4,
           step: 0.01,
-          onChange: (linearVelocity: number) => updateDicePhysicsTuning({ settle: { linearVelocity } }),
+          onChange: (linearVelocity: number) =>
+            updateDicePhysicsTuning({ settle: { linearVelocity } }),
         },
         settleAngular: {
           value: defaults.settle.angularVelocity,
           min: 0.05,
           max: 2,
           step: 0.05,
-          onChange: (angularVelocity: number) => updateDicePhysicsTuning({ settle: { angularVelocity } }),
+          onChange: (angularVelocity: number) =>
+            updateDicePhysicsTuning({ settle: { angularVelocity } }),
         },
         settleFrames: {
           value: defaults.settle.frames,
@@ -326,8 +334,8 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
     <>
       <Leva collapsed={false} />
       <p className="playground-hint muted">
-        Physics tuning is live. {lastAction ? `${lastAction}. ` : ''}Use debug + slow motion to inspect
-        colliders and paste copied JSON back into constants once a tune feels right.
+        Physics tuning is live. {lastAction ? `${lastAction}. ` : ''}Use debug + slow motion to
+        inspect colliders and paste copied JSON back into constants once a tune feels right.
       </p>
     </>
   );
@@ -479,7 +487,10 @@ export default function Playground() {
         <div className="playground-controls">
           <label className="playground-field">
             <span>Scene</span>
-            <select value={sceneId} onChange={(e) => onSceneChange(e.target.value as PlaygroundSceneId)}>
+            <select
+              value={sceneId}
+              onChange={(e) => onSceneChange(e.target.value as PlaygroundSceneId)}
+            >
               {PLAYGROUND_SCENES.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}
@@ -499,7 +510,12 @@ export default function Playground() {
             </select>
           </label>
 
-          <button type="button" className="secondary" onClick={replayAnimation} disabled={!lastRoll}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={replayAnimation}
+            disabled={!lastRoll}
+          >
             Replay koozie
           </button>
 
@@ -564,10 +580,7 @@ export default function Playground() {
             {turn.dice.map((value, i) => (
               <label key={i} className="playground-field playground-die-field">
                 <span>#{i + 1}</span>
-                <select
-                  value={value}
-                  onChange={(e) => setDie(i, Number(e.target.value) as Die)}
-                >
+                <select value={value} onChange={(e) => setDie(i, Number(e.target.value) as Die)}>
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <option key={n} value={n}>
                       {n}

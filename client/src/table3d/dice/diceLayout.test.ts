@@ -1,13 +1,13 @@
-import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { KOOZIE, FELT_BOUND_X, FELT_BOUND_Z } from './constants';
+import { describe, expect, it } from 'vitest';
+import { SEAT_VIEW } from '../layout';
+import { FELT_BOUND_X, FELT_BOUND_Z, KOOZIE } from './constants';
 import {
   KEPT_DIE_SPACING,
   keepSlotForIndex,
   keptDieRailPosition,
   koozieRestPosition,
 } from './diceLayout';
-import { SEAT_VIEW } from '../layout';
 
 /** Project a world point through the fixed seat camera → NDC. */
 function projectToNdc(point: [number, number, number]): THREE.Vector3 {

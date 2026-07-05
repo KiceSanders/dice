@@ -1,10 +1,10 @@
-import * as THREE from 'three';
 import type { Camera } from 'three';
+import * as THREE from 'three';
 import {
   CLUSTER_WORLD_RADIUS,
-  DIE_SCREEN_OFFSETS,
   DICE_FELT_Y,
   DICE_HOVER_Y,
+  DIE_SCREEN_OFFSETS,
   FELT_BOUND_X,
   FELT_BOUND_Z,
   FELT_CLAMP_MARGIN,
@@ -61,7 +61,10 @@ function clampToFelt(point: THREE.Vector3): THREE.Vector3 {
 }
 
 /** Clamp cluster center so sibling screen-offset dice stay on the felt. */
-export function clampCenterForCluster(center: THREE.Vector3, maxWorldOffset = CLUSTER_WORLD_RADIUS): THREE.Vector3 {
+export function clampCenterForCluster(
+  center: THREE.Vector3,
+  maxWorldOffset = CLUSTER_WORLD_RADIUS,
+): THREE.Vector3 {
   return clampToFeltEllipse(center, FELT_CLAMP_MARGIN, maxWorldOffset);
 }
 

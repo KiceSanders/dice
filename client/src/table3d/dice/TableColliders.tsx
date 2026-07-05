@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
 import { CuboidCollider, RigidBody, TrimeshCollider } from '@react-three/rapier';
+import { useMemo } from 'react';
 import { TABLE } from '../layout';
 import {
   createFeltColliderGeometry,
@@ -35,7 +35,11 @@ export default function TableColliders() {
 
   return (
     <group>
-      <RigidBody type="fixed" friction={tuning.table.friction} restitution={tuning.table.restitution}>
+      <RigidBody
+        type="fixed"
+        friction={tuning.table.friction}
+        restitution={tuning.table.restitution}
+      >
         <TrimeshCollider args={feltTrimeshArgs} />
         <CuboidCollider
           args={[FELT_HALF_X, 0.025, FELT_HALF_Z]}
@@ -45,11 +49,19 @@ export default function TableColliders() {
         />
       </RigidBody>
 
-      <RigidBody type="fixed" friction={tuning.table.railFriction} restitution={tuning.table.railRestitution}>
+      <RigidBody
+        type="fixed"
+        friction={tuning.table.railFriction}
+        restitution={tuning.table.railRestitution}
+      >
         <TrimeshCollider args={railTrimeshArgs} />
       </RigidBody>
 
-      <RigidBody type="fixed" friction={tuning.table.wallFriction} restitution={tuning.table.wallRestitution}>
+      <RigidBody
+        type="fixed"
+        friction={tuning.table.wallFriction}
+        restitution={tuning.table.wallRestitution}
+      >
         <TrimeshCollider args={wallTrimeshArgs} />
       </RigidBody>
     </group>

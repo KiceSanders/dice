@@ -1,22 +1,16 @@
-import { useMemo, type ReactNode } from 'react';
 import type { BodyPose, PoseFrame } from '@dice/shared';
+import { type ReactNode, useMemo } from 'react';
 import * as THREE from 'three';
+import { DICE_COUNT } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
-import { DICE_COUNT } from './constants';
 import { useDicePhysicsTuning } from './tuning';
 
 function posePosition(pose: BodyPose): [number, number, number] {
   return [pose[0], pose[1], pose[2]];
 }
 
-function StaticBody({
-  pose,
-  children,
-}: {
-  pose: BodyPose;
-  children: ReactNode;
-}) {
+function StaticBody({ pose, children }: { pose: BodyPose; children: ReactNode }) {
   const quaternion = useMemo(
     () => new THREE.Quaternion(pose[3], pose[4], pose[5], pose[6]),
     [pose],

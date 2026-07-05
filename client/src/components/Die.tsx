@@ -47,7 +47,13 @@ interface Props {
 }
 
 /** A single SVG-pip die. Renders as a button when clickable. */
-export default function Die({ value, kept = false, selected = false, small = false, onClick }: Props) {
+export default function Die({
+  value,
+  kept = false,
+  selected = false,
+  small = false,
+  onClick,
+}: Props) {
   const classes = [
     'die',
     small ? 'die-small' : '',
@@ -62,16 +68,26 @@ export default function Die({ value, kept = false, selected = false, small = fal
     <svg viewBox="0 0 100 100" aria-hidden focusable="false">
       <rect x="3" y="3" width="94" height="94" rx="18" className="die-face" />
       {value !== null &&
-        PIP_LAYOUTS[value].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="9" className="die-pip" />)}
+        PIP_LAYOUTS[value].map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y} r="9" className="die-pip" />
+        ))}
     </svg>
   );
 
   const label =
-    value === null ? 'face-down die' : `die showing ${value}${kept ? ', kept' : selected ? ', will keep' : ''}`;
+    value === null
+      ? 'face-down die'
+      : `die showing ${value}${kept ? ', kept' : selected ? ', will keep' : ''}`;
 
   if (onClick) {
     return (
-      <button type="button" className={classes} onClick={onClick} aria-label={label} aria-pressed={kept || selected}>
+      <button
+        type="button"
+        className={classes}
+        onClick={onClick}
+        aria-label={label}
+        aria-pressed={kept || selected}
+      >
         {face}
       </button>
     );

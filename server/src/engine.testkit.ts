@@ -1,11 +1,11 @@
 import type { Die, PlayerId, RoomSettings } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
 import {
-  GameEngine,
   type EngineError,
   type EngineEvent,
   type EngineOptions,
   type EnginePlayer,
+  GameEngine,
 } from './engine.js';
 
 /**
@@ -24,11 +24,16 @@ export function makeEngine(
 ) {
   const { settings = DEFAULT_SETTINGS, ...engineOpts } = opts;
   const events: EngineEvent[] = [];
-  const engine = new GameEngine(() => players, settings, (e) => events.push(e), {
-    turnTimeoutMs: 60_000,
-    roundEndDelayMs: 5_000,
-    ...engineOpts,
-  });
+  const engine = new GameEngine(
+    () => players,
+    settings,
+    (e) => events.push(e),
+    {
+      turnTimeoutMs: 60_000,
+      roundEndDelayMs: 5_000,
+      ...engineOpts,
+    },
+  );
   return { engine, events };
 }
 

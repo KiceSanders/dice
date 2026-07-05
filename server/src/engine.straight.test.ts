@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Die, RoomSettings, StraightPayoutConfig } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
 
 const LITTLE: Die[] = [1, 2, 3, 4, 5];

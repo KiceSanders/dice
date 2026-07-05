@@ -31,9 +31,7 @@ export class RoomLogStore {
   }
 
   append(roomId: RoomId, event: RoomEvent): void {
-    this.enqueue(roomId, () =>
-      appendFile(this.file(roomId), `${JSON.stringify(event)}\n`, 'utf8'),
-    );
+    this.enqueue(roomId, () => appendFile(this.file(roomId), `${JSON.stringify(event)}\n`, 'utf8'));
   }
 
   /** Rewrite the log as a single snapshot event (round-end compaction, 6.3). */
@@ -85,8 +83,7 @@ export class RoomLogStore {
 export function replayRoom(roomId: RoomId, events: RoomEvent[]): Room | null {
   const first = events[0];
   if (!first || (first.type !== 'created' && first.type !== 'snapshot')) return null;
-  const settings: RoomSettings =
-    first.type === 'created' ? first.settings : first.state.settings;
+  const settings: RoomSettings = first.type === 'created' ? first.settings : first.state.settings;
 
   const room = new Room(roomId, settings);
 

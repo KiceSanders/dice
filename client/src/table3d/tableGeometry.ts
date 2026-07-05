@@ -31,11 +31,11 @@ interface ExtrudedOvalRingOptions {
 }
 
 /** World-space point on the felt ellipse (XZ plane). */
-export function feltEllipsePoint(theta: number, radius: number = TABLE.feltRadius): [number, number] {
-  return [
-    radius * FELT_SCALE.x * Math.cos(theta),
-    radius * FELT_SCALE.z * Math.sin(theta),
-  ];
+export function feltEllipsePoint(
+  theta: number,
+  radius: number = TABLE.feltRadius,
+): [number, number] {
+  return [radius * FELT_SCALE.x * Math.cos(theta), radius * FELT_SCALE.z * Math.sin(theta)];
 }
 
 export function createFeltGeometry(): CircleGeometry {
@@ -68,10 +68,18 @@ export function createFeltColliderGeometry(
     const nextRimTop = nextRimBottom + 1;
 
     indices.push(
-      centerTop, rimTop, nextRimTop,
-      centerBottom, nextRimBottom, rimBottom,
-      rimBottom, rimTop, nextRimTop,
-      rimBottom, nextRimTop, nextRimBottom,
+      centerTop,
+      rimTop,
+      nextRimTop,
+      centerBottom,
+      nextRimBottom,
+      rimBottom,
+      rimBottom,
+      rimTop,
+      nextRimTop,
+      rimBottom,
+      nextRimTop,
+      nextRimBottom,
     );
   }
 
@@ -110,10 +118,18 @@ export function createExtrudedOvalRingGeometry({
     const [innerX, innerZ] = feltEllipsePoint(theta, innerRadius);
 
     positions.push(
-      outerX, bottomY, outerZ,
-      outerX, topY, outerZ,
-      innerX, bottomY, innerZ,
-      innerX, topY, innerZ,
+      outerX,
+      bottomY,
+      outerZ,
+      outerX,
+      topY,
+      outerZ,
+      innerX,
+      bottomY,
+      innerZ,
+      innerX,
+      topY,
+      innerZ,
     );
   }
 
@@ -130,17 +146,33 @@ export function createExtrudedOvalRingGeometry({
 
     indices.push(
       // Outer vertical face.
-      outerBottom, outerTop, nextOuterTop,
-      outerBottom, nextOuterTop, nextOuterBottom,
+      outerBottom,
+      outerTop,
+      nextOuterTop,
+      outerBottom,
+      nextOuterTop,
+      nextOuterBottom,
       // Inner vertical face.
-      innerBottom, nextInnerBottom, nextInnerTop,
-      innerBottom, nextInnerTop, innerTop,
+      innerBottom,
+      nextInnerBottom,
+      nextInnerTop,
+      innerBottom,
+      nextInnerTop,
+      innerTop,
       // Top face.
-      outerTop, innerTop, nextInnerTop,
-      outerTop, nextInnerTop, nextOuterTop,
+      outerTop,
+      innerTop,
+      nextInnerTop,
+      outerTop,
+      nextInnerTop,
+      nextOuterTop,
       // Bottom face.
-      outerBottom, nextOuterBottom, nextInnerBottom,
-      outerBottom, nextInnerBottom, innerBottom,
+      outerBottom,
+      nextOuterBottom,
+      nextInnerBottom,
+      outerBottom,
+      nextInnerBottom,
+      innerBottom,
     );
   }
 
@@ -161,10 +193,7 @@ export function trimeshArgsFromGeometry(geometry: BufferGeometry): TableTrimeshA
     throw new Error('Expected indexed table geometry for Rapier trimesh collider.');
   }
 
-  return [
-    new Float32Array(position.array),
-    new Uint32Array(index.array),
-  ];
+  return [new Float32Array(position.array), new Uint32Array(index.array)];
 }
 
 export function createRailColliderGeometry(): BufferGeometry {

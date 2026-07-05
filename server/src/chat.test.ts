@@ -1,17 +1,17 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { roll } from './engine.testkit.js';
-import { recoverRooms, RoomLogStore } from './persistence.js';
+import { RoomLogStore, recoverRooms } from './persistence.js';
 import {
   CHAT_HISTORY_SIZE,
   CHAT_RATE_LIMIT,
   CHAT_RATE_WINDOW_MS,
-  Room,
   type ClientLink,
+  Room,
 } from './room.js';
 import { RoomManager } from './roomManager.js';
 

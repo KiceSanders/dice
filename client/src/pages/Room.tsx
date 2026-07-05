@@ -1,20 +1,21 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+// biome-ignore-all lint/a11y/noAutofocus: the join form's name field is this page's single purpose
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import ChatPanel from '../components/ChatPanel';
+import ConnectionBanner from '../components/ConnectionBanner';
+import ConnectionStatus from '../components/ConnectionStatus';
+import GameArea from '../components/GameArea';
+import HostPanel from '../components/HostPanel';
+import RoundEndModal from '../components/RoundEndModal';
+import SettingsPanel from '../components/SettingsPanel';
+import Table from '../components/Table';
+import Toasts from '../components/Toasts';
 import { useRemoteRoll } from '../game/useRemoteRoll';
 import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import { staticPoseFromDice } from '../table3d/dice/staticPose';
-import ConnectionBanner from '../components/ConnectionBanner';
-import ConnectionStatus from '../components/ConnectionStatus';
-import Table from '../components/Table';
-import Toasts from '../components/Toasts';
-import HostPanel from '../components/HostPanel';
-import SettingsPanel from '../components/SettingsPanel';
-import GameArea from '../components/GameArea';
-import RoundEndModal from '../components/RoundEndModal';
-import ChatPanel from '../components/ChatPanel';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
 
@@ -35,14 +36,11 @@ export default function Room() {
   // else's throws, with passive slot dice when no stream arrived (ADR 004).
   const roll3d = useTableRoll(state.snapshot, state.me?.playerId ?? null, send, connected);
   const remoteRoll = useRemoteRoll(ws, state.snapshot, state.me?.playerId ?? null);
-  const fallbackHeldPose = useMemo(
-    () => {
-      if (state.lastRoll) return staticPoseFromDice(state.lastRoll.dice, state.lastRoll.kept);
-      const rollToBeat = snapshot?.game?.rollToBeat;
-      return rollToBeat ? staticPoseFromDice(rollToBeat.dice) : null;
-    },
-    [state.lastRoll, snapshot?.game?.rollToBeat],
-  );
+  const fallbackHeldPose = useMemo(() => {
+    if (state.lastRoll) return staticPoseFromDice(state.lastRoll.dice, state.lastRoll.kept);
+    const rollToBeat = snapshot?.game?.rollToBeat;
+    return rollToBeat ? staticPoseFromDice(rollToBeat.dice) : null;
+  }, [state.lastRoll, snapshot?.game?.rollToBeat]);
 
   useEffect(() => {
     const receivedAt = state.roundEnd?.receivedAt ?? null;
@@ -73,8 +71,7 @@ export default function Room() {
     // Only reclaim a stored identity when the display name still matches — otherwise
     // a second tab with a different name would steal the first player's seat.
     const stored = loadIdentity(roomId);
-    const rejoinToken =
-      stored && stored.playerName === playerName ? stored.rejoinToken : undefined;
+    const rejoinToken = stored && stored.playerName === playerName ? stored.rejoinToken : undefined;
     const ok = send({
       type: 'room:join',
       roomId,
@@ -109,8 +106,12 @@ export default function Room() {
         <form className="card" onSubmit={submit}>
           <label className="field">
             <span>Display name</span>
-            {/* biome-ignore lint/a11y/noAutofocus: the name field is this page's single purpose */}
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={24} autoFocus />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={24}
+              autoFocus
+            />
           </label>
           <button type="submit" disabled={!name.trim()}>
             Join room
@@ -127,7 +128,9 @@ export default function Room() {
         <Toasts />
         <h1>Room {roomId}</h1>
         <ConnectionStatus status={state.connection} />
-        <p className="muted">{state.connection === 'open' ? 'Joining…' : 'Waiting for connection…'}</p>
+        <p className="muted">
+          {state.connection === 'open' ? 'Joining…' : 'Waiting for connection…'}
+        </p>
       </main>
     );
   }
@@ -237,13 +240,17 @@ export default function Room() {
               >
                 Start game
               </button>
-              {seatedCount < 2 && <small className="muted">Need at least 2 seated players to start.</small>}
+              {seatedCount < 2 && (
+                <small className="muted">Need at least 2 seated players to start.</small>
+              )}
             </div>
           ) : (
             <p className="muted">Waiting for the host to start the game…</p>
           ))}
 
-        {me && me.seat === null && <SeatRequest snapshot={snapshot} me={me} pending={myRequest !== null} />}
+        {me && me.seat === null && (
+          <SeatRequest snapshot={snapshot} me={me} pending={myRequest !== null} />
+        )}
 
         {isHost && <HostPanel snapshot={snapshot} />}
 
@@ -302,7 +309,9 @@ function SeatRequest({
   if (me.banned) {
     return (
       <section className="card seat-request">
-        <p className="muted">You were kicked and cannot request a seat unless the host re-approves you.</p>
+        <p className="muted">
+          You were kicked and cannot request a seat unless the host re-approves you.
+        </p>
       </section>
     );
   }
@@ -311,8 +320,8 @@ function SeatRequest({
     return (
       <section className="card seat-request">
         <p>
-          Seat request sent (buy-in {snapshot.seatRequests.find((r) => r.playerId === me.id)?.buyIn}).
-          Waiting for the host…
+          Seat request sent (buy-in {snapshot.seatRequests.find((r) => r.playerId === me.id)?.buyIn}
+          ). Waiting for the host…
         </p>
       </section>
     );

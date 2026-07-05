@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
+import { useEffect, useRef, useState } from 'react';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import { poseFrameFromCanonical } from '../table3d/seatTransform';
 import type { WsClient } from '../ws/client';

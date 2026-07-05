@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
-import TableCanvas from '../table3d/TableCanvas';
-import SeatOverlay from '../table3d/SeatOverlay';
-import TableCenterOverlay from '../table3d/TableCenterOverlay';
-import type { OverlayRect } from '../table3d/layout';
-
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
+import type { OverlayRect } from '../table3d/layout';
+import SeatOverlay from '../table3d/SeatOverlay';
+import TableCanvas from '../table3d/TableCanvas';
+import TableCenterOverlay from '../table3d/TableCenterOverlay';
 
 /** Voluntary-stand affordance anchored to the table frame, outside the play area. */
 export interface StandControl {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type UIEvent } from 'react';
+import { type FormEvent, type UIEvent, useEffect, useRef, useState } from 'react';
 import { useApp } from '../state/context';
 
 const CHAT_MAX_LENGTH = 500;

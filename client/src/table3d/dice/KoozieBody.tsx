@@ -1,11 +1,16 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { CylinderCollider, RigidBody, TrimeshCollider, type RapierRigidBody } from '@react-three/rapier';
+import {
+  CylinderCollider,
+  type RapierRigidBody,
+  RigidBody,
+  TrimeshCollider,
+} from '@react-three/rapier';
+import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import KoozieMesh from './KoozieMesh';
 import {
+  createKooziePickGeometry,
   KOOZIE_COLLIDER_RADIUS_INSET,
   KOOZIE_LID_COLLIDER_RADIUS_INSET,
-  createKooziePickGeometry,
   koozieBottomColliderY,
   koozieLidColliderY,
   koozieWallTrimeshArgs,
@@ -32,7 +37,18 @@ interface Props {
 }
 
 const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
-  { bodyType, position, rotation, visible = true, lid = false, ccd = false, tuning, onGrabStart, onPointerEnter, onPointerLeave },
+  {
+    bodyType,
+    position,
+    rotation,
+    visible = true,
+    lid = false,
+    ccd = false,
+    tuning,
+    onGrabStart,
+    onPointerEnter,
+    onPointerLeave,
+  },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -40,7 +56,10 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
     () => koozieWallTrimeshArgs(tuning.cup),
     [tuning.cup.radius, tuning.cup.height, tuning.cup.wallThickness, tuning.cup.rimInset],
   );
-  const pickGeometry = useMemo(() => createKooziePickGeometry(tuning.cup), [tuning.cup.radius, tuning.cup.height]);
+  const pickGeometry = useMemo(
+    () => createKooziePickGeometry(tuning.cup),
+    [tuning.cup.radius, tuning.cup.height],
+  );
 
   useImperativeHandle(ref, () => ({
     get body() {
@@ -77,7 +96,10 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       />
       {lid ? (
         <CylinderCollider
-          args={[tuning.cup.lidThickness * 0.5, tuning.cup.radius * KOOZIE_LID_COLLIDER_RADIUS_INSET]}
+          args={[
+            tuning.cup.lidThickness * 0.5,
+            tuning.cup.radius * KOOZIE_LID_COLLIDER_RADIUS_INSET,
+          ]}
           position={[0, lidY, 0]}
           friction={tuning.cup.friction}
           restitution={tuning.cup.restitution}

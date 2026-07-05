@@ -4,9 +4,10 @@ import type {
   HandScore,
   PlayerId,
   RoomSettings,
+  StraightKind,
+  SubRoundState,
   TurnState,
 } from '@dice/shared';
-import type { StraightKind, SubRoundState } from '@dice/shared';
 import {
   canStandVoluntarily,
   compareHands,
@@ -563,7 +564,9 @@ export class GameEngine {
             dice: [...this.rollToBeat.dice],
           }
         : null,
-      subRound: this.subRound ? { ...this.subRound, participantIds: [...this.subRound.participantIds] } : null,
+      subRound: this.subRound
+        ? { ...this.subRound, participantIds: [...this.subRound.participantIds] }
+        : null,
     };
   }
 

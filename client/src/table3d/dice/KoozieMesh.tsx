@@ -16,7 +16,10 @@ export default function KoozieMesh({
 }) {
   const { rimInset } = cup;
   const { centerY } = koozieWallLayout(cup);
-  const wallGeometry = useMemo(() => createKoozieWallVisualGeometry(cup), [cup.radius, cup.height, cup.rimInset]);
+  const wallGeometry = useMemo(
+    () => createKoozieWallVisualGeometry(cup),
+    [cup.radius, cup.height, cup.rimInset],
+  );
   const rimGeometry = useMemo(() => createKoozieRimVisualGeometry(cup), [cup.radius, cup.rimInset]);
   const mat = useMemo(
     () =>
@@ -41,7 +44,13 @@ export default function KoozieMesh({
       </mesh>
       <mesh position={[0, cup.height * 0.5 - rimInset * 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <primitive object={rimGeometry} attach="geometry" />
-        <meshPhysicalMaterial color="#e8f4fa" transparent opacity={0.55} roughness={0.4} depthWrite={false} />
+        <meshPhysicalMaterial
+          color="#e8f4fa"
+          transparent
+          opacity={0.55}
+          roughness={0.4}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );

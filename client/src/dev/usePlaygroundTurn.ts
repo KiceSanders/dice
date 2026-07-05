@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Die, RoomSnapshot } from '@dice/shared';
-import { HAND_SIZE } from '@dice/shared';
+import { useCallback, useRef, useState } from 'react';
 import type { LastRoll } from '../state/store';
 import type { ThrowVelocity } from '../table3d/dice/types';
 import { cloneScene, type PlaygroundScene } from './fixtures';

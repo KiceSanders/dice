@@ -1,4 +1,11 @@
-import type { Die, ErrorCode, HandScore, PlayerId, RoomSnapshot, ServerMessage } from '@dice/shared';
+import type {
+  Die,
+  ErrorCode,
+  HandScore,
+  PlayerId,
+  RoomSnapshot,
+  ServerMessage,
+} from '@dice/shared';
 import { assertUnreachable } from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
@@ -195,7 +202,10 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       // The server replays history on rejoin; skip messages we already have.
       const duplicate = state.chat.some(
         (e) =>
-          e.kind === 'chat' && e.ts === msg.ts && e.playerId === msg.playerId && e.text === msg.text,
+          e.kind === 'chat' &&
+          e.ts === msg.ts &&
+          e.playerId === msg.playerId &&
+          e.text === msg.text,
       );
       if (duplicate) return state;
       return {
@@ -215,7 +225,11 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'seat:requested':
       return {
         ...state,
-        toasts: pushToast(state.toasts, 'info', `${msg.playerName} requests a seat (${msg.buyIn} chips)`),
+        toasts: pushToast(
+          state.toasts,
+          'info',
+          `${msg.playerName} requests a seat (${msg.buyIn} chips)`,
+        ),
       };
 
     case 'seat:denied':

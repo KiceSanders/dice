@@ -1,9 +1,9 @@
-import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { useRef } from 'react';
+import type * as THREE from 'three';
+import { DICE_COUNT } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
-import { DICE_COUNT } from './constants';
 import type { RemoteRollFeed } from './remoteFeed';
 import { useDicePhysicsTuning } from './tuning';
 

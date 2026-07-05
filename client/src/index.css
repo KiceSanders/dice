@@ -25,7 +25,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 h1,
@@ -337,7 +337,9 @@ code {
 }
 
 .table-canvas {
+  /* biome-ignore lint/complexity/noImportantStyles: overrides r3f inline canvas sizing */
   width: 100% !important;
+  /* biome-ignore lint/complexity/noImportantStyles: overrides r3f inline canvas sizing */
   height: 100% !important;
   display: block;
 }
@@ -537,7 +539,7 @@ code {
   color: var(--muted);
 }
 
-.conn-status[data-connection='open'] {
+.conn-status[data-connection="open"] {
   color: var(--ok);
 }
 
@@ -581,7 +583,7 @@ code {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
-.conn-banner[data-connection='connecting'] {
+.conn-banner[data-connection="connecting"] {
   background: var(--surface-2);
   color: var(--text);
 }
@@ -596,7 +598,9 @@ code {
 }
 
 @keyframes conn-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -659,12 +663,16 @@ code {
 
 .seat-active {
   border-color: var(--ok);
-  box-shadow: 0 0 0 1px var(--ok), 0 0 14px rgba(75, 192, 106, 0.4);
+  box-shadow:
+    0 0 0 1px var(--ok),
+    0 0 14px rgba(75, 192, 106, 0.4);
 }
 
 .seat-winner {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent), 0 0 18px rgba(242, 180, 65, 0.55);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 18px rgba(242, 180, 65, 0.55);
 }
 
 .seat-turn-marker {
@@ -735,9 +743,15 @@ code {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-.chip:nth-child(1) { top: 8px; }
-.chip:nth-child(2) { top: 4px; }
-.chip:nth-child(3) { top: 0; }
+.chip:nth-child(1) {
+  top: 8px;
+}
+.chip:nth-child(2) {
+  top: 4px;
+}
+.chip:nth-child(3) {
+  top: 0;
+}
 
 .hud-to-beat {
   flex: 1;
@@ -789,7 +803,9 @@ code {
   border: 2px solid transparent;
   border-radius: 12px;
   line-height: 0;
-  transition: transform 0.15s, border-color 0.15s;
+  transition:
+    transform 0.15s,
+    border-color 0.15s;
 }
 
 button.die {
@@ -909,24 +925,53 @@ button.die:hover {
 }
 
 @keyframes koozie-shake {
-  0% { transform: translateY(-30px) rotate(0deg); }
-  10% { transform: translateY(-26px) rotate(-14deg); }
-  25% { transform: translateY(-30px) rotate(12deg); }
-  40% { transform: translateY(-24px) rotate(-12deg); }
-  55% { transform: translateY(-28px) rotate(10deg); }
-  70% { transform: translateY(-22px) rotate(-8deg); }
-  82% { transform: translateY(-26px) rotate(6deg); }
-  92%, 100% { transform: translateY(0) rotate(0deg); } /* slam */
+  0% {
+    transform: translateY(-30px) rotate(0deg);
+  }
+  10% {
+    transform: translateY(-26px) rotate(-14deg);
+  }
+  25% {
+    transform: translateY(-30px) rotate(12deg);
+  }
+  40% {
+    transform: translateY(-24px) rotate(-12deg);
+  }
+  55% {
+    transform: translateY(-28px) rotate(10deg);
+  }
+  70% {
+    transform: translateY(-22px) rotate(-8deg);
+  }
+  82% {
+    transform: translateY(-26px) rotate(6deg);
+  }
+  92%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  } /* slam */
 }
 
 @keyframes koozie-lift {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-130px) rotate(-10deg); opacity: 0; }
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-130px) rotate(-10deg);
+    opacity: 0;
+  }
 }
 
 @keyframes die-pop {
-  0% { transform: scale(0.2) rotate(-30deg); opacity: 0; }
-  100% { transform: scale(1) rotate(0); opacity: 1; }
+  0% {
+    transform: scale(0.2) rotate(-30deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1064,9 +1109,17 @@ button.die:hover {
 }
 
 @keyframes pot-slide {
-  0% { left: 10%; opacity: 0; }
-  20% { opacity: 1; }
-  100% { left: calc(90% - 26px); opacity: 1; }
+  0% {
+    left: 10%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    left: calc(90% - 26px);
+    opacity: 1;
+  }
 }
 
 .round-end-scores {
@@ -1122,8 +1175,12 @@ button.die:hover {
 }
 
 @keyframes bonus-in {
-  0% { transform: translate(-50%, -150%); }
-  100% { transform: translate(-50%, 0); }
+  0% {
+    transform: translate(-50%, -150%);
+  }
+  100% {
+    transform: translate(-50%, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

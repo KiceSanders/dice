@@ -48,7 +48,10 @@ const BASE_PLAYERS: PlayerPublic[] = [
   player(DEV_CAROL, 'Carol', 2, { chips: 115 }),
 ];
 
-function baseSnapshot(game: GameStatePublic | null, phase: RoomSnapshot['phase'] = 'playing'): RoomSnapshot {
+function baseSnapshot(
+  game: GameStatePublic | null,
+  phase: RoomSnapshot['phase'] = 'playing',
+): RoomSnapshot {
   return {
     roomId: 'DEVPLAY',
     settings: DEFAULT_SETTINGS,

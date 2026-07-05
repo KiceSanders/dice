@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Die } from '@dice/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { THROW_TIMEOUT_MS } from './engine.js';
 import { makeEngine, makePlayers, ofType } from './engine.testkit.js';
 

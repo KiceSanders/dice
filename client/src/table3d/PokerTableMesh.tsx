@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { FELT_SCALE, RAIL_HIGHLIGHT_SCALE, RAIL_MESH_SCALE, TABLE } from './layout';
-import { createFeltGeometry, createRailHighlightGeometry, createRailRingGeometry } from './tableGeometry';
+import {
+  createFeltGeometry,
+  createRailHighlightGeometry,
+  createRailRingGeometry,
+} from './tableGeometry';
 
 const FELT = '#1d6b3a';
 const RAIL = '#3a2a1a';

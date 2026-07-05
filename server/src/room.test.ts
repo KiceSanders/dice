@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
-import { clampSettings, Room, sanitizeName, type ClientLink } from './room.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ClientLink, clampSettings, Room, sanitizeName } from './room.js';
 import { RoomManager } from './roomManager.js';
 
 class FakeLink implements ClientLink {

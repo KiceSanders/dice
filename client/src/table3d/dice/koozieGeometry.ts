@@ -1,5 +1,5 @@
 import { BufferGeometry, CylinderGeometry, Float32BufferAttribute, TorusGeometry } from 'three';
-import { trimeshArgsFromGeometry, type TableTrimeshArgs } from '../tableGeometry';
+import { type TableTrimeshArgs, trimeshArgsFromGeometry } from '../tableGeometry';
 import type { DicePhysicsTuning } from './tuning';
 
 export const KOOZIE_GEOMETRY_SEGMENTS = 32;
@@ -63,10 +63,18 @@ function createExtrudedRingGeometry({
     const [innerX, innerZ] = koozieCirclePoint(theta, innerRadius);
 
     positions.push(
-      outerX, bottomY, outerZ,
-      outerX, topY, outerZ,
-      innerX, bottomY, innerZ,
-      innerX, topY, innerZ,
+      outerX,
+      bottomY,
+      outerZ,
+      outerX,
+      topY,
+      outerZ,
+      innerX,
+      bottomY,
+      innerZ,
+      innerX,
+      topY,
+      innerZ,
     );
   }
 
@@ -82,14 +90,30 @@ function createExtrudedRingGeometry({
     const nextInnerTop = nextOuterBottom + 3;
 
     indices.push(
-      outerBottom, outerTop, nextOuterTop,
-      outerBottom, nextOuterTop, nextOuterBottom,
-      innerBottom, nextInnerBottom, nextInnerTop,
-      innerBottom, nextInnerTop, innerTop,
-      outerTop, innerTop, nextInnerTop,
-      outerTop, nextInnerTop, nextOuterTop,
-      outerBottom, nextOuterBottom, nextInnerBottom,
-      outerBottom, nextInnerBottom, innerBottom,
+      outerBottom,
+      outerTop,
+      nextOuterTop,
+      outerBottom,
+      nextOuterTop,
+      nextOuterBottom,
+      innerBottom,
+      nextInnerBottom,
+      nextInnerTop,
+      innerBottom,
+      nextInnerTop,
+      innerTop,
+      outerTop,
+      innerTop,
+      nextInnerTop,
+      outerTop,
+      nextInnerTop,
+      nextOuterTop,
+      outerBottom,
+      nextOuterBottom,
+      nextInnerBottom,
+      outerBottom,
+      nextInnerBottom,
+      innerBottom,
     );
   }
 
@@ -129,7 +153,14 @@ export function createKoozieWallVisualGeometry(
   cup: Pick<KoozieCupShape, 'radius' | 'height' | 'rimInset'>,
 ): CylinderGeometry {
   const { wallHeight } = koozieWallLayout(cup);
-  return new CylinderGeometry(cup.radius, cup.radius, wallHeight, KOOZIE_GEOMETRY_SEGMENTS, 1, false);
+  return new CylinderGeometry(
+    cup.radius,
+    cup.radius,
+    wallHeight,
+    KOOZIE_GEOMETRY_SEGMENTS,
+    1,
+    false,
+  );
 }
 
 export function createKoozieRimVisualGeometry(
@@ -142,15 +173,12 @@ export function createKoozieRimVisualGeometry(
 export function createKooziePickGeometry(
   cup: Pick<KoozieCupShape, 'radius' | 'height'>,
 ): CylinderGeometry {
-  return new CylinderGeometry(
-    cup.radius * 1.12,
-    cup.radius * 1.12,
-    cup.height * 0.92,
-    20,
-  );
+  return new CylinderGeometry(cup.radius * 1.12, cup.radius * 1.12, cup.height * 0.92, 20);
 }
 
-export function koozieBottomColliderY(cup: Pick<KoozieCupShape, 'height' | 'bottomThickness'>): number {
+export function koozieBottomColliderY(
+  cup: Pick<KoozieCupShape, 'height' | 'bottomThickness'>,
+): number {
   return -cup.height * 0.5 + cup.bottomThickness * 0.5;
 }
 

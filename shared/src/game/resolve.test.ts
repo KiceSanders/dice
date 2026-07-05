@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Die, HandScore, PlayerId, StraightKind } from '../types.js';
 import { resolveRound } from './resolve.js';
 
-function hand(
-  count: number,
-  face: Die,
-  rollsUsed = 1,
-  straight: StraightKind = 'none',
-): HandScore {
+function hand(count: number, face: Die, rollsUsed = 1, straight: StraightKind = 'none'): HandScore {
   return { count, face, rollsUsed, straight };
 }
 

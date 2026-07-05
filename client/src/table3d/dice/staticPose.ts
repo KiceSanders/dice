@@ -11,10 +11,7 @@ function diePose(position: [number, number, number], value: Die): BodyPose {
 }
 
 /** Build a stable non-physics table pose from committed dice values. */
-export function staticPoseFromDice(
-  dice: Die[],
-  keepIndices: number[] = [],
-): PoseFrame | null {
+export function staticPoseFromDice(dice: Die[], keepIndices: number[] = []): PoseFrame | null {
   if (dice.length < DICE_COUNT) return null;
 
   const kept = new Set(keepIndices);

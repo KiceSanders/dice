@@ -1,5 +1,5 @@
-import { useLayoutEffect } from 'react';
 import { useThree } from '@react-three/fiber';
+import { useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import { SEAT_VIEW } from './layout';
 

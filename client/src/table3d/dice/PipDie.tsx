@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import { RoundedBox } from '@react-three/drei';
-import * as THREE from 'three';
 import type { Die as DieValue } from '@dice/shared';
+import { RoundedBox } from '@react-three/drei';
+import { useMemo } from 'react';
+import * as THREE from 'three';
 import { DIE_HALF, DIE_SIZE } from './constants';
 
 const PIP = '#141414';

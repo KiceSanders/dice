@@ -1,10 +1,7 @@
 import * as THREE from 'three';
 import { DICE_FELT_Y, KOOZIE } from './constants';
 import { koozieRestPosition } from './diceLayout';
-import {
-  getDicePhysicsTuning,
-  type DicePhysicsTuning,
-} from './tuning';
+import { type DicePhysicsTuning, getDicePhysicsTuning } from './tuning';
 import type { ThrowVelocity } from './types';
 
 const _up = new THREE.Vector3(0, 1, 0);
@@ -174,8 +171,10 @@ export function stepHeldPose(
     const len = pendulumLength(tuning);
     const omega = Math.sqrt(Math.abs(tuning.world.gravityY) / Math.max(len, 0.01));
     const damping = 2 * tuning.pendulum.dampingRatio * omega;
-    state.bobVel.x += (-omega * omega * state.bobOffset.x - damping * state.bobVel.x - state.pivotAccel.x) * safeDt;
-    state.bobVel.z += (-omega * omega * state.bobOffset.z - damping * state.bobVel.z - state.pivotAccel.z) * safeDt;
+    state.bobVel.x +=
+      (-omega * omega * state.bobOffset.x - damping * state.bobVel.x - state.pivotAccel.x) * safeDt;
+    state.bobVel.z +=
+      (-omega * omega * state.bobOffset.z - damping * state.bobVel.z - state.pivotAccel.z) * safeDt;
     state.bobOffset.addScaledVector(state.bobVel, safeDt);
 
     const maxOffset = maxSwingOffset(tuning);
@@ -256,7 +255,11 @@ export function createPourState(
     velocity.y + (heldVelocity?.y ?? 0) * tuning.release.velocityBlend,
     velocity.z + (heldVelocity?.z ?? 0) * tuning.release.velocityBlend,
   );
-  const pourDir = pourDirectionFromRelease(pose, { x: blended.x, y: blended.y, z: blended.z }, tuning);
+  const pourDir = pourDirectionFromRelease(
+    pose,
+    { x: blended.x, y: blended.y, z: blended.z },
+    tuning,
+  );
   return {
     origin: pose.position.clone(),
     from: pose.quaternion.clone(),
@@ -285,7 +288,8 @@ export function pouringPoseAt(
   const decay = Math.max(tuning.release.glideDecay, 0.01);
   const glide =
     Math.min(
-      state.releaseSpeed * tuning.release.glideVelocityScale * (1 - Math.exp(-decay * seconds)) / decay,
+      (state.releaseSpeed * tuning.release.glideVelocityScale * (1 - Math.exp(-decay * seconds))) /
+        decay,
       tuning.release.glideMaxDistance,
     ) *
     (0.35 + 0.65 * eased);

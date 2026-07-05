@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
+import { KOOZIE } from './constants';
 import {
   computeReleaseTiltTarget,
   createHeldState,
@@ -9,7 +10,6 @@ import {
   pouringPoseAt,
   stepHeldPose,
 } from './koozieMotion';
-import { KOOZIE } from './constants';
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 describe('koozieMotion', () => {
@@ -107,7 +107,10 @@ describe('koozieMotion', () => {
 
     const tiltedPose = {
       position: home.position.clone(),
-      quaternion: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), KOOZIE.maxDragTilt),
+      quaternion: new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        KOOZIE.maxDragTilt,
+      ),
     };
     const tiltedPour = pourDirectionFromRelease(tiltedPose, slowVel);
 

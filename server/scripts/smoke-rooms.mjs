@@ -142,10 +142,7 @@ assert(banned.code === 'BANNED', 'kicked player cannot re-request a seat');
 
 // 6. host disconnect → transfer to longest-seated connected player (Ann)
 host.close();
-state = await ann.stateWhere(
-  (s) => s.hostId === annJoined.playerId,
-  'host transferred to Ann',
-);
+state = await ann.stateWhere((s) => s.hostId === annJoined.playerId, 'host transferred to Ann');
 assert(state.snapshot.hostId === annJoined.playerId, 'host transferred to Ann on disconnect');
 
 if (failures > 0) {

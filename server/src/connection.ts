@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { WebSocket } from 'ws';
 import type { PlayerId, RoomId, ServerMessage } from '@dice/shared';
+import type { WebSocket } from 'ws';
 
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 

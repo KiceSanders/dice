@@ -2,11 +2,11 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { roll } from './engine.testkit.js';
-import { recoverRooms, RoomLogStore } from './persistence.js';
+import { RoomLogStore, recoverRooms } from './persistence.js';
 import type { ClientLink, Room } from './room.js';
 import { RoomManager } from './roomManager.js';
 

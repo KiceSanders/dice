@@ -1,7 +1,7 @@
 // Dev helper (PLAN.md Phase 9 verification): scan DEBUG_SEED values for one
 // where, with two players each standing after one roll, player A's first hand
 // is a straight and player B ties or also rolls a straight.
-import { scoreHand, compareHands, rollDice } from '@dice/shared';
+import { compareHands, rollDice, scoreHand } from '@dice/shared';
 import { seededRng } from '../src/engine.js';
 
 function firstHands(seed) {

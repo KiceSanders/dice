@@ -10,7 +10,7 @@ import type {
   StraightPayoutConfig,
 } from '@dice/shared';
 import { assertNever, DEFAULT_SETTINGS } from '@dice/shared';
-import { GameEngine, type EngineEvent, type EngineOptions } from './engine.js';
+import { type EngineEvent, type EngineOptions, GameEngine } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
 
 /** Anything that can receive server messages (Connection in prod, fakes in tests). */
@@ -63,9 +63,11 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   };
 }
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
+const NAME_CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
 export function sanitizeName(name: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
-  return name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
+  return name.replace(NAME_CONTROL_CHARS, '').trim().slice(0, 24);
 }
 
 export type RoomError = {
@@ -373,7 +375,8 @@ export class Room {
   startGame(byPlayerId: PlayerId): RoomError | null {
     if (byPlayerId !== this.hostId) return err('NOT_HOST', 'only the host can start the game');
     if (this.engine) return err('BAD_REQUEST', 'game already in progress');
-    if (this.seatedPlayers().length < 2) return err('BAD_REQUEST', 'need at least 2 seated players');
+    if (this.seatedPlayers().length < 2)
+      return err('BAD_REQUEST', 'need at least 2 seated players');
 
     this.commit({ type: 'gameStarted' });
     this.engine!.start();

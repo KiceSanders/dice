@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import type { PlayerPublic } from '@dice/shared';
+import { useEffect } from 'react';
 import type { RoundEndInfo } from '../state/store';
 import { describeScore } from './GameHud';
 
@@ -53,7 +53,8 @@ export default function RoundEndModal({ roundEnd, players, onDismiss }: Props) {
             <li key={playerId} className={playerId === roundEnd.winnerId ? 'round-end-winner' : ''}>
               <span className="round-end-name">{nameOf(playerId)}</span>
               <span className="round-end-hand">
-                {describeScore(score)} · {score.rollsUsed} {score.rollsUsed === 1 ? 'roll' : 'rolls'}
+                {describeScore(score)} · {score.rollsUsed}{' '}
+                {score.rollsUsed === 1 ? 'roll' : 'rolls'}
               </span>
             </li>
           ))}

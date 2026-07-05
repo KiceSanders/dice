@@ -1,11 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { DEFAULT_SETTINGS, type RoomSettings } from '@dice/shared';
-import { useApp } from '../state/context';
-import { loadName, saveName } from '../state/persist';
+import { type FormEvent, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import ConnectionStatus from '../components/ConnectionStatus';
 import SettingsFields from '../components/SettingsFields';
 import Toasts from '../components/Toasts';
+import { useApp } from '../state/context';
+import { loadName, saveName } from '../state/persist';
 
 /** Home: create a room (with full settings) or join one by code. */
 export default function Home() {
@@ -95,18 +95,11 @@ export default function Home() {
       <div className="home-forms">
         <form className="card" onSubmit={createRoom}>
           <h2>Create a room</h2>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => setShowSettings((v) => !v)}
-          >
+          <button type="button" className="link-button" onClick={() => setShowSettings((v) => !v)}>
             {showSettings ? 'Hide settings' : 'Customize settings'}
           </button>
           {showSettings && <SettingsFields value={settings} onChange={setSettings} />}
-          <button
-            type="submit"
-            disabled={!name.trim() || state.connection !== 'open' || creating}
-          >
+          <button type="submit" disabled={!name.trim() || state.connection !== 'open' || creating}>
             {creating ? 'Creating…' : 'Create room'}
           </button>
         </form>

@@ -1,7 +1,12 @@
-import type { CSSProperties } from 'react';
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
+import type { CSSProperties } from 'react';
 import Seat from '../components/Seat';
-import { displaySeatIndex, TABLE_SEAT_COUNT, type OverlayRect, seatOverlayPosition } from './layout';
+import {
+  displaySeatIndex,
+  type OverlayRect,
+  seatOverlayPosition,
+  TABLE_SEAT_COUNT,
+} from './layout';
 
 /** Anchor the inner edge of the card toward the table center. */
 function seatAnchorStyle(angle: number): CSSProperties {

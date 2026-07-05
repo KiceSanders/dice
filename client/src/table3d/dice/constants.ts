@@ -1,4 +1,10 @@
-import { FELT_COLLIDER_HALF_Y, FELT_HALF_EXTENT, FELT_SCALE, RAIL_INNER_WORLD, TABLE } from '../layout';
+import {
+  FELT_COLLIDER_HALF_Y,
+  FELT_HALF_EXTENT,
+  FELT_SCALE,
+  RAIL_INNER_WORLD,
+  TABLE,
+} from '../layout';
 
 /** Edge length of each die in world units (~12 cm on a ~2 m table). */
 export const DIE_SIZE = 0.12;
@@ -25,7 +31,7 @@ export const CLUSTER_WORLD_RADIUS = 0.06;
 export const DICE_FELT_Y = TABLE.surfaceY + DIE_HALF + 0.003;
 
 /** Die center height while grabbed above the felt (world Y). */
-export const DICE_HOVER_Y = DICE_FELT_Y + 0.30;
+export const DICE_HOVER_Y = DICE_FELT_Y + 0.3;
 
 /** Per-die screen-pixel offsets from cursor (index 0–4; center die at index 2). */
 export const DIE_SCREEN_OFFSETS: ReadonlyArray<readonly [number, number]> = [
@@ -126,4 +132,3 @@ export const KOOZIE = {
   hitScreenPx: 100,
   emptyCheckRadius: 0.22,
 } as const;
-

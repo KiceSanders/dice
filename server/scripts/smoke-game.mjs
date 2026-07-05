@@ -28,7 +28,10 @@ function client(name) {
     const i = buffer.findIndex(match);
     if (i >= 0) return Promise.resolve(buffer.splice(i, 1)[0]);
     return new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error(`${name}: timeout waiting for ${label}`)), timeoutMs);
+      const t = setTimeout(
+        () => reject(new Error(`${name}: timeout waiting for ${label}`)),
+        timeoutMs,
+      );
       waiters.push({
         match,
         resolve: (m) => {
@@ -77,10 +80,7 @@ host.send({ type: 'seat:request', buyIn: 100 });
 ann.send({ type: 'seat:request', buyIn: 100 });
 const req = await host.next('seat:requested');
 host.send({ type: 'seat:approve', playerId: req.playerId });
-await ann.stateWhere(
-  (s) => s.players.filter((p) => p.seat !== null).length === 2,
-  'both seated',
-);
+await ann.stateWhere((s) => s.players.filter((p) => p.seat !== null).length === 2, 'both seated');
 
 // Non-host cannot start.
 ann.send({ type: 'game:start' });
@@ -144,7 +144,10 @@ state = await host.stateWhere(
 const second = state.snapshot.game.currentTurn?.playerId;
 assert(second && second !== turnOrder[0], 'turn advanced to the second player');
 assert(state.snapshot.game.rollToBeat !== null, 'roll-to-beat recorded after first stand');
-assert(state.snapshot.game.currentTurn.rollCap === 2, 'roll-cap pressure: second player capped at 2');
+assert(
+  state.snapshot.game.currentTurn.rollCap === 2,
+  'roll-cap pressure: second player capped at 2',
+);
 // Second player: pair of 3s — beats the pair of 2s, no tie, auto-stands at the cap.
 await playTurn(byId(second), second, [3, 3, 2, 4, 6], [3, 3, 6, 4, 2]);
 

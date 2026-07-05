@@ -1,17 +1,17 @@
-import { Suspense } from 'react';
+import type { PoseFrame } from '@dice/shared';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
-import FixedCamera from './FixedCamera';
-import PokerTableMesh from './PokerTableMesh';
+import { Suspense } from 'react';
 import DicePhysics from './dice/DicePhysics';
 import RemoteDiceView from './dice/RemoteDiceView';
+import type { RemoteRollFeed } from './dice/remoteFeed';
 import StaticDiceView from './dice/StaticDiceView';
 import TableColliders from './dice/TableColliders';
-import type { PoseFrame } from '@dice/shared';
-import type { RemoteRollFeed } from './dice/remoteFeed';
 import { useDicePhysicsTuning } from './dice/tuning';
 import type { TableDiceProps } from './dice/types';
+import FixedCamera from './FixedCamera';
 import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
+import PokerTableMesh from './PokerTableMesh';
 
 /**
  * The scene renders in the local player's view space: the viewer is always at

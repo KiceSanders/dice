@@ -1,8 +1,8 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
-import PipDie from './PipDie';
+import { CuboidCollider, type RapierRigidBody, RigidBody } from '@react-three/rapier';
+import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { DIE_HALF } from './constants';
+import PipDie from './PipDie';
 import { useDicePhysicsTuning } from './tuning';
 
 export interface DieBodyHandle {

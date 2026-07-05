@@ -1,5 +1,5 @@
-import type { CSSProperties } from 'react';
 import type { Die as DieValue } from '@dice/shared';
+import type { CSSProperties } from 'react';
 import Die from './Die';
 
 interface Props {
@@ -17,7 +17,13 @@ interface Props {
  * A row of 5 dice. Each die wrapper carries `--die-i` and kept/unkept classes
  * so the koozie animation can hide and stagger-reveal only re-rolled dice.
  */
-export default function DiceRow({ dice, kept = [], selected = [], onToggle, small = false }: Props) {
+export default function DiceRow({
+  dice,
+  kept = [],
+  selected = [],
+  onToggle,
+  small = false,
+}: Props) {
   return (
     <div className={`dice-row${small ? ' dice-row-small' : ''}`}>
       {dice.map((value, i) => {

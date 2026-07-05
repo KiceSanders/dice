@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Die } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameEngine } from './engine.js';
 import { makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
 

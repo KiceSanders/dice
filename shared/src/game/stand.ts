@@ -1,6 +1,6 @@
 import type { Die, HandScore } from '../types.js';
-import { HAND_SIZE } from './dice.js';
 import { compareHands } from './compare.js';
+import { HAND_SIZE } from './dice.js';
 import { scoreHand } from './score.js';
 
 /**

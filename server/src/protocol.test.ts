@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { describe, expect, it } from 'vitest';
 import { parseClientMessage } from './protocol.js';
 
 const parse = (v: unknown) => parseClientMessage(JSON.stringify(v));
@@ -100,15 +100,15 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'dice:frames', frames: Array(11).fill(frame) })).toMatchObject({
       ok: false,
     });
-    expect(
-      parse({ type: 'dice:frames', frames: [{ t: 0, bodies: [[1, 2, 3]] }] }),
-    ).toMatchObject({ ok: false });
+    expect(parse({ type: 'dice:frames', frames: [{ t: 0, bodies: [[1, 2, 3]] }] })).toMatchObject({
+      ok: false,
+    });
     expect(
       parse({ type: 'dice:frames', frames: [{ t: 0, bodies: Array(9).fill(pose) }] }),
     ).toMatchObject({ ok: false });
-    expect(
-      parse({ type: 'dice:frames', frames: [{ t: 'now', bodies: [pose] }] }),
-    ).toMatchObject({ ok: false });
+    expect(parse({ type: 'dice:frames', frames: [{ t: 'now', bodies: [pose] }] })).toMatchObject({
+      ok: false,
+    });
   });
 
   it('validates payload-less messages', () => {
@@ -137,9 +137,9 @@ describe('parseClientMessage', () => {
   });
 
   it('rejects over-long and control-char-only names', () => {
-    expect(parse({ type: 'room:join', roomId: 'ABCDEF', playerName: 'x'.repeat(25) })).toMatchObject(
-      { ok: false },
-    );
+    expect(
+      parse({ type: 'room:join', roomId: 'ABCDEF', playerName: 'x'.repeat(25) }),
+    ).toMatchObject({ ok: false });
     expect(parse({ type: 'room:join', roomId: 'x'.repeat(13), playerName: 'p' })).toMatchObject({
       ok: false,
     });

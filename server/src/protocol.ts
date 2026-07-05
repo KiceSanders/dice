@@ -118,8 +118,7 @@ const validators: Record<ClientMessage['type'], Validator> = {
       ? null
       : `frames must be 1-${MAX_FRAMES_PER_MESSAGE} pose frames`,
   'turn:stand': () => null,
-  'chat:send': (m) =>
-    isNonEmptyString(m.text, 500) ? null : 'text must be a 1-500 char string',
+  'chat:send': (m) => (isNonEmptyString(m.text, 500) ? null : 'text must be a 1-500 char string'),
 };
 
 /**

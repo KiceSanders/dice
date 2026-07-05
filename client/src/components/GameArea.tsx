@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import type { RoomSnapshot, TurnState } from '@dice/shared';
 import { HAND_SIZE } from '@dice/shared';
+import { useEffect, useState } from 'react';
 import { togglePendingKeep } from '../game/keepSelection';
 import type { LastRoll } from '../state/store';
 import DiceRow from './DiceRow';
@@ -73,7 +73,8 @@ export default function GameArea({
   };
 
   // Animate only the roll the snapshot currently shows.
-  const rollId = lastRoll && turn && lastRoll.playerId === turn.playerId ? lastRoll.receivedAt : null;
+  const rollId =
+    lastRoll && turn && lastRoll.playerId === turn.playerId ? lastRoll.receivedAt : null;
 
   return (
     <section className="game-area" aria-label="game table">
@@ -82,7 +83,9 @@ export default function GameArea({
       {turn ? (
         <div className="turn-area">
           <div className="turn-header">
-            <h3 className="turn-title">{isMyTurn ? 'Your turn' : `${nameOf(turn.playerId)}'s turn`}</h3>
+            <h3 className="turn-title">
+              {isMyTurn ? 'Your turn' : `${nameOf(turn.playerId)}'s turn`}
+            </h3>
             <span className="turn-rolls muted">
               roll {turn.rollsUsed} / {turn.rollCap}
             </span>
@@ -115,7 +118,9 @@ export default function GameArea({
                   onToggle={isMyTurn ? toggleKeep : undefined}
                 />
               ) : (
-                <p className="muted dice-placeholder">Dice in the cup — waiting for the first roll…</p>
+                <p className="muted dice-placeholder">
+                  Dice in the cup — waiting for the first roll…
+                </p>
               )}
             </Koozie>
           )}
@@ -125,12 +130,16 @@ export default function GameArea({
             <TurnControls turn={turn} pendingKeep={pendingKeep} turnActions={turnActions} />
           )}
           {isMyTurn && turn.rollsUsed > 0 && turn.rollsUsed < turn.rollCap && !hide2DDice && (
-            <small className="muted keep-hint">Click dice to keep them — kept dice stay locked for the turn.</small>
+            <small className="muted keep-hint">
+              Click dice to keep them — kept dice stay locked for the turn.
+            </small>
           )}
         </div>
       ) : (
         <p className="muted turn-area-empty">
-          {snapshot.phase === 'roundEnd' ? 'Round over — next round starting shortly…' : 'Waiting for the next turn…'}
+          {snapshot.phase === 'roundEnd'
+            ? 'Round over — next round starting shortly…'
+            : 'Waiting for the next turn…'}
         </p>
       )}
 

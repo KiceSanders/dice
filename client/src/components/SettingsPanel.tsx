@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import type { RoomSettings, RoomSnapshot } from '@dice/shared';
+import { useEffect, useState } from 'react';
 import { useApp } from '../state/context';
 import SettingsFields from './SettingsFields';
 
@@ -7,7 +7,13 @@ import SettingsFields from './SettingsFields';
  * Room settings: editable by the host between rounds (lobby / roundEnd),
  * read-only for everyone else.
  */
-export default function SettingsPanel({ snapshot, isHost }: { snapshot: RoomSnapshot; isHost: boolean }) {
+export default function SettingsPanel({
+  snapshot,
+  isHost,
+}: {
+  snapshot: RoomSnapshot;
+  isHost: boolean;
+}) {
   const { send, state } = useApp();
   const connected = state.connection === 'open';
   const canEdit = isHost && snapshot.phase !== 'playing';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Die } from '../types.js';
-import { canStandVoluntarily } from './stand.js';
 import { scoreHand } from './score.js';
+import { canStandVoluntarily } from './stand.js';
 
 const hand = (...dice: number[]) => dice as Die[];
 

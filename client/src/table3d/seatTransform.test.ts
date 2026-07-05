@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import type { BodyPose, PoseFrame } from '@dice/shared';
-import { poseFrameFromCanonical, poseFrameToCanonical, rotateBodyPoseY } from './seatTransform';
+import * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
 import { displaySeatIndex, seatAngle, TABLE_SEAT_COUNT } from './layout';
+import { poseFrameFromCanonical, poseFrameToCanonical, rotateBodyPoseY } from './seatTransform';
 
 const frame = (x: number, z: number): PoseFrame => ({
   t: 0,
@@ -62,9 +62,9 @@ describe('rotateBodyPoseY', () => {
     const rotated = rotateBodyPoseY(pose, angle);
 
     const toCenterBefore = new THREE.Vector3(0, 0, -1);
-    const localDir = toCenterBefore.clone().applyQuaternion(
-      new THREE.Quaternion(pose[3], pose[4], pose[5], pose[6]).invert(),
-    );
+    const localDir = toCenterBefore
+      .clone()
+      .applyQuaternion(new THREE.Quaternion(pose[3], pose[4], pose[5], pose[6]).invert());
     const dirAfter = localDir.applyQuaternion(
       new THREE.Quaternion(rotated[3], rotated[4], rotated[5], rotated[6]),
     );
@@ -104,10 +104,7 @@ describe('seatTransform', () => {
       const canonical = poseFrameToCanonical(frame(0, r), rollerSeat);
       for (let viewerSeat = 0; viewerSeat < TABLE_SEAT_COUNT; viewerSeat++) {
         const view = poseFrameFromCanonical(canonical, viewerSeat);
-        const displayAngle = seatAngle(
-          displaySeatIndex(rollerSeat, viewerSeat),
-          TABLE_SEAT_COUNT,
-        );
+        const displayAngle = seatAngle(displaySeatIndex(rollerSeat, viewerSeat), TABLE_SEAT_COUNT);
         expect(view.bodies[0]![0]).toBeCloseTo(r * Math.cos(displayAngle), 3);
         expect(view.bodies[0]![2]).toBeCloseTo(r * Math.sin(displayAngle), 3);
       }

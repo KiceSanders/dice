@@ -1,17 +1,17 @@
+import type { ClientMessage } from '@dice/shared';
 import {
   createContext,
+  type ReactNode,
   useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
-  type ReactNode,
 } from 'react';
-import type { ClientMessage } from '@dice/shared';
 import type { WsClient } from '../ws/client';
 import { getWsClient } from '../ws/singleton';
 import { loadName, saveIdentity } from './persist';
-import { initialState, reducer, type AppAction, type AppState } from './store';
+import { type AppAction, type AppState, initialState, reducer } from './store';
 
 interface AppContextValue {
   state: AppState;

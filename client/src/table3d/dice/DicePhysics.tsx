@@ -1,39 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { RigidBodyType } from '@dimforge/rapier3d-compat';
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import type { BodyPose, Die, PoseFrame } from '@dice/shared';
 import { HAND_SIZE } from '@dice/shared';
+import { RigidBodyType } from '@dimforge/rapier3d-compat';
+import { type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import DieBody, { type DieBodyHandle } from './DieBody';
-import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
-import TableColliders from './TableColliders';
 import {
   DICE_COUNT,
   DICE_FELT_Y,
   DIE_HALF,
+  dieSlotPosition,
   FELT_BOUND_X,
   FELT_BOUND_Z,
-  dieSlotPosition,
 } from './constants';
+import DieBody, { type DieBodyHandle } from './DieBody';
+import { keepSlotForIndex, keptDieRailPosition, koozieRestPosition } from './diceLayout';
+import { quaternionForFace, readTopFace } from './faceValue';
+import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
 import { spawnDiceInCupLocal } from './koozieColliders';
 import {
   createHeldStateFromPose,
   createHomePose,
   createPourState,
   isInsideCup,
-  pouringPoseAt,
-  stepHeldPose,
   type KoozieHeldState,
   type KooziePourState,
+  pouringPoseAt,
+  stepHeldPose,
 } from './koozieMotion';
-import { keepSlotForIndex, keptDieRailPosition, koozieRestPosition } from './diceLayout';
 import { canvasLayoutElement, hitCup, pointerOnPlane } from './pointerToFelt';
-import { quaternionForFace, readTopFace } from './faceValue';
-import {
-  getDicePhysicsTuning,
-  useDicePhysicsTuning,
-  type DicePhysicsTuning,
-} from './tuning';
+import TableColliders from './TableColliders';
+import { type DicePhysicsTuning, getDicePhysicsTuning, useDicePhysicsTuning } from './tuning';
 import type { TableDiceProps, ThrowVelocity } from './types';
 
 const _quat = new THREE.Quaternion();
@@ -72,10 +68,7 @@ function homePosition(tuning: DicePhysicsTuning): [number, number, number] {
   return koozieRestPosition(tuning.cup);
 }
 
-function isOutsidePlayBounds(
-  point: { x: number; z: number },
-  tuning: DicePhysicsTuning,
-): boolean {
+function isOutsidePlayBounds(point: { x: number; z: number }, tuning: DicePhysicsTuning): boolean {
   const margin = tuning.cup.radius + 0.16;
   const a = Math.max(FELT_BOUND_X - margin, 0.1);
   const b = Math.max(FELT_BOUND_Z - margin, 0.1);
@@ -94,11 +87,7 @@ function cupLocalToWorld(
 }
 
 function randomRotation(): [number, number, number] {
-  return [
-    Math.random() * Math.PI * 2,
-    Math.random() * Math.PI * 2,
-    Math.random() * Math.PI * 2,
-  ];
+  return [Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2];
 }
 
 /** Pose-stream sampling intervals (ADR 004). */
@@ -107,10 +96,21 @@ const POSE_SAMPLE_SLOW_MS = 250; // selecting (kept-rail moves only)
 
 const roundMm = (v: number) => Math.round(v * 1000) / 1000;
 
-function readBodyPose(body: { translation(): { x: number; y: number; z: number }; rotation(): { x: number; y: number; z: number; w: number } }): BodyPose {
+function readBodyPose(body: {
+  translation(): { x: number; y: number; z: number };
+  rotation(): { x: number; y: number; z: number; w: number };
+}): BodyPose {
   const t = body.translation();
   const r = body.rotation();
-  return [roundMm(t.x), roundMm(t.y), roundMm(t.z), roundMm(r.x), roundMm(r.y), roundMm(r.z), roundMm(r.w)];
+  return [
+    roundMm(t.x),
+    roundMm(t.y),
+    roundMm(t.z),
+    roundMm(r.x),
+    roundMm(r.y),
+    roundMm(r.z),
+    roundMm(r.w),
+  ];
 }
 
 function buildRuntime(
@@ -172,7 +172,11 @@ function buildRuntime(
   });
 }
 
-function clampBodyVelocity(body: NonNullable<DieBodyHandle['body']>, maxLin: number, maxAng: number) {
+function clampBodyVelocity(
+  body: NonNullable<DieBodyHandle['body']>,
+  maxLin: number,
+  maxAng: number,
+) {
   const lv = body.linvel();
   const lvx = lv.x;
   const lvy = lv.y;
@@ -240,7 +244,10 @@ function pointerTarget(canvas: HTMLCanvasElement): HTMLElement {
   return canvasLayoutElement(canvas);
 }
 
-function setCupPose(cup: NonNullable<KoozieBodyHandle['body']>, pose: { position: THREE.Vector3; quaternion: THREE.Quaternion }) {
+function setCupPose(
+  cup: NonNullable<KoozieBodyHandle['body']>,
+  pose: { position: THREE.Vector3; quaternion: THREE.Quaternion },
+) {
   cup.setNextKinematicTranslation({ x: pose.position.x, y: pose.position.y, z: pose.position.z });
   cup.setNextKinematicRotation({
     x: pose.quaternion.x,
@@ -299,7 +306,7 @@ function countUnkeptInside(
  * imperative access must go through this guard.
  */
 function liveBody<T extends { isValid(): boolean }>(body: T | null | undefined): T | null {
-  return body && body.isValid() ? body : null;
+  return body?.isValid() ? body : null;
 }
 
 function respawnDieOnFelt(index: number, body: NonNullable<DieBodyHandle['body']>) {
@@ -370,10 +377,12 @@ export default function DicePhysics({
   const onPoseFrameRef = useRef(onPoseFrame);
   const streamStartRef = useRef<number | null>(null);
   const lastPoseSampleRef = useRef(0);
-  const lastCupPoseRef = useRef<BodyPose>((() => {
-    const [x, y, z] = homePosition(tuning);
-    return [x, y, z, 0, 0, 0, 1] as BodyPose;
-  })());
+  const lastCupPoseRef = useRef<BodyPose>(
+    (() => {
+      const [x, y, z] = homePosition(tuning);
+      return [x, y, z, 0, 0, 0, 1] as BodyPose;
+    })(),
+  );
   const lastDiePosesRef = useRef<BodyPose[]>(
     Array.from({ length: DICE_COUNT }, (_, i) => {
       const [x, y, z] = dieSlotPosition(i);
@@ -435,77 +444,74 @@ export default function DicePhysics({
     feltPoseRef.current = Array(DICE_COUNT).fill(null);
   }, []);
 
-  const enterSelectingPhase = useCallback(
-    (values: Die[]) => {
-      const latestTuning = getDicePhysicsTuning();
-      const kept = keepRef.current;
-      const keptSorted = [...kept].sort((a, b) => a - b);
+  const enterSelectingPhase = useCallback((values: Die[]) => {
+    const latestTuning = getDicePhysicsTuning();
+    const kept = keepRef.current;
+    const keptSorted = [...kept].sort((a, b) => a - b);
 
-      const nextRuntime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
-        visible: false,
-        locked: true,
-        inCup: false,
-        position: dieSlotPosition(i),
-      }));
+    const nextRuntime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
+      visible: false,
+      locked: true,
+      inCup: false,
+      position: dieSlotPosition(i),
+    }));
 
-      // All placement is declarative: unkept dice flip dynamic → locked (key
-      // change remounts them at their settled pose), kept dice move via the
-      // position prop, and the cup remounts at the parked spot when it turns
-      // visible again below.
-      for (let i = 0; i < DICE_COUNT; i++) {
-        const value = values[i] ?? diceRef.current[i];
-        if (value === undefined && !kept.includes(i)) continue;
+    // All placement is declarative: unkept dice flip dynamic → locked (key
+    // change remounts them at their settled pose), kept dice move via the
+    // position prop, and the cup remounts at the parked spot when it turns
+    // visible again below.
+    for (let i = 0; i < DICE_COUNT; i++) {
+      const value = values[i] ?? diceRef.current[i];
+      if (value === undefined && !kept.includes(i)) continue;
 
-        if (kept.includes(i)) {
-          const slot = keepSlotForIndex(i, keptSorted);
-          nextRuntime[i] = {
-            visible: true,
-            locked: true,
-            inCup: false,
-            position: keptDieRailPosition(slot, keptSorted.length),
-            rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
-          };
-          continue;
-        }
-
-        const body = liveBody(dieRefs.current[i]?.body);
-        let pose: DiePose;
-        if (body) {
-          const t = body.translation();
-          const r = body.rotation();
-          _quat.set(r.x, r.y, r.z, r.w);
-          pose = {
-            position: [t.x, t.y, t.z],
-            rotation: quatToEuler(_quat),
-          };
-        } else {
-          const slot = dieSlotPosition(i);
-          pose = { position: slot, rotation: [0, 0, 0] };
-        }
-        feltPoseRef.current[i] = pose;
+      if (kept.includes(i)) {
+        const slot = keepSlotForIndex(i, keptSorted);
         nextRuntime[i] = {
           visible: true,
           locked: true,
           inCup: false,
-          position: pose.position,
-          rotation: pose.rotation,
+          position: keptDieRailPosition(slot, keptSorted.length),
+          rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
         };
+        continue;
       }
 
-      setRuntime(nextRuntime);
-      setCupPosition(homePosition(latestTuning));
-      setCupPhase('selecting');
-      cupPhaseRef.current = 'selecting';
-      setCupVisible(canDragRef.current);
-      rollingRef.current = false;
-      rollElapsedMsRef.current = 0;
-      setSimRolling(false);
-      settleCountRef.current = 0;
-      heldStateRef.current = null;
-      pourStateRef.current = null;
-    },
-    [],
-  );
+      const body = liveBody(dieRefs.current[i]?.body);
+      let pose: DiePose;
+      if (body) {
+        const t = body.translation();
+        const r = body.rotation();
+        _quat.set(r.x, r.y, r.z, r.w);
+        pose = {
+          position: [t.x, t.y, t.z],
+          rotation: quatToEuler(_quat),
+        };
+      } else {
+        const slot = dieSlotPosition(i);
+        pose = { position: slot, rotation: [0, 0, 0] };
+      }
+      feltPoseRef.current[i] = pose;
+      nextRuntime[i] = {
+        visible: true,
+        locked: true,
+        inCup: false,
+        position: pose.position,
+        rotation: pose.rotation,
+      };
+    }
+
+    setRuntime(nextRuntime);
+    setCupPosition(homePosition(latestTuning));
+    setCupPhase('selecting');
+    cupPhaseRef.current = 'selecting';
+    setCupVisible(canDragRef.current);
+    rollingRef.current = false;
+    rollElapsedMsRef.current = 0;
+    setSimRolling(false);
+    settleCountRef.current = 0;
+    heldStateRef.current = null;
+    pourStateRef.current = null;
+  }, []);
 
   const applyKeepLayout = useCallback((kept: number[]) => {
     const phase = cupPhaseRef.current;
@@ -569,16 +575,10 @@ export default function DicePhysics({
     const cupQuat = new THREE.Quaternion(r.x, r.y, r.z, r.w);
 
     const kept = new Set(keepRef.current);
-    const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter(
-      (i) => {
-        const rt = runtimeRef.current[i];
-        return (
-          !kept.has(i) &&
-          rt?.visible &&
-          (!rt.inCup || rt.meshVisible === false)
-        );
-      },
-    );
+    const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => {
+      const rt = runtimeRef.current[i];
+      return !kept.has(i) && rt?.visible && (!rt.inCup || rt.meshVisible === false);
+    });
     if (unkeptIndices.length === 0) return;
 
     const nextRuntime = [...runtimeRef.current];
@@ -669,7 +669,13 @@ export default function DicePhysics({
   const recordSample = useCallback(
     (clientX: number, clientY: number) => {
       const canvas = gl.domElement;
-      const center = pointerOnPlane(clientX, clientY, canvas, camera, tuningRef.current.cup.floatCenterY);
+      const center = pointerOnPlane(
+        clientX,
+        clientY,
+        canvas,
+        camera,
+        tuningRef.current.cup.floatCenterY,
+      );
       clampPivotToTable(center, tuningRef.current);
       moveSamples.current.push({ x: center.x, y: center.y, z: center.z, t: performance.now() });
       if (moveSamples.current.length > 24) moveSamples.current.shift();
@@ -737,11 +743,7 @@ export default function DicePhysics({
           latestTuning.cup.floatCenterY,
         );
         clampPivotToTable(pivot, latestTuning);
-        const cupPose: [number, number, number] = [
-          pivot.x,
-          latestTuning.cup.floatCenterY,
-          pivot.z,
-        ];
+        const cupPose: [number, number, number] = [pivot.x, latestTuning.cup.floatCenterY, pivot.z];
         setCupPosition(cupPose);
         cup.setBodyType(RigidBodyType.KinematicPositionBased, true);
         cup.setTranslation({ x: cupPose[0], y: cupPose[1], z: cupPose[2] }, true);
@@ -789,18 +791,21 @@ export default function DicePhysics({
     [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup, gl, camera],
   );
 
-  const handleDieClick = useCallback((index: number) => {
-    const phase = cupPhaseRef.current;
-    if (phase !== 'selecting' || !canDragRef.current) return;
-    const locked = lockedKeepRef.current;
-    const kept = keepRef.current;
-    if (kept.includes(index) && locked.includes(index)) return;
-    const next = onKeepToggleRef.current?.(index);
-    if (next) {
-      keepRef.current = next;
-      applyKeepLayout(next);
-    }
-  }, [applyKeepLayout]);
+  const handleDieClick = useCallback(
+    (index: number) => {
+      const phase = cupPhaseRef.current;
+      if (phase !== 'selecting' || !canDragRef.current) return;
+      const locked = lockedKeepRef.current;
+      const kept = keepRef.current;
+      if (kept.includes(index) && locked.includes(index)) return;
+      const next = onKeepToggleRef.current?.(index);
+      if (next) {
+        keepRef.current = next;
+        applyKeepLayout(next);
+      }
+    },
+    [applyKeepLayout],
+  );
 
   const handleDiePointerEnter = useCallback(() => {
     dieHoverCountRef.current += 1;
@@ -875,7 +880,12 @@ export default function DicePhysics({
   }, [active, resetToIdleInCup]);
 
   useEffect(() => {
-    if (!active || rollingRef.current || draggingRef.current || cupPhaseRef.current === 'selecting') {
+    if (
+      !active ||
+      rollingRef.current ||
+      draggingRef.current ||
+      cupPhaseRef.current === 'selecting'
+    ) {
       return;
     }
     resetToIdleInCup();
@@ -896,7 +906,8 @@ export default function DicePhysics({
     const canvas = gl.domElement;
 
     const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0 || rollingRef.current || draggingRef.current || !canDragRef.current) return;
+      if (e.button !== 0 || rollingRef.current || draggingRef.current || !canDragRef.current)
+        return;
       if (cupPhaseRef.current !== 'idle' && cupPhaseRef.current !== 'selecting') return;
       if (camera instanceof THREE.PerspectiveCamera) {
         const el = canvasLayoutElement(canvas);
@@ -1093,7 +1104,10 @@ export default function DicePhysics({
       const av = body.angvel();
       const speed = Math.hypot(lvx, lvy, lvz);
       const spin = Math.hypot(av.x, av.y, av.z);
-      if (speed > latestTuning.settle.linearVelocity || spin > latestTuning.settle.angularVelocity) {
+      if (
+        speed > latestTuning.settle.linearVelocity ||
+        spin > latestTuning.settle.angularVelocity
+      ) {
         settled = false;
         break;
       }
@@ -1114,8 +1128,7 @@ export default function DicePhysics({
   const cupBodyType: 'fixed' | 'kinematicPosition' =
     cupPhase === 'held' || cupPhase === 'pouring' ? 'kinematicPosition' : 'fixed';
   const cupLid = cupPhase === 'idle' || cupPhase === 'held';
-  const canGrabKoozie =
-    canDrag && (cupPhase === 'idle' || cupPhase === 'selecting') && !simRolling;
+  const canGrabKoozie = canDrag && (cupPhase === 'idle' || cupPhase === 'selecting') && !simRolling;
   const cupGeometryKey = [
     tuning.cup.radius,
     tuning.cup.height,

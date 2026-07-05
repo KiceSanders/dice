@@ -1,8 +1,8 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { AppProvider } from './state/context';
+import Playground from './dev/Playground';
 import Home from './pages/Home';
 import Room from './pages/Room';
-import Playground from './dev/Playground';
+import { AppProvider } from './state/context';
 
 function AppRoutes() {
   return (

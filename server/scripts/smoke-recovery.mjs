@@ -57,7 +57,10 @@ function client(name) {
     const i = buffer.findIndex(match);
     if (i >= 0) return Promise.resolve(buffer.splice(i, 1)[0]);
     return new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error(`${name}: timeout waiting for ${label}`)), timeoutMs);
+      const t = setTimeout(
+        () => reject(new Error(`${name}: timeout waiting for ${label}`)),
+        timeoutMs,
+      );
       waiters.push({
         match,
         resolve: (m) => {
@@ -199,9 +202,9 @@ try {
   secondAfter.send({ type: 'turn:stand' });
   const ended = await host.next('round:ended');
   assert(ended.potWon >= before.game.pot, `round resolved, pot paid out (${ended.potWon})`);
-  const totals = (await host.stateWhere((s2) => s2.phase !== 'playing' || true, 'final state')).snapshot;
-  const totalChips =
-    totals.players.reduce((sum, p) => sum + p.chips, 0) + (totals.game?.pot ?? 0);
+  const totals = (await host.stateWhere((s2) => s2.phase !== 'playing' || true, 'final state'))
+    .snapshot;
+  const totalChips = totals.players.reduce((sum, p) => sum + p.chips, 0) + (totals.game?.pot ?? 0);
   assert(totalChips === 200, `chips conserved after recovery (${totalChips})`);
 
   host.close();
