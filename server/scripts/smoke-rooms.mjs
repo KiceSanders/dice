@@ -38,7 +38,13 @@ function client(name) {
           () => reject(new Error(`${name}: timed out waiting for ${type}`)),
           timeoutMs,
         );
-        waiters.push({ type, resolve: (m) => (clearTimeout(t), resolve(m)) });
+        waiters.push({
+          type,
+          resolve: (m) => {
+            clearTimeout(t);
+            resolve(m);
+          },
+        });
       });
     },
     /** Wait for a room:state whose snapshot satisfies `predicate` (drains stale ones). */
@@ -59,16 +65,13 @@ function client(name) {
 const settings = {
   chipsPerRound: 1,
   maxRolls: 3,
-  maxPlayers: 8,
+  maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightBonus: {
+  straightPayout: {
     enabled: true,
-    type: 'pot',
-    baseAmount: 5,
-    multiplier: 2,
-    incremental: false,
-    maxBonus: 50,
+    amountPerPlayer: 5,
+    bigMultiplier: 2,
   },
 };
 

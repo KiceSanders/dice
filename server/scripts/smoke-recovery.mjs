@@ -24,7 +24,9 @@ function assert(cond, label) {
 }
 
 function startServer() {
-  const child = spawn('npx', ['tsx', 'src/index.ts'], {
+  // Spawn node+tsx directly (not via npx): SIGKILL must hit the server process
+  // itself, or the real server survives as an orphan and squats on the port.
+  const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: serverDir,
     env: { ...process.env, PORT, LOG_DIR: logDir },
     stdio: ['ignore', 'pipe', 'inherit'],
@@ -56,13 +58,20 @@ function client(name) {
     if (i >= 0) return Promise.resolve(buffer.splice(i, 1)[0]);
     return new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error(`${name}: timeout waiting for ${label}`)), timeoutMs);
-      waiters.push({ match, resolve: (m) => (clearTimeout(t), resolve(m)) });
+      waiters.push({
+        match,
+        resolve: (m) => {
+          clearTimeout(t);
+          resolve(m);
+        },
+      });
     });
   };
   return {
     name,
     send: (msg) => ws.send(JSON.stringify(msg)),
     next: (type) => waitFor((m) => m.type === type, type),
+    nextWhere: (pred, label) => waitFor(pred, label),
     stateWhere: (pred, label, timeoutMs) =>
       waitFor((m) => m.type === 'room:state' && pred(m.snapshot), `state: ${label}`, timeoutMs),
     open: () => new Promise((r) => ws.once('open', r)),
@@ -73,11 +82,25 @@ function client(name) {
 const settings = {
   chipsPerRound: 2,
   maxRolls: 3,
-  maxPlayers: 8,
+  maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightBonus: { enabled: false, type: 'pot', baseAmount: 5, multiplier: 2, incremental: false, maxBonus: 50 },
+  straightPayout: { enabled: false, amountPerPlayer: 5, bigMultiplier: 2 },
 };
+
+// One physics roll (ADR 004): throwStart locks keeps, throwResult reports the faces.
+async function throwDice(me, myId, keepIndices, dice) {
+  me.send({ type: 'turn:throwStart', keepIndices });
+  await me.nextWhere(
+    (m) => m.type === 'turn:throwStarted' && m.playerId === myId,
+    `${me.name} throwStarted`,
+  );
+  me.send({ type: 'turn:throwResult', dice });
+  return me.nextWhere(
+    (m) => m.type === 'turn:rolled' && m.playerId === myId,
+    `${me.name} turn:rolled`,
+  );
+}
 
 let server = await startServer();
 try {
@@ -106,11 +129,11 @@ try {
   const byId = (id) => (id === created.playerId ? host : ann);
 
   // First player rolls twice and stands; second player rolls once → crash point.
+  // Scripted faces: first ends with a pair of 2s; second's pair of 3s beats it
+  // (so the post-recovery voluntary stand is legal against the roll-to-beat).
   const first = byId(firstTurn);
-  first.send({ type: 'turn:roll', keepIndices: [] });
-  await first.next('turn:rolled');
-  first.send({ type: 'turn:roll', keepIndices: [0, 1] });
-  await first.next('turn:rolled');
+  await throwDice(first, firstTurn, [], [2, 2, 3, 4, 6]);
+  await throwDice(first, firstTurn, [0, 1], [2, 2, 5, 4, 6]);
   first.send({ type: 'turn:stand' });
   state = await host.stateWhere(
     (s) => s.game?.currentTurn != null && s.game.currentTurn.playerId !== firstTurn,
@@ -118,8 +141,7 @@ try {
   );
   const secondTurn = state.snapshot.game.currentTurn.playerId;
   const second = byId(secondTurn);
-  second.send({ type: 'turn:roll', keepIndices: [] });
-  const midRoll = await second.next('turn:rolled');
+  const midRoll = await throwDice(second, secondTurn, [], [3, 3, 2, 4, 6]);
   state = await host.stateWhere((s) => s.game?.currentTurn?.rollsUsed === 1, 'mid-turn state');
   const before = state.snapshot;
 

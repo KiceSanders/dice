@@ -29,13 +29,20 @@ function client(name) {
     if (i >= 0) return Promise.resolve(buffer.splice(i, 1)[0]);
     return new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error(`${name}: timeout waiting for ${label}`)), timeoutMs);
-      waiters.push({ match, resolve: (m) => (clearTimeout(t), resolve(m)) });
+      waiters.push({
+        match,
+        resolve: (m) => {
+          clearTimeout(t);
+          resolve(m);
+        },
+      });
     });
   };
   return {
     name,
     send: (msg) => ws.send(JSON.stringify(msg)),
     next: (type) => waitFor((m) => m.type === type, type),
+    nextWhere: (pred, label) => waitFor(pred, label),
     stateWhere: (pred, label, timeoutMs) =>
       waitFor((m) => m.type === 'room:state' && pred(m.snapshot), `state: ${label}`, timeoutMs),
     open: () => new Promise((r) => ws.once('open', r)),
@@ -46,16 +53,13 @@ function client(name) {
 const settings = {
   chipsPerRound: 2,
   maxRolls: 3,
-  maxPlayers: 8,
+  maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightBonus: {
+  straightPayout: {
     enabled: true,
-    type: 'pot',
-    baseAmount: 5,
-    multiplier: 2,
-    incremental: false,
-    maxBonus: 50,
+    amountPerPlayer: 5,
+    bigMultiplier: 2,
   },
 };
 
@@ -67,7 +71,7 @@ await Promise.all([host.open(), ann.open()]);
 host.send({ type: 'room:create', playerName: 'Host', settings });
 const created = await host.next('room:created');
 ann.send({ type: 'room:join', roomId: created.roomId, playerName: 'Ann' });
-const annJoined = await ann.next('room:joined');
+await ann.next('room:joined');
 
 host.send({ type: 'seat:request', buyIn: 100 });
 ann.send({ type: 'seat:request', buyIn: 100 });
@@ -96,19 +100,33 @@ assert(
 );
 const turnOrder = [state.snapshot.game.currentTurn.playerId];
 
-// Out-of-turn roll rejected.
+// Out-of-turn throw rejected.
 const offTurn = turnOrder[0] === created.playerId ? ann : host;
-offTurn.send({ type: 'turn:roll', keepIndices: [] });
+offTurn.send({ type: 'turn:throwStart', keepIndices: [] });
 const notTurn = await offTurn.next('error');
-assert(notTurn.code === 'NOT_YOUR_TURN', 'out-of-turn roll → NOT_YOUR_TURN');
+assert(notTurn.code === 'NOT_YOUR_TURN', 'out-of-turn throw → NOT_YOUR_TURN');
+
+// One physics roll (ADR 004): throwStart locks keeps, throwResult reports the faces.
+// Waits are scoped to myId — throwStarted/rolled are broadcast for every turn.
+async function throwDice(me, myId, keepIndices, dice) {
+  me.send({ type: 'turn:throwStart', keepIndices });
+  await me.nextWhere(
+    (m) => m.type === 'turn:throwStarted' && m.playerId === myId,
+    `${me.name} throwStarted`,
+  );
+  me.send({ type: 'turn:throwResult', dice });
+  return me.nextWhere(
+    (m) => m.type === 'turn:rolled' && m.playerId === myId,
+    `${me.name} turn:rolled`,
+  );
+}
 
 // Both players: roll once, keep first two dice, reroll, stand (or auto-stand at cap).
-async function playTurn(me) {
-  me.send({ type: 'turn:roll', keepIndices: [] });
-  const r1 = await me.next('turn:rolled');
+// Faces are scripted (client-authoritative) — no straights, no wild 1s.
+async function playTurn(me, myId, first, second) {
+  const r1 = await throwDice(me, myId, [], first);
   assert(r1.dice.length === 5 && r1.rollNumber === 1, `${me.name} rolled 5 dice`);
-  me.send({ type: 'turn:roll', keepIndices: [0, 1] });
-  const r2 = await me.next('turn:rolled');
+  const r2 = await throwDice(me, myId, [0, 1], second);
   assert(
     r2.dice[0] === r1.dice[0] && r2.dice[1] === r1.dice[1],
     `${me.name} kept dice preserved on reroll`,
@@ -117,7 +135,8 @@ async function playTurn(me) {
 }
 
 const byId = (id) => (id === created.playerId ? host : ann);
-await playTurn(byId(turnOrder[0]));
+// First player: pair of 2s in 2 rolls.
+await playTurn(byId(turnOrder[0]), turnOrder[0], [2, 2, 3, 4, 6], [2, 2, 5, 4, 6]);
 state = await host.stateWhere(
   (s) => s.game?.currentTurn != null && s.game.currentTurn.playerId !== turnOrder[0],
   'next turn',
@@ -126,7 +145,8 @@ const second = state.snapshot.game.currentTurn?.playerId;
 assert(second && second !== turnOrder[0], 'turn advanced to the second player');
 assert(state.snapshot.game.rollToBeat !== null, 'roll-to-beat recorded after first stand');
 assert(state.snapshot.game.currentTurn.rollCap === 2, 'roll-cap pressure: second player capped at 2');
-await playTurn(byId(second));
+// Second player: pair of 3s — beats the pair of 2s, no tie, auto-stands at the cap.
+await playTurn(byId(second), second, [3, 3, 2, 4, 6], [3, 3, 6, 4, 2]);
 
 // Round ends; pot awarded; chips conserved.
 const ended = await host.next('round:ended');

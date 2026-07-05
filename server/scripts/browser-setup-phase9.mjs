@@ -20,7 +20,13 @@ function client(name) {
     if (i >= 0) return Promise.resolve(buffer.splice(i, 1)[0]);
     return new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error(`${name}: timeout ${label}`)), timeoutMs);
-      waiters.push({ match, resolve: (m) => (clearTimeout(t), resolve(m)) });
+      waiters.push({
+        match,
+        resolve: (m) => {
+          clearTimeout(t);
+          resolve(m);
+        },
+      });
     });
   };
   return {
@@ -39,7 +45,7 @@ const settings = {
   maxPlayers: 8,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightBonus: { enabled: true, type: 'pot', baseAmount: 5, multiplier: 2, incremental: false, maxBonus: 50 },
+  straightPayout: { enabled: true, amountPerPlayer: 5, bigMultiplier: 2 },
 };
 
 const alice = client('Alice');
