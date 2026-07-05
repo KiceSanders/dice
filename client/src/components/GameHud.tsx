@@ -61,13 +61,6 @@ export default function GameHud({ game, players }: Props) {
             <span className="muted">none yet</span>
           )}
         </div>
-
-        {game.straightStreak > 0 && (
-          <div className="hud-cell">
-            <span className="hud-label">Straight streak</span>
-            <span className="hud-value">{game.straightStreak}</span>
-          </div>
-        )}
       </div>
     </div>
   );

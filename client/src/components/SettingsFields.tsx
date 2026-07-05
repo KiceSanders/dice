@@ -1,4 +1,4 @@
-import type { RoomSettings, StraightBonusConfig } from '@dice/shared';
+import type { RoomSettings, StraightPayoutConfig } from '@dice/shared';
 
 interface Props {
   value: RoomSettings;
@@ -13,8 +13,8 @@ interface Props {
  */
 export default function SettingsFields({ value, onChange, disabled = false }: Props) {
   const set = (patch: Partial<RoomSettings>) => onChange?.({ ...value, ...patch });
-  const setBonus = (patch: Partial<StraightBonusConfig>) =>
-    onChange?.({ ...value, straightBonus: { ...value.straightBonus, ...patch } });
+  const setPayout = (patch: Partial<StraightPayoutConfig>) =>
+    onChange?.({ ...value, straightPayout: { ...value.straightPayout, ...patch } });
 
   const num = (raw: string, fallback: number): number => {
     const n = Number(raw);
@@ -89,73 +89,46 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         <label className="check">
           <input
             type="checkbox"
-            checked={value.straightBonus.enabled}
-            onChange={(e) => setBonus({ enabled: e.target.checked })}
+            checked={value.straightPayout.enabled}
+            onChange={(e) => setPayout({ enabled: e.target.checked })}
           />
-          Straight bonus
+          Straight payout
         </label>
-        <small>Extra chips when a hand is a straight (1-2-3-4-5 or 2-3-4-5-6).</small>
+        <small>Rolling a straight makes every other seated player pay the roller on the spot.</small>
 
-        {value.straightBonus.enabled && (
+        {value.straightPayout.enabled && (
           <div className="bonus-grid">
             <div className="field">
-              <label htmlFor="set-bonus-type">Pays to</label>
-              <select
-                id="set-bonus-type"
-                value={value.straightBonus.type}
-                onChange={(e) => setBonus({ type: e.target.value as 'pot' | 'direct' })}
-              >
-                <option value="pot">the pot</option>
-                <option value="direct">the player</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="set-bonus-base">Base amount</label>
+              <label htmlFor="set-payout-amount">Chips per player</label>
               <input
-                id="set-bonus-base"
+                id="set-payout-amount"
                 type="number"
                 min={0}
-                value={value.straightBonus.baseAmount}
+                value={value.straightPayout.amountPerPlayer}
                 onChange={(e) =>
-                  setBonus({ baseAmount: num(e.target.value, value.straightBonus.baseAmount) })
+                  setPayout({
+                    amountPerPlayer: num(e.target.value, value.straightPayout.amountPerPlayer),
+                  })
                 }
               />
             </div>
             <div className="field">
-              <label htmlFor="set-bonus-mult">Big multiplier</label>
+              <label htmlFor="set-payout-mult">Big multiplier</label>
               <input
-                id="set-bonus-mult"
+                id="set-payout-mult"
                 type="number"
                 min={1}
-                value={value.straightBonus.multiplier}
+                value={value.straightPayout.bigMultiplier}
                 onChange={(e) =>
-                  setBonus({ multiplier: num(e.target.value, value.straightBonus.multiplier) })
+                  setPayout({
+                    bigMultiplier: num(e.target.value, value.straightPayout.bigMultiplier),
+                  })
                 }
               />
             </div>
-            <div className="field">
-              <label htmlFor="set-bonus-cap">Max bonus</label>
-              <input
-                id="set-bonus-cap"
-                type="number"
-                min={0}
-                value={value.straightBonus.maxBonus}
-                onChange={(e) =>
-                  setBonus({ maxBonus: num(e.target.value, value.straightBonus.maxBonus) })
-                }
-              />
-            </div>
-            <label className="check bonus-incremental">
-              <input
-                type="checkbox"
-                checked={value.straightBonus.incremental}
-                onChange={(e) => setBonus({ incremental: e.target.checked })}
-              />
-              Incremental streak
-            </label>
             <small className="field-help">
-              Big straight pays base × multiplier. Incremental scales the payout by the consecutive-straight
-              streak; max bonus caps any single payout.
+              Little straight (1-2-3-4-5): each player pays the base amount. Big straight
+              (2-3-4-5-6): base × multiplier. Payments are capped by what a player has.
             </small>
           </div>
         )}

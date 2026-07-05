@@ -14,7 +14,6 @@ import HostPanel from '../components/HostPanel';
 import SettingsPanel from '../components/SettingsPanel';
 import GameArea from '../components/GameArea';
 import RoundEndModal from '../components/RoundEndModal';
-import BonusBanner from '../components/BonusBanner';
 import ChatPanel from '../components/ChatPanel';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
@@ -178,14 +177,6 @@ export default function Room() {
       <ConnectionBanner />
       <Toasts />
       <ChatPanel />
-
-      {state.bonus && (
-        <BonusBanner
-          bonus={state.bonus}
-          players={snapshot.players}
-          onDismiss={() => dispatch({ type: 'dismiss-bonus' })}
-        />
-      )}
 
       {state.roundEnd && revealedRoundEndAt === state.roundEnd.receivedAt && (
         <RoundEndModal

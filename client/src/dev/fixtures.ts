@@ -88,7 +88,6 @@ function baseGame(overrides: Partial<GameStatePublic> = {}): GameStatePublic {
     currentTurn: turn(DEV_YOU),
     rollToBeat: null,
     subRound: null,
-    straightStreak: 0,
     ...overrides,
   };
 }
@@ -178,7 +177,6 @@ export const PLAYGROUND_SCENES: PlaygroundScene[] = [
           keptIndices: [],
           rollsUsed: 1,
         }),
-        straightStreak: 1,
       }),
     ),
   },

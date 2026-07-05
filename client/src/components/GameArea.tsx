@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { RoomSnapshot, TurnState } from '@dice/shared';
-import { canStandVoluntarily, HAND_SIZE } from '@dice/shared';
+import { HAND_SIZE } from '@dice/shared';
 import { togglePendingKeep } from '../game/keepSelection';
-import { useApp } from '../state/context';
 import type { LastRoll } from '../state/store';
 import DiceRow from './DiceRow';
 import GameHud from './GameHud';
@@ -142,7 +141,11 @@ export default function GameArea({
   );
 }
 
-/** Roll / Stand controls for the active player (PLAN.md 9.3). */
+/**
+ * Roll / Stand controls for the active player (PLAN.md 9.3). Rolls always come
+ * from a physics throw (ADR 004), so the caller must supply turnActions —
+ * there is no direct-to-socket roll path.
+ */
 function TurnControls({
   turn,
   pendingKeep,
@@ -152,31 +155,15 @@ function TurnControls({
   pendingKeep: number[];
   turnActions?: TurnActions;
 }) {
-  if (turnActions) {
-    return (
-      <TurnControlsButtons
-        turn={turn}
-        pendingKeep={pendingKeep}
-        disabled={turnActions.disabled ?? false}
-        onRoll={turnActions.onRoll}
-        onStand={turnActions.onStand}
-      />
-    );
-  }
-  return <TurnControlsLive turn={turn} pendingKeep={pendingKeep} />;
-}
-
-function TurnControlsLive({ turn, pendingKeep }: { turn: TurnState; pendingKeep: number[] }) {
-  const { send, state } = useApp();
-  const rollToBeat = state.snapshot?.game?.rollToBeat ?? null;
+  if (!turnActions) return null;
   return (
     <TurnControlsButtons
       turn={turn}
       pendingKeep={pendingKeep}
-      disabled={state.connection !== 'open'}
-      canStand={canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null)}
-      onRoll={(keep) => send({ type: 'turn:roll', keepIndices: keep })}
-      onStand={() => send({ type: 'turn:stand' })}
+      disabled={turnActions.disabled ?? false}
+      canStand={turnActions.canStand ?? true}
+      onRoll={turnActions.onRoll}
+      onStand={turnActions.onStand}
     />
   );
 }

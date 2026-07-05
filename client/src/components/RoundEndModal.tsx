@@ -42,7 +42,9 @@ export default function RoundEndModal({ roundEnd, players, onDismiss }: Props) {
           </span>
         </div>
         <h2 className="round-end-title">
-          {nameOf(roundEnd.winnerId)} wins {roundEnd.potWon} {roundEnd.potWon === 1 ? 'chip' : 'chips'}!
+          {roundEnd.winnerId === null
+            ? 'No hands stood — the pot carries over'
+            : `${nameOf(roundEnd.winnerId)} wins ${roundEnd.potWon} ${roundEnd.potWon === 1 ? 'chip' : 'chips'}!`}
         </h2>
         <ul className="round-end-scores">
           {scores.map(({ playerId, score }) => (

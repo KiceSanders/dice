@@ -26,19 +26,10 @@ export interface LastRoll {
 
 /** Last `round:ended` payload, kept for the recap modal until dismissed. */
 export interface RoundEndInfo {
-  winnerId: PlayerId;
+  /** null when every turn was forfeited — no hands, the pot carries over. */
+  winnerId: PlayerId | null;
   potWon: number;
   scores: { playerId: PlayerId; score: HandScore }[];
-  receivedAt: number;
-}
-
-/** Last `bonus:awarded` payload, kept for the celebration banner until dismissed. */
-export interface BonusInfo {
-  playerId: PlayerId;
-  amount: number;
-  kind: 'little' | 'big';
-  target: 'pot' | 'direct';
-  streak: number;
   receivedAt: number;
 }
 
@@ -50,7 +41,6 @@ export interface AppState {
   chat: ChatEntry[];
   lastRoll: LastRoll | null;
   roundEnd: RoundEndInfo | null;
-  bonus: BonusInfo | null;
   toasts: Toast[];
   /** Set when joining failed terminally (e.g. unknown room). */
   joinError: { code: ErrorCode; message: string } | null;
@@ -64,7 +54,6 @@ export const initialState: AppState = {
   chat: [],
   lastRoll: null,
   roundEnd: null,
-  bonus: null,
   toasts: [],
   joinError: null,
 };
@@ -75,7 +64,6 @@ export type AppAction =
   | { type: 'join-error'; code: ErrorCode; message: string }
   | { type: 'dismiss-toast'; id: number }
   | { type: 'dismiss-round-end' }
-  | { type: 'dismiss-bonus' }
   | { type: 'leave-room' };
 
 let nextToastId = 1;
@@ -93,6 +81,10 @@ function systemLine(text: string): ChatEntry {
   return { kind: 'system', text, ts: Date.now() };
 }
 
+function playerName(state: AppState, id: PlayerId): string {
+  return state.snapshot?.players.find((p) => p.id === id)?.name ?? 'Someone';
+}
+
 export function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'connection-status':
@@ -106,9 +98,6 @@ export function reducer(state: AppState, action: AppAction): AppState {
 
     case 'dismiss-round-end':
       return { ...state, roundEnd: null };
-
-    case 'dismiss-bonus':
-      return { ...state, bonus: null };
 
     case 'leave-room':
       return {
@@ -242,8 +231,10 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       return { ...state, toasts: pushToast(state.toasts, 'error', msg.message) };
 
     case 'round:ended': {
-      const winnerName =
-        state.snapshot?.players.find((p) => p.id === msg.winnerId)?.name ?? 'Someone';
+      const line =
+        msg.winnerId === null
+          ? 'Round over — no hands stood; the pot carries over'
+          : `${playerName(state, msg.winnerId)} wins the round (${msg.potWon} chip${msg.potWon === 1 ? '' : 's'})`;
       return {
         ...state,
         roundEnd: {
@@ -252,23 +243,26 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           scores: msg.scores,
           receivedAt: Date.now(),
         },
-        chat: pushChat(state.chat, [
-          systemLine(`${winnerName} wins the round (${msg.potWon} chip${msg.potWon === 1 ? '' : 's'})`),
-        ]),
+        chat: pushChat(state.chat, [systemLine(line)]),
       };
     }
 
-    case 'bonus:awarded':
+    case 'turn:forfeited':
       return {
         ...state,
-        bonus: {
-          playerId: msg.playerId,
-          amount: msg.amount,
-          kind: msg.kind,
-          target: msg.target,
-          streak: msg.streak,
-          receivedAt: Date.now(),
-        },
+        chat: pushChat(state.chat, [
+          systemLine(`${playerName(state, msg.playerId)}'s turn was forfeited — no roll completed`),
+        ]),
       };
+
+    case 'straight:paid': {
+      // Chip totals arrive via the next room:state snapshot; this is announce-only.
+      const text = `${playerName(state, msg.playerId)} rolled a ${msg.kind} straight — collects ${msg.total} chips (${msg.amountPerPlayer} each)`;
+      return {
+        ...state,
+        toasts: pushToast(state.toasts, 'info', text),
+        chat: pushChat(state.chat, [systemLine(text)]),
+      };
+    }
   }
 }
