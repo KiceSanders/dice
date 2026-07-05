@@ -93,7 +93,7 @@ interface CurrentTurn {
 }
 
 /**
- * Socket-free round/turn state machine (PLAN.md Phases 4–5). The room layer
+ * Socket-free round/turn state machine (rules: docs/GAME_RULES.md). The room layer
  * owns membership; the engine owns rounds, sub-rounds, turns, dice, pot,
  * chips, and straight payouts. Dice values come exclusively from the roller's
  * physics sim (ADR 004) — the engine never rolls.
@@ -448,7 +448,7 @@ export class GameEngine {
   }
 
   /**
-   * Instant straight side payment (PLAN.md "Straights"): the moment a roll
+   * Instant straight side payment (docs/GAME_RULES.md "Straights"): the moment a roll
    * settles showing a straight, every other seated player pays the roller from
    * their own pile, clamped to what they have — zero-sum, pot untouched, at
    * most once per turn. The turn then continues as normal.

@@ -1,8 +1,18 @@
-# Multiplayer Dice Game — Development Plan
+# Multiplayer Dice Game — Development Phase Log
 
-A real-time, browser-based dice game for up to 8 players per room. Players roll 5 dice per turn, keeping and re-rolling dice (up to a configurable max) to beat the current "roll to beat." Each round, every seated player antes chips into a pot; the round winner takes the pot. Ties trigger doubled-bet sub-rounds. Straights award configurable bonuses.
+A real-time, browser-based dice game for 2–3 seated players per room (plus spectators).
+Players roll 5 dice per turn via a physics-simulated cup, keeping and re-rolling to beat the
+roll-to-beat; the round winner takes the pot. Ties trigger doubled-bet sub-rounds; straights
+trigger an instant side payment from every other seated player.
 
-This document is the single source of truth for worker agents. Work through phases **in order**. Within a phase, tasks are bite-sized and independent unless noted. Check off tasks (`[x]`) as you complete them. Every phase ends with a **Verification** step — do not move on until it passes.
+**This file is the phase/progress log only.** The canonical references live in `docs/`:
+[GAME_RULES.md](./docs/GAME_RULES.md) (rules) · [PROTOCOL.md](./docs/PROTOCOL.md) (wire
+contract) · [ARCHITECTURE.md](./docs/ARCHITECTURE.md) (structure + data flow) ·
+[CODING_GUIDELINES.md](./docs/CODING_GUIDELINES.md) (conventions). Where phase text below
+disagrees with those docs, the docs win — completed phases are left as written for history.
+
+Work through phases **in order**. Check off tasks (`[x]`) as you complete them. Every phase
+ends with a **Verification** step — do not move on until it passes.
 
 ---
 
@@ -53,109 +63,17 @@ dice3/
 
 ---
 
-## Canonical Game Rules (resolve all ambiguity here)
+## Canonical Game Rules
 
-Worker agents: implement exactly this. If a rule seems wrong, flag it in the PR/summary — do not silently change it.
-
-### Turn structure
-
-1. A **round** begins: every seated player antes `settings.chipsPerRound` into the pot. Players who cannot cover the ante sit out the round (they keep their seat).
-2. Players take turns in seat order, starting left of the previous round's winner (first round: seat order from seat 0).
-3. On a turn, the player rolls all 5 dice (roll #1). After each roll they choose which dice to **keep** (kept dice are locked for the rest of the turn — they cannot be un-kept) and re-roll the rest, up to `settings.maxRolls` total rolls. They may **stand** (end the turn) after any roll.
-4. **Roll count pressure**: the first player's number of rolls used sets the cap for everyone else that round — subsequent players may use at most as many rolls as the current leader used. (`settings.maxRolls` is the absolute ceiling for the first player.)
-
-### Scoring & comparison ("highest number with the highest frequency in the fewest rolls")
-
-A finished hand is scored as `(count, face, rollsUsed)` where `count` is the size of the largest group of identical dice and `face` is that die value. If two groups tie on count, the higher face wins (e.g. `6,6,3,3,1` scores as two 6s).
-
-Hand A beats hand B if, in order:
-
-1. `A.count > B.count` (more of a kind wins), else
-2. `A.face > B.face` (higher face wins), else
-3. `A.rollsUsed < B.rollsUsed` (fewer rolls wins), else
-4. **Tie** → both are round-tied players (see sub-rounds).
-
-### Straights
-
-- A straight is all 5 dice forming `1-2-3-4-5` ("little") or `2-3-4-5-6` ("big") **in a single roll's final kept hand**.
-- Straight ranking vs normal hands: a straight **beats any non-straight hand**; big straight beats little straight; two equal straights tie on `rollsUsed`, then full tie.
-- Bonus (configured in `settings.straightBonus`):
-  - `enabled: boolean`
-  - `type: 'pot' | 'direct'` — `pot` adds the bonus to the central pot immediately; `direct` pays it to the rolling player immediately (from the house/nowhere — it mints chips).
-  - `baseAmount: number` — chips awarded for a straight.
-  - `multiplier: number` — big straight pays `baseAmount * multiplier`; little straight pays `baseAmount`.
-  - `incremental: boolean` — if true, each **consecutive** straight (any player, consecutive turns in the room where a straight occurred) increases the payout: `payout = base * (streakLength)`, applied before the cap. A turn without a straight resets the streak.
-  - `maxBonus: number` — hard cap on any single bonus payout.
-
-### Ties & sub-rounds
-
-- If two or more players tie for the best hand at the end of a round, a **sub-round** starts among only the tied players.
-- Each tied player antes `chipsPerRound * 2^subRoundDepth` (doubles each nesting level) into the **same pot**.
-- Sub-round play follows normal turn rules (`maxRolls` resets; roll-count pressure restarts with the first tied player).
-- Sub-rounds nest: a tie within a sub-round starts another sub-round with the bet doubled again.
-- A tied player who cannot cover the doubled ante goes **all-in** for whatever they have; if they win they take the whole pot anyway (keep it simple — no side pots).
-- The eventual winner takes the entire pot. Round ends; next round begins.
-
-### Players, seats, host
-
-- Up to **8 seats**. Spectators (joined but unseated) may watch and chat.
-- The **host** is the room creator. Host approves/denies seat requests, can kick players (kicked player becomes a spectator and is banned from re-requesting a seat unless re-approved), can start the game, and can end the game.
-- If the host disconnects, host transfers to the longest-seated connected player. If a room is empty (no connections) for 30 minutes, it is destroyed and its log deleted.
-- A player who disconnects mid-game keeps their seat for 2 minutes (their turn is auto-stood if it arrives); after that they're removed from the seat.
-- Chips: each player sets their own starting chip count (buy-in) when taking a seat, within host-configured min/max.
-
-### Room settings (chosen at creation, host-editable between rounds)
-
-| Setting | Type | Default | Notes |
-|---|---|---|---|
-| `chipsPerRound` | number | 1 | Ante per player per round |
-| `maxRolls` | number | 3 | Absolute max rolls for the round's first player |
-| `maxPlayers` | number | 3 | 2–3 |
-| `minBuyIn` / `maxBuyIn` | number | 10 / 1000 | Seat buy-in bounds |
-| `straightBonus` | object | see above | `{ enabled: true, type: 'pot', baseAmount: 5, multiplier: 2, incremental: false, maxBonus: 50 }` |
+**Moved to [docs/GAME_RULES.md](./docs/GAME_RULES.md)** — that file is now canonical
+(straight payout, wilds, voluntary-stand rule, forfeits, 2–3 seats).
 
 ---
 
-## WebSocket Protocol (contract — defined in `shared/src/protocol.ts`)
+## WebSocket Protocol
 
-All messages are JSON: `{ "type": string, ...payload }`. The server is authoritative over game state; dice values come from the roller's physics sim with a server RNG fallback (ADR 004), or from server RNG on the legacy `turn:roll` path.
-
-### Client → Server
-
-| Type | Payload | Notes |
-|---|---|---|
-| `room:create` | `{ playerName, settings }` | Replies `room:created` with `roomId` + host token |
-| `room:join` | `{ roomId, playerName, rejoinToken? }` | Join as spectator; `rejoinToken` reclaims a previous identity |
-| `seat:request` | `{ buyIn }` | Spectator asks for a seat |
-| `seat:approve` / `seat:deny` | `{ playerId }` | Host only |
-| `player:kick` | `{ playerId }` | Host only |
-| `settings:update` | `{ settings }` | Host only, between rounds only |
-| `game:start` | `{}` | Host only, ≥2 seated players |
-| `turn:roll` | `{ keepIndices: number[] }` | Roll non-kept dice (server RNG; legacy/2D fallback) |
-| `turn:throwStart` | `{ keepIndices: number[] }` | Physics roll begins (koozie released); locks keeps (ADR 004) |
-| `turn:throwResult` | `{ dice: Die[] }` | Faces read from the roller's settled sim; kept positions must be unchanged |
-| `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed to the room, never persisted |
-| `turn:stand` | `{}` | End turn with current hand |
-| `chat:send` | `{ text }` | Max 500 chars |
-
-### Server → Client
-
-| Type | Payload | Notes |
-|---|---|---|
-| `room:created` | `{ roomId, playerId, rejoinToken }` | |
-| `room:joined` | `{ playerId, rejoinToken, snapshot }` | Full state snapshot on join/rejoin |
-| `room:state` | `{ snapshot }` | Full authoritative snapshot, pushed after **every** state change |
-| `seat:requested` | `{ playerId, playerName, buyIn }` | Sent to host |
-| `turn:rolled` | `{ playerId, dice, rollNumber, kept }` | Triggers koozie animation client-side |
-| `turn:throwStarted` | `{ playerId, kept, rollNumber }` | A physics throw is in flight (ADR 004) |
-| `dice:frames` | `{ playerId, frames }` | Relay of the roller's throw poses |
-| `round:ended` | `{ winnerId, potWon, scores }` | |
-| `subround:started` | `{ tiedPlayerIds, anteAmount, depth }` | |
-| `bonus:awarded` | `{ playerId, amount, kind: 'little'\|'big', target: 'pot'\|'direct', streak }` | |
-| `chat:message` | `{ playerId, playerName, text, ts }` | |
-| `error` | `{ code, message }` | e.g. `NOT_YOUR_TURN`, `ROOM_FULL`, `BAD_REQUEST` |
-
-The `snapshot` is a `RoomSnapshot` (see `shared/src/types.ts`): settings, players, seats, phase, current game/round/turn state, pot, and the roll-to-beat — with private data (other players' rejoin tokens) stripped.
+**Moved to [docs/PROTOCOL.md](./docs/PROTOCOL.md)** — that file is now canonical (physics
+throw handshake per ADR 004; there is no `turn:roll` and no server RNG).
 
 ---
 
@@ -253,7 +171,7 @@ Conventions for all phases:
 
 - [x] **5.1 Sub-round state** — extend game state with `subRound: { depth, participants, ... } | null`. On tie: broadcast `subround:started`, collect doubled antes (`chipsPerRound * 2^depth`, all-in if short), restrict turns to tied players, reset roll cap.
 - [x] **5.2 Nested ties** — sub-round tie → deeper sub-round, ante doubles again. Guard: cap depth at 10 (then sudden-death single roll, higher `(count, face)` wins, repeat until broken) to avoid infinite loops.
-- [x] **5.3 Straight detection & bonus award** — on every stand where the hand is a straight: compute payout with `calcStraightBonus` using the room's consecutive-straight streak counter; apply to pot or player per config; broadcast `bonus:awarded`; update/reset streak per the canonical rules.
+- [x] **5.3 Straight detection & bonus award** — ~~pot/direct bonus with streaks (`calcStraightBonus`, `bonus:awarded`)~~ *(historical — replaced 2026-07 by the instant zero-sum straight payout: `applyStraightPayout`, `straight:paid`; see docs/GAME_RULES.md "Straights")*.
 - [x] **5.4 Engine tests** — scripted-rng tests: 2-way tie → sub-round → winner takes enhanced pot; nested sub-round ante math; all-in short-stack tie; each bonus config combination affecting pot vs chips; incremental streak across players and its reset.
 
 **Verification:** ✅ 11 new scripted-rng engine tests (`engine.phase5.test.ts`): 2-way tie → doubled-ante sub-round → enhanced pot; non-tied players excluded + roll cap reset; nested ante math (2x → 4x); all-in short stack winning the whole pot; depth-11 sudden death with chip conservation; pot vs direct bonuses; multiplier; incremental streak across players + reset; maxBonus cap; disabled config; tied straights each earning bonuses before the sub-round. 66 server tests + both live smoke scripts green. The Phase 4 tie caveat is resolved.
@@ -309,10 +227,10 @@ Conventions for all phases:
 - [ ] **9.2 Koozie animation** — `Koozie.tsx`: an animated cup that, on `turn:rolled`, shakes (CSS keyframes, ~900ms), slams down, lifts to reveal the dice with a slight stagger. Pure CSS/`framer-motion`-free (keep deps light). Skipped (instant reveal) for `prefers-reduced-motion`.
 - [ ] **9.3 Turn controls** — for the active player: Roll button (shows rolls used / cap), Stand button, keep-toggling enabled between rolls. 60s turn timer ring. For others: whose turn it is, live roll results via `turn:rolled`.
 - [ ] **9.4 Game HUD** — pot size (chip stack visual), roll-to-beat (dice + holder name), round number, sub-round banner with depth & doubled ante when active, per-seat chip counts updating live.
-- [ ] **9.5 Round & bonus moments** — `round:ended`: winner highlight + pot-slide animation + scores recap modal (auto-dismiss before next round). `bonus:awarded`: straight celebration banner showing kind, amount, target (pot vs direct), and streak.
+- [ ] **9.5 Round & straight moments** — `round:ended`: winner highlight + pot-slide animation + scores recap modal (auto-dismiss before next round); null winner renders the pot-carryover state. `straight:paid`: celebration moment showing kind (little/big), total collected, and per-player payments (currently a toast + chat line; a richer banner is open work).
 - [ ] **9.6 Spectator view** — spectators see everything read-only; seat-request remains available between rounds.
 
-**Verification:** play 3 full rounds with 3 tabs including a forced tie (temporarily seed server rng via `DEBUG_SEED` env hook — add it) and a straight; record that animations fire and state never desyncs from a hard-refresh rejoin.
+**Verification:** play 3 full rounds with 3 tabs including a tie and a straight (dice are client-reported — ADR 004 — so a tie/straight can be forced from the browser console by sending scripted `turn:throwResult` faces); record that animations fire and state never desyncs from a hard-refresh rejoin.
 
 ---
 
@@ -346,7 +264,7 @@ Conventions for all phases:
 **Goal:** Confidence for future changes.
 
 - [ ] **12.1 WS integration harness** — `server/test/harness.ts`: spin up the server on an ephemeral port, helper `FakeClient` (connect, send, await message of type X with timeout).
-- [ ] **12.2 Full-game E2E** — scripted: create → join ×3 → seats → 2 rounds with a tie sub-round and a straight bonus (seeded rng) → restart server mid-game → rejoin → finish round. Assert final chip ledger exactly.
+- [ ] **12.2 Full-game E2E** — scripted: create → join ×3 → seats → 2 rounds with a tie sub-round and a straight payout (dice scripted via `turn:throwResult`) → restart server mid-game → rejoin → finish round. Assert final chip ledger exactly.
 - [ ] **12.3 CI** — GitHub Actions workflow: install, `npm run check`, `npm test`, `npm run build` on push/PR.
 
 **Verification:** CI green on a fresh clone.
@@ -355,8 +273,8 @@ Conventions for all phases:
 
 ## Worker Agent Operating Notes
 
-- **One phase at a time.** Read the phase's goal, the canonical rules section, and the protocol tables before writing code.
+- **One phase at a time.** Read the phase's goal, [docs/GAME_RULES.md](./docs/GAME_RULES.md), and [docs/PROTOCOL.md](./docs/PROTOCOL.md) before writing code.
 - **Check off tasks in this file** (`[ ]` → `[x]`) in the same change that completes them.
-- **Never let client and server disagree:** any protocol change must be made in `shared/src/protocol.ts` first, then consumed on both sides in the same phase.
-- **Determinism:** all randomness flows through an injectable rng so tests can script dice.
-- **If a rule in this plan is ambiguous or contradictory**, implement the most literal reading, and note the ambiguity in your summary rather than redesigning.
+- **Never let client and server disagree:** protocol changes follow the ripple checklist in [docs/CODING_GUIDELINES.md](./docs/CODING_GUIDELINES.md) §1 — `shared/src/protocol.ts` first, then let the typecheck errors walk you through both sides in the same change.
+- **Determinism:** dice come from the roller's client (ADR 004) — tests script explicit faces through `server/src/engine.testkit.ts`; there is no server rng.
+- **If a rule seems ambiguous or contradictory**, implement the most literal reading of docs/GAME_RULES.md and note the ambiguity in your summary rather than redesigning.

@@ -9,7 +9,7 @@ interface Props {
 
 /**
  * Room settings form fields, shared by the create-room form (Home) and the
- * host settings panel (Room). Defaults and ranges come from PLAN.md.
+ * host settings panel (Room). Defaults and ranges: docs/GAME_RULES.md.
  */
 export default function SettingsFields({ value, onChange, disabled = false }: Props) {
   const set = (patch: Partial<RoomSettings>) => onChange?.({ ...value, ...patch });

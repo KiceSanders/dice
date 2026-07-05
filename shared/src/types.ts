@@ -1,6 +1,6 @@
 /**
  * Domain types shared by client and server.
- * The canonical rules these types encode live in PLAN.md ("Canonical Game Rules").
+ * The canonical rules these types encode live in docs/GAME_RULES.md.
  */
 
 export type PlayerId = string;
@@ -79,7 +79,7 @@ export interface PlayerPublic {
   name: string;
   connected: boolean;
   isHost: boolean;
-  /** null = spectator; otherwise seat index 0–7. */
+  /** null = spectator; otherwise seat index 0–2 (TABLE_SEAT_COUNT seats). */
   seat: number | null;
   chips: number;
   /** Banned from requesting a seat (was kicked). */

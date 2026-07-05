@@ -3,7 +3,7 @@ import type { HandScore, StraightKind } from '../types.js';
 const STRAIGHT_RANK: Record<StraightKind, number> = { none: 0, little: 1, big: 2 };
 
 /**
- * Canonical hand ordering (PLAN.md):
+ * Canonical hand ordering (docs/GAME_RULES.md):
  *   1. straights beat non-straights; big > little
  *   2. larger group count
  *   3. higher face

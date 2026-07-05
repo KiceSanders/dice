@@ -1,10 +1,10 @@
 # Multiplayer Dice
 
-Real-time, browser-based dice game for up to 8 players per room. Roll 5 dice, keep and re-roll to beat the roll-to-beat, win the pot. Ties spawn doubled-bet sub-rounds; straights pay configurable bonuses.
+Real-time, browser-based dice game for 2–3 seated players per room (plus spectators). Roll 5 dice from a physics-simulated cup, keep and re-roll to beat the roll-to-beat, win the pot. Ties spawn doubled-bet sub-rounds; rolling a straight makes every other seated player pay you on the spot.
 
-**→ See [PLAN.md](./PLAN.md) for the full game rules, architecture, WebSocket protocol, and the phased development checklist.**
+**→ Rules: [docs/GAME_RULES.md](./docs/GAME_RULES.md) · Protocol: [docs/PROTOCOL.md](./docs/PROTOCOL.md) · Architecture: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) · Progress log: [PLAN.md](./PLAN.md)**
 
-**Agents:** see [AGENTS.md](./AGENTS.md), [docs/browser-testing.md](./docs/browser-testing.md) (multi-tab verification), and [docs/decisions/](docs/decisions/) (design decisions).
+**Agents:** start at [AGENTS.md](./AGENTS.md) (reading list, verification duties) and [docs/CODING_GUIDELINES.md](./docs/CODING_GUIDELINES.md).
 
 ## Stack
 
@@ -24,8 +24,10 @@ npm run dev        # server on :3001, client on :5173 (with proxy)
 Other scripts:
 
 ```bash
-npm run check      # typecheck all workspaces
-npm test           # run all unit/integration tests
+npm run check      # typecheck all workspaces (check:shared|server|client to scope)
+npm test           # run all unit/integration tests (test:shared|server|client to scope)
+npm run lint       # biome lint + format check (lint:fix to apply)
+npm run verify     # lint + check + test — the pre-done gate
 npm run build      # production build: shared (typecheck) → server (bundle) → client
 npm start          # production: serve client + WS from one port (3001)
 ```

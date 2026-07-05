@@ -3,7 +3,8 @@
  * The server is authoritative over game state; dice values come exclusively
  * from the current roller's physics sim (turn:throwResult, ADR 004). There is
  * no server-side roll — a turn that never produces dice is forfeited.
- * Keep this file in sync with the protocol tables in PLAN.md.
+ * Keep this file in sync with the tables in docs/PROTOCOL.md (same commit —
+ * see docs/CODING_GUIDELINES.md §1).
  */
 
 import type {
