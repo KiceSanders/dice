@@ -1,4 +1,5 @@
 import type { Die, ErrorCode, HandScore, PlayerId, RoomSnapshot, ServerMessage } from '@dice/shared';
+import { assertUnreachable } from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
 export const CHAT_BUFFER_SIZE = 200;
@@ -107,6 +108,12 @@ export function reducer(state: AppState, action: AppAction): AppState {
 
     case 'server-message':
       return applyServerMessage(state, action.message);
+
+    default: {
+      // Compile error here = a new AppAction is missing a case above.
+      assertUnreachable(action);
+      return state;
+    }
   }
 }
 
@@ -263,6 +270,13 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         toasts: pushToast(state.toasts, 'info', text),
         chat: pushChat(state.chat, [systemLine(text)]),
       };
+    }
+
+    default: {
+      // Compile error here = a new ServerMessage is missing a case above.
+      // At runtime an unknown message (newer server) is ignored, never a crash.
+      assertUnreachable(msg);
+      return state;
     }
   }
 }

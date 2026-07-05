@@ -9,7 +9,7 @@ import type {
   ServerMessage,
   StraightPayoutConfig,
 } from '@dice/shared';
-import { DEFAULT_SETTINGS } from '@dice/shared';
+import { assertNever, DEFAULT_SETTINGS } from '@dice/shared';
 import { GameEngine, type EngineEvent, type EngineOptions } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
 
@@ -508,6 +508,9 @@ export class Room {
         this.endGame();
         this.broadcastState();
         break;
+      default:
+        // Compile error here = a new EngineEvent is not persisted/broadcast above.
+        assertNever(event, 'unhandled EngineEvent');
     }
   }
 

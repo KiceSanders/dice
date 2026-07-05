@@ -7,7 +7,13 @@ export type Handler<T extends ClientMessage['type'] = ClientMessage['type']> = (
   msg: Extract<ClientMessage, { type: T }>,
 ) => void;
 
-export type HandlerMap = { [T in ClientMessage['type']]?: Handler<T> };
+/**
+ * Keys are required: adding a ClientMessage type without wiring a handler in
+ * handlers.ts must fail `npm run check:server`, not silently BAD_REQUEST.
+ * (createHandlers returns this; Router itself tolerates partial maps so tests
+ * can stub single handlers.)
+ */
+export type HandlerMap = { [T in ClientMessage['type']]: Handler<T> };
 
 /**
  * Dispatches validated client messages to per-type handlers.
@@ -15,7 +21,7 @@ export type HandlerMap = { [T in ClientMessage['type']]?: Handler<T> };
  * the process must never crash from a message handler.
  */
 export class Router {
-  constructor(private readonly handlers: HandlerMap) {}
+  constructor(private readonly handlers: Partial<HandlerMap>) {}
 
   dispatch(conn: Connection, raw: string): void {
     const result = parseClientMessage(raw);
