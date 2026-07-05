@@ -3,8 +3,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Die, ServerMessage } from '@dice/shared';
+import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { roll } from './engine.testkit.js';
 import { recoverRooms, RoomLogStore } from './persistence.js';
 import type { ClientLink, Room } from './room.js';
 import { RoomManager } from './roomManager.js';
@@ -14,16 +15,6 @@ class FakeLink implements ClientLink {
   send(msg: ServerMessage) {
     this.messages.push(msg);
   }
-}
-
-/** Rng stub yielding the given die faces in order (same as engine tests). */
-function rngFor(faces: Die[]) {
-  let i = 0;
-  return () => {
-    const face = faces[i++];
-    if (face === undefined) throw new Error(`rng exhausted after ${i - 1} dice`);
-    return (face - 1) / 6;
-  };
 }
 
 function seatPlayer(room: Room, name: string, buyIn: number) {
@@ -55,16 +46,15 @@ describe('persistence & crash recovery (Phase 6)', () => {
 
     // Host: 3,3,4,5,6 → keep the 3s → reroll to 3,3,3,2,1, stand (2 rolls).
     // P1: 2,2,6,6,5 first roll — crash happens mid-turn here.
-    room.engineOpts = { rng: rngFor([3, 3, 4, 5, 6, 3, 2, 1, 2, 2, 6, 6, 5]) };
     expect(room.startGame(host.id)).toBeNull();
 
     const engine = room.engine!;
     expect(engine.currentTurnPlayerId).toBe(host.id);
-    expect(engine.roll(host.id, [])).toBeNull();
-    expect(engine.roll(host.id, [0, 1])).toBeNull();
+    expect(roll(engine, host.id, [3, 3, 4, 5, 6])).toBeNull();
+    expect(roll(engine, host.id, [3, 3, 3, 2, 1], [0, 1])).toBeNull();
     expect(engine.stand(host.id)).toBeNull();
     expect(engine.currentTurnPlayerId).toBe(p1.id);
-    expect(engine.roll(p1.id, [])).toBeNull();
+    expect(roll(engine, p1.id, [2, 2, 6, 6, 5])).toBeNull();
 
     const before = engine.publicState();
     await store.flush();
@@ -91,12 +81,12 @@ describe('persistence & crash recovery (Phase 6)', () => {
       expect(recovered.connected).toBe(false);
     }
 
-    // Game state survived: pot, round, streak, roll-to-beat, mid-turn dice.
+    // Game state survived: pot, round, roll-to-beat, mid-turn dice.
     const engine2 = room2.engine!;
     expect(engine2.pot).toBe(2);
     expect(engine2.roundNumber).toBe(before.roundNumber);
     const after = engine2.publicState();
-    expect(after.straightStreak).toBe(before.straightStreak);
+    expect(after.pot).toBe(before.pot);
     expect(after.rollToBeat?.playerId).toBe(host.id);
     expect(after.rollToBeat?.score).toEqual(before.rollToBeat?.score);
     expect(after.currentTurn?.playerId).toBe(p1.id);
@@ -130,9 +120,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 50);
 
-    // Every roll below is client-reported physics; the rng stub throws if the
-    // live path ever consults server randomness.
-    room.engineOpts = { rng: rngFor([]) };
+    // Every roll below is client-reported physics (ADR 004: no server rng exists).
     expect(room.startGame(host.id)).toBeNull();
 
     const engine = room.engine!;
@@ -153,7 +141,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(await recoverRooms(store2, manager2)).toBe(1);
     const after = manager2.get(room.id)!.engine!.publicState();
 
-    // Committed physics dice reproduced exactly via roll()/keepAndReroll.
+    // Committed physics dice re-applied exactly via replayRolled.
     expect(after.rollToBeat?.playerId).toBe(host.id);
     expect(after.rollToBeat?.dice).toEqual([3, 3, 2, 2, 1]);
     expect(after.currentTurn?.playerId).toBe(p1.id);
@@ -176,13 +164,12 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 100);
 
-    room.engineOpts = { rng: rngFor([6, 6, 6, 6, 1, 1, 1, 2, 3, 5]) };
     expect(room.startGame(host.id)).toBeNull();
     const engine = room.engine!;
-    expect(engine.roll(host.id, [])).toBeNull();
+    expect(roll(engine, host.id, [6, 6, 6, 6, 1])).toBeNull();
     expect(engine.stand(host.id)).toBeNull();
     // Host stood after 1 roll → p1 is capped at 1 roll and auto-stands.
-    expect(engine.roll(p1.id, [])).toBeNull();
+    expect(roll(engine, p1.id, [1, 1, 2, 3, 5])).toBeNull();
     expect(engine.phase).toBe('roundEnd');
 
     await store.flush();
@@ -204,6 +191,34 @@ describe('persistence & crash recovery (Phase 6)', () => {
     manager2.stop();
     await store.flush();
     await store2.flush();
+  });
+
+  it('straight payouts survive replay with identical chip movements', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create(DEFAULT_SETTINGS);
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const p1 = seatPlayer(room, 'P1', 50);
+
+    expect(room.startGame(host.id)).toBeNull();
+    const engine = room.engine!;
+    // Little straight mid-round: p1 pays 5 on the spot (default payout config).
+    expect(roll(engine, host.id, [1, 2, 3, 4, 5])).toBeNull();
+    expect(room.players.get(host.id)!.chips).toBe(104); // 100 - 1 ante + 5
+    expect(room.players.get(p1.id)!.chips).toBe(44); // 50 - 1 ante - 5
+
+    await store.flush();
+    const manager2 = new RoomManager(undefined, undefined, new RoomLogStore(dir));
+    expect(await recoverRooms(new RoomLogStore(dir), manager2)).toBe(1);
+    const room2 = manager2.get(room.id)!;
+
+    // Replaying the rolled event re-fires applyStraightPayout identically.
+    expect(room2.players.get(host.id)!.chips).toBe(104);
+    expect(room2.players.get(p1.id)!.chips).toBe(44);
+
+    manager.stop();
+    manager2.stop();
   });
 
   it('survives kicks and settings changes (replayed through the same reducers)', async () => {

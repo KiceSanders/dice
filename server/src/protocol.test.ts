@@ -37,8 +37,8 @@ describe('parseClientMessage', () => {
     ).toMatchObject({ ok: false });
   });
 
-  it('rejects malformed settings (bad straightBonus)', () => {
-    const settings = { ...DEFAULT_SETTINGS, straightBonus: { enabled: 'yes' } };
+  it('rejects malformed settings (bad straightPayout)', () => {
+    const settings = { ...DEFAULT_SETTINGS, straightPayout: { enabled: 'yes' } };
     expect(parse({ type: 'room:create', playerName: 'a', settings })).toMatchObject({ ok: false });
   });
 
@@ -55,28 +55,30 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'room:join', playerName: 'p' })).toMatchObject({ ok: false });
   });
 
-  it('validates turn:roll keepIndices', () => {
-    expect(parse({ type: 'turn:roll', keepIndices: [] })).toMatchObject({ ok: true });
-    expect(parse({ type: 'turn:roll', keepIndices: [0, 2, 4] })).toMatchObject({ ok: true });
-    expect(parse({ type: 'turn:roll', keepIndices: [0.5] })).toMatchObject({ ok: false });
-    expect(parse({ type: 'turn:roll', keepIndices: [0, 1, 2, 3, 4, 5] })).toMatchObject({
+  it('rejects the removed turn:roll message (physics throws replaced it, ADR 004)', () => {
+    expect(parse({ type: 'turn:roll', keepIndices: [] })).toMatchObject({
+      ok: false,
+      error: 'unknown message type: turn:roll',
+    });
+  });
+
+  it('validates turn:throwStart keepIndices', () => {
+    expect(parse({ type: 'turn:throwStart', keepIndices: [] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [0, 3] })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [0.5] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [0, 1, 2, 3, 4, 5] })).toMatchObject({
       ok: false,
     });
-    expect(parse({ type: 'turn:roll' })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwStart' })).toMatchObject({ ok: false });
   });
 
   it('rejects out-of-range, negative, and duplicate keepIndices (11.2)', () => {
-    expect(parse({ type: 'turn:roll', keepIndices: [5] })).toMatchObject({ ok: false });
-    expect(parse({ type: 'turn:roll', keepIndices: [-1] })).toMatchObject({ ok: false });
-    expect(parse({ type: 'turn:roll', keepIndices: [1, 1] })).toMatchObject({ ok: false });
-    expect(parse({ type: 'turn:roll', keepIndices: [0, 1, 2, 3, 4] })).toMatchObject({ ok: true });
-  });
-
-  it('validates turn:throwStart keepIndices like turn:roll', () => {
-    expect(parse({ type: 'turn:throwStart', keepIndices: [] })).toMatchObject({ ok: true });
-    expect(parse({ type: 'turn:throwStart', keepIndices: [0, 3] })).toMatchObject({ ok: true });
     expect(parse({ type: 'turn:throwStart', keepIndices: [5] })).toMatchObject({ ok: false });
-    expect(parse({ type: 'turn:throwStart' })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [-1] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [1, 1] })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwStart', keepIndices: [0, 1, 2, 3, 4] })).toMatchObject({
+      ok: true,
+    });
   });
 
   it('validates turn:throwResult dice', () => {

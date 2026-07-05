@@ -1,38 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Die } from '@dice/shared';
-import { DEFAULT_SETTINGS } from '@dice/shared';
-import {
-  GameEngine,
-  THROW_TIMEOUT_MS,
-  type EngineEvent,
-  type EngineOptions,
-  type EnginePlayer,
-} from './engine.js';
-
-/** Rng stub yielding the given die faces in order. */
-function rngFor(faces: Die[]) {
-  let i = 0;
-  return () => {
-    const face = faces[i++];
-    if (face === undefined) throw new Error(`rng exhausted after ${i - 1} dice`);
-    return (face - 1) / 6;
-  };
-}
-
-function makePlayers(chips = [100, 100, 100]): EnginePlayer[] {
-  return chips.map((c, i) => ({ id: `p${i}`, chips: c, seat: i, connected: true }));
-}
-
-function makeEngine(players: EnginePlayer[], faces: Die[], opts: EngineOptions = {}) {
-  const events: EngineEvent[] = [];
-  const engine = new GameEngine(() => players, DEFAULT_SETTINGS, (e) => events.push(e), {
-    rng: rngFor(faces),
-    turnTimeoutMs: 60_000,
-    roundEndDelayMs: 5_000,
-    ...opts,
-  });
-  return { engine, events };
-}
+import { THROW_TIMEOUT_MS } from './engine.js';
+import { makeEngine, makePlayers, ofType } from './engine.testkit.js';
 
 const bad = { code: 'BAD_REQUEST' };
 
@@ -41,7 +10,7 @@ afterEach(() => vi.useRealTimers());
 
 describe('GameEngine: physics throws (ADR 004)', () => {
   it('first throw: beginThrow marks the turn, commitThrow applies client dice', () => {
-    const { engine, events } = makeEngine(makePlayers(), []);
+    const { engine, events } = makeEngine(makePlayers());
     engine.start();
 
     expect(engine.beginThrow('p0', [])).toBeNull();
@@ -66,7 +35,7 @@ describe('GameEngine: physics throws (ADR 004)', () => {
   });
 
   it('reroll: kept positions must keep their value', () => {
-    const { engine } = makeEngine(makePlayers(), []);
+    const { engine } = makeEngine(makePlayers());
     engine.start();
     engine.beginThrow('p0', []);
     engine.commitThrow('p0', [4, 4, 4, 2, 1]);
@@ -80,7 +49,7 @@ describe('GameEngine: physics throws (ADR 004)', () => {
   });
 
   it('rejects out-of-order and malformed throws', () => {
-    const { engine } = makeEngine(makePlayers(), []);
+    const { engine } = makeEngine(makePlayers());
     engine.start();
 
     expect(engine.commitThrow('p0', [1, 1, 1, 1, 1])).toMatchObject(bad); // no begin
@@ -96,37 +65,61 @@ describe('GameEngine: physics throws (ADR 004)', () => {
     expect(engine.beginThrow('p0', [0, 1, 2, 3, 4])).toMatchObject(bad); // keep-all → stand
   });
 
-  it('blocks legacy roll() and stand() while a throw is in flight', () => {
-    const { engine } = makeEngine(makePlayers(), []);
+  it('blocks stand() while a throw is in flight', () => {
+    const { engine } = makeEngine(makePlayers());
     engine.start();
     engine.beginThrow('p0', []);
     engine.commitThrow('p0', [4, 4, 4, 2, 1]);
 
     engine.beginThrow('p0', [0]);
-    expect(engine.roll('p0', [0])).toMatchObject(bad);
     expect(engine.stand('p0')).toMatchObject(bad);
     expect(engine.commitThrow('p0', [4, 1, 2, 3, 5])).toBeNull();
   });
 
-  it('falls back to a server rng roll when the result never arrives', () => {
-    const { engine, events } = makeEngine(makePlayers(), [2, 2, 3, 4, 5]);
+  it('forfeits the turn when the first throw result never arrives', () => {
+    const { engine, events } = makeEngine(makePlayers());
     engine.start();
     engine.beginThrow('p0', []);
 
     vi.advanceTimersByTime(THROW_TIMEOUT_MS);
-    expect(events.find((e) => e.type === 'rolled')).toMatchObject({
-      playerId: 'p0',
-      dice: [2, 2, 3, 4, 5],
-      rollNumber: 1,
+    // No server rng exists to synthesize a roll (ADR 004): the turn is forfeited.
+    expect(ofType(events, 'rolled')).toHaveLength(0);
+    expect(ofType(events, 'forfeited')).toMatchObject([{ playerId: 'p0' }]);
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    // A late physics result is rejected; the turn already moved on.
+    expect(engine.commitThrow('p0', [6, 6, 6, 6, 6])).toMatchObject({ code: 'NOT_YOUR_TURN' });
+  });
+
+  it('stands on already-settled dice when a reroll result never arrives', () => {
+    const { engine, events } = makeEngine(makePlayers());
+    engine.start();
+    engine.beginThrow('p0', []);
+    engine.commitThrow('p0', [4, 4, 4, 2, 1]);
+    engine.beginThrow('p0', [0, 1, 2]);
+
+    vi.advanceTimersByTime(THROW_TIMEOUT_MS);
+    // The abandoned reroll falls back to the previously settled dice.
+    expect(ofType(events, 'stood')).toMatchObject([{ playerId: 'p0', dice: [4, 4, 4, 2, 1] }]);
+    expect(engine.currentTurnPlayerId).toBe('p1');
+  });
+
+  it('turn timeout during a pending first throw forfeits cleanly', () => {
+    const { engine, events } = makeEngine(makePlayers(), {
+      throwTimeoutMs: 120_000, // keep the throw pending past the 60s turn timer
     });
-    expect(engine.publicState().currentTurn?.throwing).toBe(false);
-    // A late physics result is rejected; the fallback roll already counted.
-    expect(engine.commitThrow('p0', [6, 6, 6, 6, 6])).toMatchObject(bad);
-    expect(engine.publicState().currentTurn?.rollsUsed).toBe(1);
+    engine.start();
+    engine.beginThrow('p0', []);
+
+    vi.advanceTimersByTime(60_000);
+    // forceStand abandoned the throw; with no settled dice the turn is forfeited.
+    expect(ofType(events, 'forfeited')).toMatchObject([{ playerId: 'p0' }]);
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    // The abandoned throw is gone: p1 has no throw in flight to commit.
+    expect(engine.commitThrow('p1', [1, 1, 1, 1, 1])).toMatchObject(bad);
   });
 
   it('auto-stands when commitThrow reaches the roll cap', () => {
-    const { engine, events } = makeEngine(makePlayers(), []);
+    const { engine, events } = makeEngine(makePlayers());
     engine.start();
 
     engine.beginThrow('p0', []);
@@ -138,24 +131,5 @@ describe('GameEngine: physics throws (ADR 004)', () => {
 
     expect(events.some((e) => e.type === 'stood' && e.playerId === 'p0')).toBe(true);
     expect(engine.currentTurnPlayerId).toBe('p1');
-  });
-
-  it('turn timeout during a pending throw force-stands cleanly', () => {
-    const { engine, events } = makeEngine(makePlayers(), [3, 3, 1, 1, 2], {
-      throwTimeoutMs: 120_000, // keep the throw pending past the 60s turn timer
-    });
-    engine.start();
-    engine.beginThrow('p0', []);
-
-    vi.advanceTimersByTime(60_000);
-    // forceStand abandoned the throw: rng-rolled once and stood.
-    expect(events.find((e) => e.type === 'rolled')).toMatchObject({
-      playerId: 'p0',
-      dice: [3, 3, 1, 1, 2],
-    });
-    expect(events.some((e) => e.type === 'stood' && e.playerId === 'p0')).toBe(true);
-    expect(engine.currentTurnPlayerId).toBe('p1');
-    // The abandoned throw is gone: p1 has no throw in flight to commit.
-    expect(engine.commitThrow('p1', [1, 1, 1, 1, 1])).toMatchObject(bad);
   });
 });

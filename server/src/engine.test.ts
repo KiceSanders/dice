@@ -1,37 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Die } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
-import { GameEngine, type EngineEvent, type EnginePlayer } from './engine.js';
+import type { EngineEvent } from './engine.js';
+import { makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
 
-/** Rng stub yielding the given die faces in order. */
-function rngFor(faces: Die[]) {
-  let i = 0;
-  return () => {
-    const face = faces[i++];
-    if (face === undefined) throw new Error(`rng exhausted after ${i - 1} dice`);
-    return (face - 1) / 6;
-  };
-}
-
-function makePlayers(chips = [100, 100, 100]): EnginePlayer[] {
-  return chips.map((c, i) => ({ id: `p${i}`, chips: c, seat: i, connected: true }));
-}
-
-function makeEngine(players: EnginePlayer[], faces: Die[], settings = DEFAULT_SETTINGS) {
-  const events: EngineEvent[] = [];
-  const engine = new GameEngine(() => players, settings, (e) => events.push(e), {
-    rng: rngFor(faces),
-    turnTimeoutMs: 60_000,
-    roundEndDelayMs: 5_000,
-  });
-  return { engine, events };
-}
-
-const lastRoundEnd = (events: EngineEvent[]) =>
-  events.filter((e) => e.type === 'roundEnded').at(-1) as Extract<
-    EngineEvent,
-    { type: 'roundEnded' }
-  >;
+const lastRoundEnd = (events: EngineEvent[]) => ofType(events, 'roundEnded').at(-1)!;
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -39,14 +11,7 @@ afterEach(() => vi.useRealTimers());
 describe('GameEngine: full scripted round', () => {
   it('plays a 3-player round, collects antes, awards the pot', () => {
     const players = makePlayers();
-    // p0: rolls three 4s then keeps them, ends with 4,4,4,2,1 → (3,4) in 2 rolls
-    // p1: capped at 2 rolls; rolls junk, stands → (2,2)
-    // p2: rolls 6,6,6,6,1 first roll and stands → (4,6) wins
-    const { engine, events } = makeEngine(players, [
-      4, 4, 4, 2, 1, /* p0 roll 1 */ 5, 2, /* p0 reroll idx 3,4 */
-      2, 2, 3, 4, 5, /* p1 roll 1 — not a straight (2,2,3,4,5) */
-      6, 6, 6, 6, 1, /* p2 roll 1 */
-    ]);
+    const { engine, events } = makeEngine(players);
     engine.start();
 
     // Antes collected.
@@ -54,16 +19,19 @@ describe('GameEngine: full scripted round', () => {
     expect(engine.pot).toBe(3);
     expect(engine.currentTurnPlayerId).toBe('p0');
 
-    expect(engine.roll('p0', [])).toBeNull();
-    expect(engine.roll('p0', [0, 1, 2])).toBeNull();
+    // p0: rolls three 4s then keeps them → 4,4,4,5,2 in 2 rolls.
+    expect(roll(engine, 'p0', [4, 4, 4, 2, 1])).toBeNull();
+    expect(roll(engine, 'p0', [4, 4, 4, 5, 2], [0, 1, 2])).toBeNull();
     expect(engine.stand('p0')).toBeNull();
 
+    // p1: capped at 2 rolls; rolls junk (not a straight), stands.
     expect(engine.currentTurnPlayerId).toBe('p1');
-    expect(engine.roll('p1', [])).toBeNull();
+    expect(roll(engine, 'p1', [2, 2, 3, 4, 5])).toBeNull();
     expect(engine.stand('p1')).toBeNull();
 
+    // p2: four 6s + wild first roll, stands — wins.
     expect(engine.currentTurnPlayerId).toBe('p2');
-    expect(engine.roll('p2', [])).toBeNull();
+    expect(roll(engine, 'p2', [6, 6, 6, 6, 1])).toBeNull();
     expect(engine.stand('p2')).toBeNull();
 
     const end = lastRoundEnd(events);
@@ -75,19 +43,13 @@ describe('GameEngine: full scripted round', () => {
 
   it('next round starts after the delay, rotated left of the winner', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [
-      6, 6, 6, 6, 6, // p0 → five 6s, wins
-      1, 1, 2, 3, 4, // p1
-      1, 1, 2, 3, 5, // p2
-      // round 2 first roll (p1 = left of winner p0)
-      2, 2, 2, 2, 2,
-    ]);
+    const { engine } = makeEngine(players);
     engine.start();
-    engine.roll('p0', []);
+    roll(engine, 'p0', [6, 6, 6, 6, 6]); // five 6s, wins
     engine.stand('p0');
-    engine.roll('p1', []);
+    roll(engine, 'p1', [1, 1, 2, 3, 4]);
     engine.stand('p1');
-    engine.roll('p2', []);
+    roll(engine, 'p2', [1, 1, 2, 3, 5]);
     engine.stand('p2');
 
     expect(engine.phase).toBe('roundEnd');
@@ -101,35 +63,24 @@ describe('GameEngine: full scripted round', () => {
 describe('GameEngine: roll-cap pressure', () => {
   it("first finisher's roll count caps everyone after", () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [
-      3, 3, 1, 1, 1, // p0 roll 1 → stands at 1 roll
-      6, 6, 6, 6, 6, // p1 roll 1 → auto-stand at cap 1 despite maxRolls=3
-      5, 5, 5, 5, 5, // p2 roll 1
-    ]);
+    const { engine } = makeEngine(players);
     engine.start();
-    engine.roll('p0', []);
+    roll(engine, 'p0', [3, 3, 1, 1, 1]);
     engine.stand('p0'); // cap is now 1
     expect(engine.publicState().currentTurn?.rollCap).toBe(1);
 
     // p1's single roll auto-stands (cap reached).
-    expect(engine.roll('p1', [])).toBeNull();
+    expect(roll(engine, 'p1', [6, 6, 6, 6, 6])).toBeNull();
     expect(engine.currentTurnPlayerId).toBe('p2');
   });
 
   it('first player is capped by settings.maxRolls', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(
-      players,
-      [
-        1, 2, 3, 1, 2, /* roll 1 */ 4, 5, 4, 1, 6, /* roll 2 (keep none) */ 2, 2, 6, 3, 1, /* roll 3 */
-        6, 6, 6, 6, 6, /* p1 */ 5, 5, 5, 5, 5 /* p2 */,
-      ],
-      { ...DEFAULT_SETTINGS, maxRolls: 3 },
-    );
+    const { engine } = makeEngine(players, { settings: { ...DEFAULT_SETTINGS, maxRolls: 3 } });
     engine.start();
-    engine.roll('p0', []);
-    engine.roll('p0', []);
-    engine.roll('p0', []); // 3rd roll → auto-stand
+    roll(engine, 'p0', [1, 2, 3, 1, 2]);
+    roll(engine, 'p0', [4, 5, 4, 1, 6]);
+    roll(engine, 'p0', [2, 2, 6, 3, 1]); // 3rd roll → auto-stand
     expect(engine.currentTurnPlayerId).toBe('p1');
   });
 });
@@ -137,40 +88,43 @@ describe('GameEngine: roll-cap pressure', () => {
 describe('GameEngine: keep validation', () => {
   it('rejects keeps on the first roll, un-keeping, and bad indices', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [4, 4, 4, 2, 1, 5, 5]);
+    const { engine } = makeEngine(players);
     engine.start();
 
-    expect(engine.roll('p0', [0])).toMatchObject({ code: 'BAD_REQUEST' });
-    expect(engine.roll('p0', [])).toBeNull();
+    expect(roll(engine, 'p0', [4, 4, 4, 2, 1], [0])).toMatchObject({ code: 'BAD_REQUEST' });
+    expect(roll(engine, 'p0', [4, 4, 4, 2, 1])).toBeNull();
 
-    expect(engine.roll('p0', [9])).toMatchObject({ code: 'BAD_REQUEST' });
-    expect(engine.roll('p0', [0, 0])).toMatchObject({ code: 'BAD_REQUEST' });
-    expect(engine.roll('p0', [0, 1, 2])).toBeNull();
+    expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [9])).toMatchObject({ code: 'BAD_REQUEST' });
+    expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [0, 0])).toMatchObject({ code: 'BAD_REQUEST' });
+    expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [0, 1, 2])).toBeNull();
 
     // Kept dice are locked: [0,1,2] must stay in the keep set.
-    expect(engine.roll('p0', [0, 1])).toMatchObject({
+    expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [0, 1])).toMatchObject({
       code: 'BAD_REQUEST',
       message: 'kept dice cannot be released',
     });
   });
 
-  it('keeping all 5 dice is a stand', () => {
+  it('keeping all 5 dice is rejected — the client stands instead', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [
-      6, 6, 6, 6, 1, /* p0 roll 1 */ 1, 1, 2, 3, 4, /* p1 */ 1, 1, 2, 3, 5 /* p2 */,
-    ]);
+    const { engine } = makeEngine(players);
     engine.start();
-    engine.roll('p0', []);
-    expect(engine.roll('p0', [0, 1, 2, 3, 4])).toBeNull();
-    expect(engine.currentTurnPlayerId).toBe('p1'); // p0 stood
+    roll(engine, 'p0', [6, 6, 6, 6, 1]);
+    // Pre-ADR-004 a keep-all roll was an implicit stand; now beginThrow rejects it.
+    expect(engine.beginThrow('p0', [0, 1, 2, 3, 4])).toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'all dice kept — stand instead',
+    });
+    expect(engine.stand('p0')).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p1');
   });
 
   it('rejects out-of-turn actions and standing before rolling', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [1, 2, 3, 4, 6]);
+    const { engine } = makeEngine(players);
     engine.start();
 
-    expect(engine.roll('p1', [])).toMatchObject({ code: 'NOT_YOUR_TURN' });
+    expect(roll(engine, 'p1', [1, 2, 3, 4, 6])).toMatchObject({ code: 'NOT_YOUR_TURN' });
     expect(engine.stand('p1')).toMatchObject({ code: 'NOT_YOUR_TURN' });
     expect(engine.stand('p0')).toMatchObject({
       code: 'BAD_REQUEST',
@@ -182,17 +136,14 @@ describe('GameEngine: keep validation', () => {
 describe('GameEngine: sit-outs and game end', () => {
   it('broke players sit out the round but keep their seats', () => {
     const players = makePlayers([100, 0, 100]); // p1 cannot ante
-    const { engine, events } = makeEngine(players, [
-      6, 6, 6, 6, 6, // p0
-      5, 5, 5, 5, 5, // p2 (p1 skipped)
-    ]);
+    const { engine, events } = makeEngine(players);
     engine.start();
     expect(engine.pot).toBe(2);
 
-    engine.roll('p0', []);
+    roll(engine, 'p0', [6, 6, 6, 6, 6]);
     engine.stand('p0');
     expect(engine.currentTurnPlayerId).toBe('p2'); // p1 never gets a turn
-    engine.roll('p2', []);
+    roll(engine, 'p2', [5, 5, 5, 5, 5]);
     engine.stand('p2');
 
     const end = lastRoundEnd(events);
@@ -202,7 +153,7 @@ describe('GameEngine: sit-outs and game end', () => {
 
   it('ends the game when fewer than 2 players can ante', () => {
     const players = makePlayers([5, 0, 0]);
-    const { engine, events } = makeEngine(players, []);
+    const { engine, events } = makeEngine(players);
     engine.start();
     expect(engine.phase).toBe('ended');
     expect(events.some((e) => e.type === 'gameEnded')).toBe(true);
@@ -210,53 +161,42 @@ describe('GameEngine: sit-outs and game end', () => {
 });
 
 describe('GameEngine: auto-stand paths', () => {
-  it('turn timer expiry force-stands with an auto-roll', () => {
+  it('turn timer expiry with no roll forfeits the turn (ADR 004: no server roll)', () => {
     const players = makePlayers();
-    const { engine, events } = makeEngine(players, [
-      3, 3, 3, 1, 2, // p0 auto-roll on timeout
-      6, 6, 6, 6, 6, // p1
-      5, 5, 5, 5, 5, // p2
-    ]);
+    const { engine, events } = makeEngine(players);
     engine.start();
     expect(engine.currentTurnPlayerId).toBe('p0');
 
     vi.advanceTimersByTime(60_000);
     expect(engine.currentTurnPlayerId).toBe('p1');
-    const rolled = events.find((e) => e.type === 'rolled');
-    expect(rolled).toMatchObject({ playerId: 'p0', rollNumber: 1 });
+    expect(ofType(events, 'rolled')).toHaveLength(0);
+    expect(ofType(events, 'forfeited')).toMatchObject([{ playerId: 'p0' }]);
   });
 
-  it("a disconnected player's turn is auto-stood immediately", () => {
+  it("a disconnected player's turn is forfeited immediately", () => {
     const players = makePlayers();
     players[1]!.connected = false;
-    const { engine } = makeEngine(players, [
-      6, 6, 6, 6, 6, // p0
-      1, 2, 2, 3, 4, // p1 auto-roll
-      5, 5, 5, 5, 5, // p2
-    ]);
+    const { engine, events } = makeEngine(players);
     engine.start();
-    engine.roll('p0', []);
+    roll(engine, 'p0', [6, 6, 6, 6, 6]);
     engine.stand('p0');
     // p1 was skipped straight through to p2.
     expect(engine.currentTurnPlayerId).toBe('p2');
+    expect(ofType(events, 'forfeited')).toMatchObject([{ playerId: 'p1' }]);
   });
 
   it('forceStand mid-turn (kick path) stands with current dice', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [
-      4, 4, 1, 1, 2, // p0 roll 1
-      6, 6, 6, 6, 6, // p1
-      5, 5, 5, 5, 5, // p2
-    ]);
+    const { engine } = makeEngine(players);
     engine.start();
-    engine.roll('p0', []);
+    roll(engine, 'p0', [4, 4, 1, 1, 2]);
     engine.forceStand('p0'); // kicked mid-turn
     expect(engine.currentTurnPlayerId).toBe('p1');
   });
 
   it('forceStand for a non-current player is a no-op', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players, [1, 2, 3, 4, 6]);
+    const { engine } = makeEngine(players);
     engine.start();
     engine.forceStand('p2');
     expect(engine.currentTurnPlayerId).toBe('p0');

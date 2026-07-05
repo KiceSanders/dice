@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
+import { roll } from './engine.testkit.js';
 import { recoverRooms, RoomLogStore } from './persistence.js';
 import {
   CHAT_HISTORY_SIZE,
@@ -139,14 +140,11 @@ describe('chat persistence across restarts', () => {
     expect(room.sendChat(host.id, 'before the round')).toBeNull();
 
     // Play a 1-roll round to trigger compaction at round end.
-    const faces = [6, 6, 6, 6, 1, 1, 1, 2, 3, 5];
-    let i = 0;
-    room.engineOpts = { rng: () => (faces[i++]! - 1) / 6 };
     expect(room.startGame(host.id)).toBeNull();
     const engine = room.engine!;
-    expect(engine.roll(host.id, [])).toBeNull();
+    expect(roll(engine, host.id, [6, 6, 6, 6, 1])).toBeNull();
     expect(engine.stand(host.id)).toBeNull();
-    expect(engine.roll(p1.id, [])).toBeNull(); // capped at 1 roll → auto-stand
+    expect(roll(engine, p1.id, [1, 1, 2, 3, 5])).toBeNull(); // capped at 1 roll → auto-stand
     expect(engine.phase).toBe('roundEnd');
 
     expect(room.sendChat(p1.id, 'after compaction')).toBeNull();
