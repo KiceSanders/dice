@@ -27,7 +27,9 @@ export default function RoundEndModal({ roundEnd, players, onDismiss }: Props) {
   );
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss; the modal also auto-dismisses on a timer
     <div className="modal-backdrop" onClick={onDismiss} role="presentation">
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: click only stops backdrop propagation */}
       <div
         className="modal round-end-modal"
         role="dialog"

@@ -64,7 +64,7 @@ export function clampSettings(s: RoomSettings): RoomSettings {
 }
 
 export function sanitizeName(name: string): string {
-  // eslint-disable-next-line no-control-regex
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
   return name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
 }
 
@@ -520,7 +520,7 @@ export class Room {
     const player = this.players.get(playerId);
     if (!player) return err('BAD_REQUEST', 'unknown player');
 
-    // eslint-disable-next-line no-control-regex
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
     const clean = text.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim();
     if (!clean) return err('BAD_REQUEST', 'message is empty');
     if (clean.length > CHAT_MAX_LENGTH) {

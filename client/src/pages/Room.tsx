@@ -109,6 +109,7 @@ export default function Room() {
         <form className="card" onSubmit={submit}>
           <label className="field">
             <span>Display name</span>
+            {/* biome-ignore lint/a11y/noAutofocus: the name field is this page's single purpose */}
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={24} autoFocus />
           </label>
           <button type="submit" disabled={!name.trim()}>

@@ -45,7 +45,9 @@ export default function Seat({
   return (
     <div className={classes}>
       <div className="seat-name-row">
-        {isActive && <span className="seat-turn-marker" title="their turn" aria-label="current turn" />}
+        {isActive && (
+          <span className="seat-turn-marker" role="img" title="their turn" aria-label="current turn" />
+        )}
         <span
           className={`conn-dot ${player.connected ? 'conn-on' : 'conn-off'}`}
           title={player.connected ? 'connected' : 'disconnected'}

@@ -32,6 +32,7 @@ export interface TableDiceProps {
   /** Server-committed keeps from prior rolls — cannot be un-kept. */
   lockedKeepIndices?: number[];
   /** Click a die on the felt or side tray to toggle keep. */
+  // biome-ignore lint/suspicious/noConfusingVoidType: handlers may return the updated keep set or nothing
   onKeepToggle?: (index: number) => number[] | void;
   /**
    * Sampled cup+dice poses for spectator streaming (ADR 004): ~20 Hz while
