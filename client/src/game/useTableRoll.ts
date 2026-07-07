@@ -40,7 +40,9 @@ export function useTableRoll(
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [releaseSignal, setReleaseSignal] = useState(0);
   const [releaseVelocity, setReleaseVelocity] = useState<ThrowVelocity>(ZERO_VELOCITY);
-  const [heldPose, setHeldPose] = useState<PoseFrame | null>(null);
+  // Timestamped so Room can pick the most recently finished turn between this
+  // and the remote-roll held pose — plain null-coalescing order is staleness-blind.
+  const [held, setHeld] = useState<{ frame: PoseFrame; at: number } | null>(null);
   const pendingKeepRef = useRef<number[]>([]);
   const latestPoseRef = useRef<PoseFrame | null>(null);
   const wasMyTurnRef = useRef(false);
@@ -64,7 +66,7 @@ export function useTableRoll(
       setReleaseVelocity(velocity);
       setReleaseSignal((s) => s + 1);
       setRolling(true);
-      setHeldPose(null);
+      setHeld(null);
       send({ type: 'turn:throwStart', keepIndices: pendingKeepRef.current });
     },
     [send],
@@ -113,8 +115,11 @@ export function useTableRoll(
     const wasMyTurn = wasMyTurnRef.current;
     if (wasMyTurn && !isMyTurn) {
       const lastPose = latestPoseRef.current;
-      if (lastPose && !lastPose.cupVisible) setHeldPose(lastPose);
+      if (lastPose && !lastPose.cupVisible) setHeld({ frame: lastPose, at: performance.now() });
     }
+    // My own sim owns the table for the whole turn — drop the stale pose so it
+    // can't resurface later as ghost dice from a previous round.
+    if (!wasMyTurn && isMyTurn) setHeld(null);
     wasMyTurnRef.current = isMyTurn;
   }, [isMyTurn, turn?.playerId]);
 
@@ -221,6 +226,8 @@ export function useTableRoll(
     onTablePointer,
     rolling,
     dragging,
-    heldPose,
+    heldPose: held?.frame ?? null,
+    /** When heldPose was captured (0 when absent) — newest-wins in Room. */
+    heldPoseAt: held?.at ?? 0,
   };
 }

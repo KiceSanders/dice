@@ -13,12 +13,11 @@ import {
   TABLE,
   TABLE_WALL_H,
   TABLE_WALL_OUTSET,
+  TABLE_WALL_THICKNESS,
   TABLE_WALL_Y,
 } from './layout';
 
 export const TABLE_GEOMETRY_SEGMENTS = 64;
-
-const TABLE_WALL_THICKNESS = 0.08;
 
 export type TableTrimeshArgs = [vertices: Float32Array, indices: Uint32Array];
 

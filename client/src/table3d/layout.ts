@@ -5,8 +5,14 @@ export interface SeatLayout {
   angle: number;
 }
 
-/** Table felt oval scale (X × Z). */
-export const FELT_SCALE = { x: 1.15, z: 0.95 } as const;
+/**
+ * Table felt scale (X × Z). MUST stay isotropic (x === z, a circle): streamed
+ * pose frames are localized per viewer by rotating them around Y in seat-angle
+ * increments (seatTransform.ts), and only a rotationally symmetric table maps
+ * onto itself under that rotation — on the earlier 1.15×0.95 oval, another
+ * player's settled dice landed on or past the rail. Guarded by a layout test.
+ */
+export const FELT_SCALE = { x: 0.95, z: 0.95 } as const;
 
 export const TABLE = {
   feltRadius: 2,
@@ -46,6 +52,9 @@ export const TABLE_WALL_H = 1.4;
 export const TABLE_WALL_Y = TABLE.surfaceY + TABLE_WALL_H * 0.5;
 /** Place wall just outside the visible rail outer edge. */
 export const TABLE_WALL_OUTSET = 0.04;
+export const TABLE_WALL_THICKNESS = 0.08;
+/** Outer face of the containment wall (unit radius, before FELT_SCALE). */
+export const TABLE_WALL_OUTER = RAIL_OUTER_WORLD + TABLE_WALL_OUTSET + TABLE_WALL_THICKNESS / 2;
 
 /** Outer edge of the padded rail (world units). */
 const RAIL_OUTER_X = FELT_SCALE.x * RAIL_OUTER;
@@ -87,6 +96,19 @@ export function displaySeatIndex(seatIndex: number, mySeat: number): number {
 }
 
 /**
+ * Seat order for the stacked small-screen strip: remote seats by display slot,
+ * the local player last (adjacent to their controls below the table).
+ */
+export function seatStripOrder(mySeat: number): number[] {
+  return Array.from({ length: TABLE_SEAT_COUNT }, (_, i) => i).sort((a, b) => {
+    // Display slot 0 is the local player — sort it past everyone else.
+    const da = displaySeatIndex(a, mySeat) || TABLE_SEAT_COUNT;
+    const db = displaySeatIndex(b, mySeat) || TABLE_SEAT_COUNT;
+    return da - db;
+  });
+}
+
+/**
  * Y rotation (three.js sign convention) carrying a player's view-local space —
  * that player at +Z / bottom of screen — to canonical table space. Used only
  * to transform pose frames at the wire boundary (seatTransform.ts); the
@@ -96,7 +118,7 @@ export function viewRotationY(mySeat: number): number {
   return Math.PI / 2 - seatAngle(mySeat, TABLE_SEAT_COUNT);
 }
 
-/** Fixed front-seat camera — not interactive. Target sits on the near felt so the oval fills 16:9. */
+/** Fixed front-seat camera — not interactive. Target sits on the near felt so the table fills 16:9 vertically. */
 export const SEAT_VIEW = {
   position: [0, 2.88, 4.36] as const,
   target: [0, 0.04, 0.8] as const,

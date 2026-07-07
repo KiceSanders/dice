@@ -10,6 +10,8 @@ export interface RemoteRoll {
   live: boolean;
   /** Last sampled remote table pose, preserved after a turn switch. */
   heldPose: PoseFrame | null;
+  /** When heldPose was captured (0 when absent) — newest-wins in Room. */
+  heldPoseAt: number;
 }
 
 /**
@@ -28,7 +30,7 @@ export function useRemoteRoll(
   if (feedRef.current === null) feedRef.current = new RemoteRollFeed();
   const feed = feedRef.current;
   const [live, setLive] = useState(false);
-  const [heldPose, setHeldPose] = useState<PoseFrame | null>(null);
+  const [held, setHeld] = useState<{ frame: PoseFrame; at: number } | null>(null);
 
   const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
   const remote = turnPlayerId !== null && turnPlayerId !== myId;
@@ -47,18 +49,26 @@ export function useRemoteRoll(
         // rendered from it) lives in this viewer's view space.
         feed.push(msg.frames.map((f) => poseFrameFromCanonical(f, mySeat)));
         setLive(true);
-        setHeldPose(null);
+        setHeld(null);
       }
     });
     return () => {
       off();
       const sample = feed.sample(performance.now(), 0);
       if (sample && !sample.cupVisible) {
-        setHeldPose({ t: 0, bodies: sample.bodies, cupVisible: sample.cupVisible });
+        setHeld({
+          frame: { t: 0, bodies: sample.bodies, cupVisible: sample.cupVisible },
+          at: performance.now(),
+        });
       }
       feed.clear();
     };
   }, [ws, feed, remote, turnPlayerId, mySeat]);
 
-  return { feed, live: remote && live, heldPose };
+  return {
+    feed,
+    live: remote && live,
+    heldPose: held?.frame ?? null,
+    heldPoseAt: held?.at ?? 0,
+  };
 }

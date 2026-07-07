@@ -3,9 +3,10 @@ import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { StraightCue, TableDiceProps } from '../table3d/dice/types';
 import type { OverlayRect } from '../table3d/layout';
-import SeatOverlay from '../table3d/SeatOverlay';
+import SeatOverlay, { SeatStrip } from '../table3d/SeatOverlay';
 import TableCanvas from '../table3d/TableCanvas';
 import TableCenterOverlay from '../table3d/TableCenterOverlay';
+import { SEAT_STACK_QUERY, useMediaQuery } from '../table3d/useMediaQuery';
 
 /** Voluntary-stand affordance anchored to the table frame, outside the play area. */
 export interface StandControl {
@@ -92,9 +93,10 @@ export default function Table({
   const frameRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
+  const stacked = useMediaQuery(SEAT_STACK_QUERY);
 
   return (
-    <div ref={frameRef} className="table table-3d">
+    <div ref={frameRef} className={`table table-3d${stacked ? ' table-3d--stacked' : ''}`}>
       <div
         ref={viewportRef}
         className={`table-3d-viewport${diceAiming ? ' table-3d-viewport--aiming' : ''}`}
@@ -109,16 +111,6 @@ export default function Table({
         />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
-      {layout && (
-        <SeatOverlay
-          snapshot={snapshot}
-          myId={myId}
-          onKick={onKick}
-          winnerId={winnerId}
-          frame={layout.frame}
-          viewport={layout.viewport}
-        />
-      )}
       {stand && (
         <div className="table-stand">
           <button
@@ -133,6 +125,20 @@ export default function Table({
             <small className="table-stand-hint">{stand.hint}</small>
           )}
         </div>
+      )}
+      {stacked ? (
+        <SeatStrip snapshot={snapshot} myId={myId} onKick={onKick} winnerId={winnerId} />
+      ) : (
+        layout && (
+          <SeatOverlay
+            snapshot={snapshot}
+            myId={myId}
+            onKick={onKick}
+            winnerId={winnerId}
+            frame={layout.frame}
+            viewport={layout.viewport}
+          />
+        )
       )}
     </div>
   );

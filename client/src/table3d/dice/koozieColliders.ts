@@ -15,7 +15,6 @@ function cupDefaults(): CupTuning {
     restitution: KOOZIE.restitution,
     density: KOOZIE.density,
     floatCenterY: KOOZIE.floatCenterY,
-    homeZ: KOOZIE.home[2],
     hitRadius: KOOZIE.hitRadius,
     hitScreenPx: KOOZIE.hitScreenPx,
     emptyCheckRadius: KOOZIE.emptyCheckRadius,

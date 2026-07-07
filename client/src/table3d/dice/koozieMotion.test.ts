@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { KOOZIE } from './constants';
+import { koozieRestPosition } from './diceLayout';
 import {
   computeReleaseTiltTarget,
   createHeldState,
@@ -13,11 +14,13 @@ import {
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 describe('koozieMotion', () => {
-  it('createHomePose rests on the felt across the table from the roller', () => {
+  it('createHomePose docks the cup upright across the table beyond the far rail', () => {
     const home = createHomePose();
-    expect(home.position.z).toBeLessThan(-1.4);
-    expect(home.position.x).toBeCloseTo(0, 2);
-    expect(home.position.y).toBeCloseTo(KOOZIE.height / 2, 2);
+    const [x, y, z] = koozieRestPosition(KOOZIE);
+    expect(home.position.x).toBeCloseTo(x, 5);
+    expect(home.position.y).toBeCloseTo(y, 5);
+    expect(home.position.z).toBeCloseTo(z, 5);
+    expect(home.position.z).toBeLessThan(-2.2);
     expect(home.quaternion.w).toBeCloseTo(1, 2);
   });
 

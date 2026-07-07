@@ -95,7 +95,6 @@ export const KOOZIE = {
   restitution: 0.04,
   density: 1.2,
   floatCenterY: KOOZIE_FLOAT_CENTER_Y,
-  home: [0, KOOZIE_FLOAT_CENTER_Y, 0.62] as [number, number, number],
   /** Pointer raycast plane at the open rim — matches where the cup hangs from. */
   dragPlaneY: KOOZIE_RIM_Y,
   /** Rim follow speed — high enough to feel direct, low enough to filter pointer jitter. */
@@ -127,6 +126,11 @@ export const KOOZIE = {
   pourTilt: 0.45,
   pourDown: 0.25,
   tiltDurationMs: 680,
+  /**
+   * Generous pickup radii are safe only because grabs of the docked cup are
+   * additionally gated by pointerAboveKoozieGuard — clicks in the dice zone
+   * never reach the cup regardless of these values.
+   */
   hitRadius: 0.34,
   /** Screen-space pickup radius in CSS pixels. */
   hitScreenPx: 100,

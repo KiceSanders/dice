@@ -27,7 +27,12 @@ import {
   pouringPoseAt,
   stepHeldPose,
 } from './koozieMotion';
-import { canvasLayoutElement, hitCup, pointerOnPlane } from './pointerToFelt';
+import {
+  canvasLayoutElement,
+  hitCup,
+  pointerAboveKoozieGuard,
+  pointerOnPlane,
+} from './pointerToFelt';
 import { STRAIGHT_GLOW } from './straightGlow';
 import TableColliders from './TableColliders';
 import { type DicePhysicsTuning, getDicePhysicsTuning, useDicePhysicsTuning } from './tuning';
@@ -101,9 +106,13 @@ function cupLocalToWorld(
   return [_vec.x, _vec.y, _vec.z];
 }
 
-function randomRotation(): [number, number, number] {
-  return [Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2];
-}
+/**
+ * Fallback orientation for runtime entries without one. Must be a stable
+ * constant: rotation is a reactive RigidBody prop, so a value computed per
+ * render (the old `randomRotation()`) re-oriented dice on every unrelated
+ * re-render — hover state changes made dice visibly jitter under the mouse.
+ */
+const ZERO_ROTATION: [number, number, number] = [0, 0, 0];
 
 /** Pose-stream sampling intervals (ADR 004). */
 const POSE_SAMPLE_FAST_MS = 50; // held / pouring / settling
@@ -157,18 +166,21 @@ function buildRuntime(
   }
 
   const kept = new Set(keepIndices);
+  const keptSorted = [...keepIndices].sort((a, b) => a - b);
   const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => !kept.has(i));
   const home = createHomePose(tuning);
 
   return Array.from({ length: DICE_COUNT }, (_, i) => {
     if (kept.has(i)) {
       const value = dice[i];
+      // Kept dice live on the near rail (same slot math as enterSelectingPhase /
+      // applyKeepLayout) — a mid-turn remount must not drop them mid-felt.
       return {
         visible: true,
         meshVisible: true,
         locked: true,
         inCup: false,
-        position: dieSlotPosition(i),
+        position: keptDieRailPosition(keepSlotForIndex(i, keptSorted), keptSorted.length),
         rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
       };
     }
@@ -595,7 +607,7 @@ export default function DicePhysics({
     }
   }, []);
 
-  const pullUnkeptDiceIntoCup = useCallback(() => {
+  const pullUnkeptDiceIntoCup = useCallback((opts?: { includeCupDice?: boolean }) => {
     const latestTuning = tuningRef.current;
     const cup = liveBody(koozieRef.current?.body);
     if (!cup) return;
@@ -608,7 +620,11 @@ export default function DicePhysics({
     const kept = new Set(keepRef.current);
     const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => {
       const rt = runtimeRef.current[i];
-      return !kept.has(i) && rt?.visible && (!rt.inCup || rt.meshVisible === false);
+      if (kept.has(i) || !rt?.visible) return false;
+      // Dice already sitting in the cup normally stay put; when the cup just
+      // teleported off its dock they must come along or they'd be stranded
+      // outside the containment wall.
+      return opts?.includeCupDice || !rt.inCup || rt.meshVisible === false;
     });
     if (unkeptIndices.length === 0) return;
 
@@ -804,7 +820,7 @@ export default function DicePhysics({
         const t = cup.translation();
         if (phase === 'selecting' || isOutsidePlayBounds({ x: t.x, z: t.z }, latestTuning)) {
           teleportCupToPlayBounds();
-          pullUnkeptDiceIntoCup();
+          pullUnkeptDiceIntoCup({ includeCupDice: true });
         }
       }
 
@@ -867,9 +883,21 @@ export default function DicePhysics({
   const handleKoozieGrab = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       if (event.button !== 0) return;
+      // The docked cup's pick mesh extends below the rail line; only the rim
+      // band above the far-rail dice zone may start a grab.
+      if (!pointerAboveKoozieGuard(event.clientY, gl.domElement, camera)) return;
       beginDrag(event.clientX, event.clientY);
     },
-    [beginDrag],
+    [beginDrag, camera, gl],
+  );
+
+  // Hover mirrors the grab guard exactly: the `grab` cursor shows only where a
+  // click would actually pick the cup up, not on the rail-occluded lower body.
+  const handleKoozieHover = useCallback(
+    (event: ThreeEvent<PointerEvent>) => {
+      setHoveringKoozie(pointerAboveKoozieGuard(event.clientY, gl.domElement, camera));
+    },
+    [camera, gl],
   );
 
   const beginDragRef = useRef(beginDrag);
@@ -986,8 +1014,11 @@ export default function DicePhysics({
         e.clientX <= rect.right &&
         e.clientY >= rect.top &&
         e.clientY <= rect.bottom;
+      // Guard rejections must fall through untouched (no preventDefault /
+      // stopPropagation) so the r3f die handlers still receive the click.
       if (
         !inTable ||
+        !pointerAboveKoozieGuard(e.clientY, canvas, camera) ||
         !hitCup(
           e.clientX,
           e.clientY,
@@ -1208,7 +1239,8 @@ export default function DicePhysics({
         ccd={cupPhase === 'held' || cupPhase === 'pouring'}
         tuning={tuning}
         onGrabStart={canGrabKoozie ? handleKoozieGrab : undefined}
-        onPointerEnter={canGrabKoozie ? () => setHoveringKoozie(true) : undefined}
+        onPointerEnter={canGrabKoozie ? handleKoozieHover : undefined}
+        onPointerMove={canGrabKoozie ? handleKoozieHover : undefined}
         onPointerLeave={canGrabKoozie ? () => setHoveringKoozie(false) : undefined}
       />
       {runtime.map((rt, i) => {
@@ -1238,7 +1270,7 @@ export default function DicePhysics({
             onPointerEnter={canToggleKeep ? handleDiePointerEnter : undefined}
             onPointerLeave={canToggleKeep ? handleDiePointerLeave : undefined}
             position={rt.position}
-            rotation={rt.rotation ?? randomRotation()}
+            rotation={rt.rotation ?? ZERO_ROTATION}
             meshVisible={rt.meshVisible ?? true}
             glow={straightGlow[i]}
           />

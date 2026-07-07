@@ -60,7 +60,6 @@ function tuningToControls(tuning: DicePhysicsTuning): Record<string, number | bo
     cupRadius: tuning.cup.radius,
     cupHeight: tuning.cup.height,
     cupFloatY: tuning.cup.floatCenterY,
-    cupHomeZ: tuning.cup.homeZ,
     wallThickness: tuning.cup.wallThickness,
     settleLinear: tuning.settle.linearVelocity,
     settleAngular: tuning.settle.angularVelocity,
@@ -240,13 +239,6 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           max: 1.2,
           step: 0.01,
           onChange: (floatCenterY: number) => updateDicePhysicsTuning({ cup: { floatCenterY } }),
-        },
-        cupHomeZ: {
-          value: defaults.cup.homeZ,
-          min: 0,
-          max: 1.4,
-          step: 0.01,
-          onChange: (homeZ: number) => updateDicePhysicsTuning({ cup: { homeZ } }),
         },
         wallThickness: {
           value: defaults.cup.wallThickness,

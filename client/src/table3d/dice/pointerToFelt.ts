@@ -9,11 +9,13 @@ import {
   FELT_BOUND_Z,
   FELT_CLAMP_MARGIN,
 } from './constants';
+import { KOOZIE_GRAB_GUARD_POINT } from './diceLayout';
 
 const _ndc = new THREE.Vector2();
 const _raycaster = new THREE.Raycaster();
 const _hit = new THREE.Vector3();
 const _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -DICE_FELT_Y);
+const _guard = new THREE.Vector3();
 
 /** @deprecated Use DICE_FELT_Y */
 export const DICE_PLANE_Y = DICE_FELT_Y;
@@ -151,6 +153,26 @@ export function hitCupWorld(
 ): boolean {
   const hit = pointerOnPlane(clientX, clientY, canvas, camera, planeY);
   return Math.hypot(hit.x - cupCenter[0], hit.z - cupCenter[2]) <= radiusWorld;
+}
+
+/**
+ * True when the pointer is above the far-boundary dice zone's screen
+ * projection — the only band where grabs of the docked cup are honored.
+ * Clicks at or below the guard always belong to dice (see
+ * KOOZIE_GRAB_GUARD_POINT). Projected through the live camera per call, so it
+ * holds at any canvas size or aspect.
+ */
+export function pointerAboveKoozieGuard(
+  clientY: number,
+  canvas: HTMLCanvasElement,
+  camera: Camera,
+): boolean {
+  _guard.set(...KOOZIE_GRAB_GUARD_POINT);
+  camera.updateMatrixWorld();
+  _guard.project(camera);
+  const rect = canvasLayoutElement(canvas).getBoundingClientRect();
+  const guardScreenY = rect.top + (-_guard.y * 0.5 + 0.5) * rect.height;
+  return clientY < guardScreenY; // screen y grows downward
 }
 
 /** Screen- or world-space cup pickup test (whichever is easier to hit). */

@@ -25,7 +25,7 @@ Orchestration lives in [`DicePhysics.tsx`](../../client/src/table3d/dice/DicePhy
 
 | Element | Placement |
 |---------|-----------|
-| **Parked / idle koozie** | On the felt against the **far rail**, straight across from the roller (`koozieRestPosition`) — same spot for idle and park so the grab target stays stable, outside play bounds but **inside the fixed camera frame** (a framing test projects it through `SEAT_VIEW`; an earlier outside-the-rail spot was off-screen). Visible only when `canDrag` (roller). |
+| **Parked / idle koozie** | Docked **outside the containment wall past the far rail**, straight across from the roller, sunken so only the rim band peeks over the rail (`koozieRestPosition`) — same spot for idle and park so the grab target stays stable, and dice physically cannot reach it. Still **inside the fixed camera frame** (a framing test projects it — including the worst-case far rim edge — through `SEAT_VIEW`; the original on-felt spot let dice settle under the cup, and higher outside-the-rail spots were off-screen). Visible only when `canDrag` (roller). |
 | **Kept dice** | On the **near rail** (+Z, toward the roller): row centered on X with gap `DIE_SIZE + 0.025`, Y on top of padded rail. Also framing-tested. |
 | **Unkept dice** | Stay on felt at settled physics pose; pose snapshotted in `feltPoseRef` for un-keep restore. |
 
@@ -40,7 +40,7 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 ### Interaction
 
 - **Click-to-keep** on 3D dice during `selecting`. Server-locked indices (`turn.keptIndices`) are not clickable.
-- **Clicking the parked koozie commits the keep set** — cup pull into koozie happens on **grab** (`pullUnkeptDiceIntoCup`), so dice cannot sit underneath the parked cup and become unselectable.
+- **Clicking the parked koozie commits the keep set** — cup pull into koozie happens on **grab** (`pullUnkeptDiceIntoCup`, after the cup teleports onto the felt). A screen-space **grab guard** (`pointerAboveKoozieGuard`, anchored to `KOOZIE_GRAB_GUARD_POINT`) gates both grab paths: cup grabs are honored only above the projection of the highest point a settled die stack can occupy at the far boundary, so a click anywhere a die can appear always goes to the die — this is what keeps the generous cup hit radii (`hitScreenPx`/`hitRadius`) safe, and it projects through the live camera so it holds at any canvas size.
 - **Cursors:** `grab` on koozie hover (idle/selecting), `pointer` on selectable dice hover, `grabbing` while dragging. Handled via pointer enter/leave on [`KoozieBody`](../../client/src/table3d/dice/KoozieBody.tsx) and [`DieBody`](../../client/src/table3d/dice/DieBody.tsx).
 - **Teleport on grab** from `idle` or `selecting` when the koozie is outside play bounds — instant snap to a table-bounded point at the cursor; no dragging while off-table.
 
@@ -65,6 +65,8 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 - **Follow-ups:** production Room WebSocket wiring, animated lerp instead of teleport, spectator 3D selection view.
 - **2026-07-03 update:** production Room keeps the last settled table pose visible across turn switches and delays the round-end modal 3 seconds, so the final roll remains readable before winner reveal.
 - **2026-07-04 update:** a **Stand** button renders on the table frame gutter (outside the play area, like the parked koozie). Voluntary stands are gated by the shared `canStandVoluntarily` rule — blocked while the current hand loses to the roll-to-beat (ties allowed; they force the sub-round) — and the server enforces the same rule on `turn:stand` (`STAND_NOT_ALLOWED`). Forced stands (roll cap, keep-all, timeout/disconnect/kick) bypass the gate.
+- **2026-07-07 update (table symmetry):** the felt became a **circle** (`FELT_SCALE` isotropic, guarded by a layout test). Seat identity is applied by rotating pose data around Y, and only a rotationally symmetric table maps onto itself under that rotation — on the old 1.15×0.95 oval, a remote roller's settled dice appeared on or past the rail in other players' views. Also: the previous turn's frozen pose now stays on the felt for the next roller **until they grab the koozie** (Room.tsx `showHeldPose` gates on dragging/rolling/dice; the idle sim's own dice are hidden in the docked cup, so the two never overlap).
+- **2026-07-07 update:** the parked koozie moved off the felt to a **dock beyond the containment wall** behind the far rail (rim peeking over). The on-felt spot let dice settle against/under the parked cup, where the generous pickup hit-test stole their clicks (misclick = keep set committed). Pull-into-cup-on-grab alone was insufficient; the dock plus the **grab guard line** (above) makes far-rail dice always clickable by construction. On grab from the dock, `pullUnkeptDiceIntoCup` now includes dice already inside the cup (`includeCupDice`) so a mid-turn remount can't strand them outside the wall. The vestigial `KOOZIE.home`/`cup.homeZ` constants and the Playground `cupHomeZ` slider were deleted — `koozieRestPosition` is the single source of the parked position.
 
 ## Verification
 

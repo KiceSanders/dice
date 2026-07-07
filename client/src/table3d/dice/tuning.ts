@@ -37,7 +37,6 @@ export interface DicePhysicsTuning {
     restitution: number;
     density: number;
     floatCenterY: number;
-    homeZ: number;
     hitRadius: number;
     hitScreenPx: number;
     emptyCheckRadius: number;
@@ -115,7 +114,6 @@ export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
     restitution: KOOZIE.restitution,
     density: KOOZIE.density,
     floatCenterY: DEFAULT_CUP_FLOAT_Y,
-    homeZ: KOOZIE.home[2],
     hitRadius: KOOZIE.hitRadius,
     hitScreenPx: KOOZIE.hitScreenPx,
     emptyCheckRadius: KOOZIE.emptyCheckRadius,

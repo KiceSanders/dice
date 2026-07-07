@@ -151,7 +151,13 @@ export default function Room() {
   const inviteUrl = `${window.location.origin}/room/${snapshot.roomId}`;
   const turn = snapshot.game?.currentTurn ?? null;
   const inGame = snapshot.phase !== 'lobby' && snapshot.game !== null;
-  const heldPose = roll3d.heldPose ?? remoteRoll.heldPose ?? fallbackHeldPose;
+  // Between turns the table shows the most recently finished turn's pose —
+  // whichever of my own / the remote roller's held pose was captured last.
+  const lastTurnPose =
+    roll3d.heldPoseAt >= remoteRoll.heldPoseAt
+      ? (roll3d.heldPose ?? remoteRoll.heldPose)
+      : (remoteRoll.heldPose ?? roll3d.heldPose);
+  const heldPose = lastTurnPose ?? fallbackHeldPose;
   const showHeldPose =
     inGame &&
     heldPose !== null &&

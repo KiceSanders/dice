@@ -67,9 +67,13 @@ function SceneContent({
         {dice ? <DicePhysics {...dice} /> : <TableColliders />}
       </Physics>
 
-      {/* Remote throw playback: plain meshes outside the physics world. */}
+      {/* Remote throw playback: plain meshes outside the physics world. The
+          static held pose MAY coexist with the roller's idle sim (its dice
+          are hidden inside the docked cup) — the previous turn's dice stay on
+          the felt until the roller grabs the koozie. Room.tsx hides it once
+          the roller is dragging, rolling, or has dice of their own. */}
       {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} straightCue={straightCue} />}
-      {heldPose && !remoteFeed && <StaticDiceView frame={heldPose} />}
+      {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} />}
     </>
   );
 }

@@ -33,6 +33,7 @@ interface Props {
   tuning: DicePhysicsTuning;
   onGrabStart?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerMove?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerLeave?: (event: ThreeEvent<PointerEvent>) => void;
 }
 
@@ -47,6 +48,7 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
     tuning,
     onGrabStart,
     onPointerEnter,
+    onPointerMove,
     onPointerLeave,
   },
   ref,
@@ -121,6 +123,10 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
           onPointerEnter={(event) => {
             event.stopPropagation();
             onPointerEnter?.(event);
+          }}
+          onPointerMove={(event) => {
+            event.stopPropagation();
+            onPointerMove?.(event);
           }}
           onPointerLeave={(event) => {
             event.stopPropagation();
