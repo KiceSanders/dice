@@ -1,13 +1,13 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import type * as THREE from 'three';
+import { useTableEvent } from '../tableEvents';
 import { DICE_COUNT } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
 import type { RemoteRollFeed } from './remoteFeed';
 import { STRAIGHT_GLOW } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
-import type { StraightCue } from './types';
 import { useStraightGlow } from './useStraightGlow';
 
 /**
@@ -23,32 +23,36 @@ const REMOTE_GLOW_DELAY_MS = 250;
  * feed — no rigid bodies, no simulation, nothing to diverge. Hidden whenever
  * the feed is empty.
  */
-export default function RemoteDiceView({
-  feed,
-  straightCue,
-}: {
-  feed: RemoteRollFeed;
-  straightCue?: StraightCue;
-}) {
+export default function RemoteDiceView({ feed }: { feed: RemoteRollFeed }) {
   const tuning = useDicePhysicsTuning();
   const rootRef = useRef<THREE.Group>(null);
   const cupRef = useRef<THREE.Group>(null);
   const dieRefs = useRef<(THREE.Group | null)[]>(Array(DICE_COUNT).fill(null));
+  const glowTimerRef = useRef<number | null>(null);
   const { glow, start: startStraightGlow, clear: clearStraightGlow } = useStraightGlow();
 
   // Straight celebration: pose stream index i is die index i, the same index
-  // space as the cue's dice array, so the glow handles line up 1:1.
-  useEffect(() => {
-    if (!straightCue) return;
-    if (Date.now() - straightCue.receivedAt > STRAIGHT_GLOW.cueMaxAgeMs) return;
-    const timer = window.setTimeout(
-      () => startStraightGlow(straightCue.dice),
-      REMOTE_GLOW_DELAY_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [straightCue, startStraightGlow]);
+  // space as the event's dice array, so the glow handles line up 1:1. Replay
+  // covers mounting just after the roll settled (feed goes live late).
+  useTableEvent(
+    'straight',
+    (event) => {
+      if (glowTimerRef.current !== null) window.clearTimeout(glowTimerRef.current);
+      glowTimerRef.current = window.setTimeout(() => {
+        glowTimerRef.current = null;
+        startStraightGlow(event.dice);
+      }, REMOTE_GLOW_DELAY_MS);
+    },
+    { replayLastMs: STRAIGHT_GLOW.cueMaxAgeMs },
+  );
 
-  useEffect(() => clearStraightGlow, [clearStraightGlow]);
+  useEffect(
+    () => () => {
+      if (glowTimerRef.current !== null) window.clearTimeout(glowTimerRef.current);
+      clearStraightGlow();
+    },
+    [clearStraightGlow],
+  );
 
   useFrame(() => {
     const root = rootRef.current;

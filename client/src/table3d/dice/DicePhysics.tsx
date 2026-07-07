@@ -4,6 +4,7 @@ import { RigidBodyType } from '@dimforge/rapier3d-compat';
 import { type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { useTableEvent } from '../tableEvents';
 import {
   DICE_COUNT,
   DICE_FELT_Y,
@@ -14,6 +15,13 @@ import {
 } from './constants';
 import DieBody, { type DieBodyHandle } from './DieBody';
 import { keepSlotForIndex, keptDieRailPosition, koozieRestPosition } from './diceLayout';
+import {
+  buildRuntime,
+  cupLocalToWorld,
+  type DieRuntime,
+  eulerToQuat,
+  quatToEuler,
+} from './diceRuntime';
 import { quaternionForFace, readTopFace } from './faceValue';
 import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
 import { spawnDiceInCupLocal } from './koozieColliders';
@@ -53,19 +61,8 @@ declare global {
 }
 
 const _quat = new THREE.Quaternion();
-const _euler = new THREE.Euler();
-const _vec = new THREE.Vector3();
 
 type CupPhase = 'idle' | 'held' | 'pouring' | 'settling' | 'selecting' | 'hidden';
-
-type DieRuntime = {
-  visible: boolean;
-  meshVisible?: boolean;
-  locked: boolean;
-  inCup: boolean;
-  position: [number, number, number];
-  rotation?: [number, number, number];
-};
 
 type DiePose = {
   position: [number, number, number];
@@ -73,16 +70,6 @@ type DiePose = {
 };
 
 type Sample = { x: number; y: number; z: number; t: number };
-
-function quatToEuler(q: THREE.Quaternion): [number, number, number] {
-  _euler.setFromQuaternion(q);
-  return [_euler.x, _euler.y, _euler.z];
-}
-
-function eulerToQuat(euler: [number, number, number]): THREE.Quaternion {
-  _euler.set(euler[0], euler[1], euler[2]);
-  return new THREE.Quaternion().setFromEuler(_euler);
-}
 
 function homePosition(tuning: DicePhysicsTuning): [number, number, number] {
   return koozieRestPosition(tuning.cup);
@@ -95,15 +82,6 @@ function isOutsidePlayBounds(point: { x: number; z: number }, tuning: DicePhysic
   const nx = point.x / a;
   const nz = point.z / b;
   return Math.hypot(nx, nz) > 1;
-}
-
-function cupLocalToWorld(
-  local: [number, number, number],
-  cupPos: THREE.Vector3,
-  cupQuat: THREE.Quaternion,
-): [number, number, number] {
-  _vec.set(local[0], local[1], local[2]).applyQuaternion(cupQuat).add(cupPos);
-  return [_vec.x, _vec.y, _vec.z];
 }
 
 /**
@@ -135,68 +113,6 @@ function readBodyPose(body: {
     roundMm(r.z),
     roundMm(r.w),
   ];
-}
-
-function buildRuntime(
-  dice: Die[],
-  keepIndices: number[],
-  cupMode: boolean,
-  tuning: DicePhysicsTuning,
-): DieRuntime[] {
-  if (!cupMode) {
-    return Array.from({ length: DICE_COUNT }, (_, i) => {
-      const value = dice[i];
-      if (value === undefined) {
-        return {
-          visible: false,
-          locked: true,
-          inCup: false,
-          position: dieSlotPosition(i),
-        };
-      }
-      return {
-        visible: true,
-        meshVisible: true,
-        locked: true,
-        inCup: false,
-        position: dieSlotPosition(i),
-        rotation: quatToEuler(quaternionForFace(value)),
-      };
-    });
-  }
-
-  const kept = new Set(keepIndices);
-  const keptSorted = [...keepIndices].sort((a, b) => a - b);
-  const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => !kept.has(i));
-  const home = createHomePose(tuning);
-
-  return Array.from({ length: DICE_COUNT }, (_, i) => {
-    if (kept.has(i)) {
-      const value = dice[i];
-      // Kept dice live on the near rail (same slot math as enterSelectingPhase /
-      // applyKeepLayout) — a mid-turn remount must not drop them mid-felt.
-      return {
-        visible: true,
-        meshVisible: true,
-        locked: true,
-        inCup: false,
-        position: keptDieRailPosition(keepSlotForIndex(i, keptSorted), keptSorted.length),
-        rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
-      };
-    }
-
-    const hideIdleCupDice = dice.length === 0;
-    const cupSlot = unkeptIndices.indexOf(i);
-    const local = spawnDiceInCupLocal(cupSlot, unkeptIndices.length, tuning.cup);
-    return {
-      visible: true,
-      meshVisible: !hideIdleCupDice,
-      locked: false,
-      inCup: true,
-      position: cupLocalToWorld(local.position, home.position, home.quaternion),
-      rotation: local.rotation,
-    };
-  });
 }
 
 function clampBodyVelocity(
@@ -366,7 +282,6 @@ export default function DicePhysics({
   lockedKeepIndices = [],
   onKeepToggle,
   onPoseFrame,
-  straightCue,
 }: TableDiceProps) {
   const { camera, gl } = useThree();
   const tuning = useDicePhysicsTuning();
@@ -927,13 +842,17 @@ export default function DicePhysics({
   }, [canDrag]);
 
   // Straight celebration for the passive (non-roller) view: no local settle
-  // happens here, so the cue from turn:rolled triggers the glow instead. The
-  // roller ignores it (their own settle already fired startStraightGlow).
-  useEffect(() => {
-    if (!straightCue || canDragRef.current) return;
-    if (Date.now() - straightCue.receivedAt > STRAIGHT_GLOW.cueMaxAgeMs) return;
-    startStraightGlow(straightCue.dice);
-  }, [straightCue, startStraightGlow]);
+  // happens here, so the 'straight' table event triggers the glow instead.
+  // The roller ignores it (their own settle already fired startStraightGlow);
+  // replay covers the mid-turn-join mount that happens after the roll landed.
+  useTableEvent(
+    'straight',
+    (event) => {
+      if (canDragRef.current) return;
+      startStraightGlow(event.dice);
+    },
+    { replayLastMs: STRAIGHT_GLOW.cueMaxAgeMs },
+  );
 
   useEffect(() => {
     if (!active) {

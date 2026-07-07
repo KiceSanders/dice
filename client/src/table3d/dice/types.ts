@@ -7,16 +7,6 @@ export interface ThrowVelocity {
   z: number;
 }
 
-/**
- * Straight-celebration trigger for views that don't settle dice locally
- * (spectators): the settled hand from turn:rolled plus its receive time, so
- * effects re-fire once per roll and can ignore stale cues.
- */
-export interface StraightCue {
-  dice: Die[];
-  receivedAt: number;
-}
-
 /** Props for 3D dice rolling on the table canvas. */
 export interface TableDiceProps {
   /** Which dice indices are locked (kept) this turn. */
@@ -49,9 +39,4 @@ export interface TableDiceProps {
    * held/pouring/settling, ~4 Hz during selecting. Omit to disable sampling.
    */
   onPoseFrame?: (frame: PoseFrame) => void;
-  /**
-   * Straight celebration for the passive (non-roller) view. The roller's own
-   * glow triggers locally at settle; this cue is ignored while canDrag.
-   */
-  straightCue?: StraightCue;
 }

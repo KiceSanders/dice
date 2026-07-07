@@ -1,6 +1,6 @@
-import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { FELT_SCALE, RAIL_OUTER_WORLD, SEAT_VIEW, TABLE, TABLE_WALL_OUTER } from '../layout';
+import { FELT_SCALE, RAIL_OUTER_WORLD, TABLE, TABLE_WALL_OUTER } from '../layout';
+import { projectToNdc } from '../project';
 import { DIE_SIZE, FELT_BOUND_X, FELT_BOUND_Z, KOOZIE } from './constants';
 import {
   KEPT_DIE_SPACING,
@@ -9,15 +9,6 @@ import {
   keptDieRailPosition,
   koozieRestPosition,
 } from './diceLayout';
-
-/** Project a world point through the fixed seat camera → NDC. */
-function projectToNdc(point: [number, number, number]): THREE.Vector3 {
-  const camera = new THREE.PerspectiveCamera(SEAT_VIEW.fov, 16 / 9, 0.1, 30);
-  camera.position.set(...SEAT_VIEW.position);
-  camera.lookAt(...SEAT_VIEW.target);
-  camera.updateMatrixWorld();
-  return new THREE.Vector3(...point).project(camera);
-}
 
 function expectOnScreen(point: [number, number, number], label: string) {
   const ndc = projectToNdc(point);

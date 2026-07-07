@@ -8,10 +8,11 @@ import type { RemoteRollFeed } from './dice/remoteFeed';
 import StaticDiceView from './dice/StaticDiceView';
 import TableColliders from './dice/TableColliders';
 import { useDicePhysicsTuning } from './dice/tuning';
-import type { StraightCue, TableDiceProps } from './dice/types';
+import type { TableDiceProps } from './dice/types';
 import FixedCamera from './FixedCamera';
 import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
 import PokerTableMesh from './PokerTableMesh';
+import { DEFAULT_TABLE_THEME } from './theme';
 
 /**
  * The scene renders in the local player's view space: the viewer is always at
@@ -22,12 +23,10 @@ import PokerTableMesh from './PokerTableMesh';
 function SceneContent({
   dice,
   remoteFeed,
-  straightCue,
   heldPose,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
-  straightCue?: StraightCue;
   heldPose?: PoseFrame | null;
 }) {
   const tuning = useDicePhysicsTuning();
@@ -37,8 +36,8 @@ function SceneContent({
     <>
       <FixedCamera />
 
-      <color attach="background" args={['#14191f']} />
-      <fog attach="fog" args={['#14191f', 6, 14]} />
+      <color attach="background" args={[DEFAULT_TABLE_THEME.background]} />
+      <fog attach="fog" args={[DEFAULT_TABLE_THEME.background, 6, 14]} />
 
       <ambientLight intensity={0.45} />
       <hemisphereLight args={['#c8d4e0', '#1a1208', 0.35]} />
@@ -72,7 +71,7 @@ function SceneContent({
           are hidden inside the docked cup) — the previous turn's dice stay on
           the felt until the roller grabs the koozie. Room.tsx hides it once
           the roller is dragging, rolling, or has dice of their own. */}
-      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} straightCue={straightCue} />}
+      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
       {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} />}
     </>
   );
@@ -81,13 +80,11 @@ function SceneContent({
 interface Props {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
-  /** Straight celebration cue for the streamed-playback view. */
-  straightCue?: StraightCue;
   heldPose?: PoseFrame | null;
 }
 
 /** WebGL canvas — table mesh + physics dice; labels are 2D overlays in Table.tsx. */
-export default function TableCanvas({ dice, remoteFeed, straightCue, heldPose = null }: Props) {
+export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props) {
   return (
     <Canvas
       className="table-canvas"
@@ -105,12 +102,7 @@ export default function TableCanvas({ dice, remoteFeed, straightCue, heldPose = 
       }}
     >
       <Suspense fallback={null}>
-        <SceneContent
-          dice={dice}
-          remoteFeed={remoteFeed}
-          straightCue={straightCue}
-          heldPose={heldPose}
-        />
+        <SceneContent dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} />
       </Suspense>
     </Canvas>
   );

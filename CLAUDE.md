@@ -16,6 +16,7 @@
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — workspaces, the roll data flow, big-file map
 - [docs/GAME_RULES.md](docs/GAME_RULES.md) — canonical rules (wilds, straights, sub-rounds)
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — message tables + the three event vocabularies
+- [docs/TABLE_UI.md](docs/TABLE_UI.md) — table UI rulebook (read before visuals/effects/props work)
 - [docs/browser-testing.md](docs/browser-testing.md) — multi-tab flows before client work is "done"
 - `PLAN.md` is the **phase/progress log only** — rules and protocol there were superseded by
   the docs above.

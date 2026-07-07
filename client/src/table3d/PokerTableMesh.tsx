@@ -13,17 +13,13 @@ import {
   createRailHighlightGeometry,
   createRailRingGeometry,
 } from './tableGeometry';
-
-const FELT = '#1d6b3a';
-const RAIL = '#3a2a1a';
-const RAIL_HIGHLIGHT = '#5c4228';
-const APRON = '#241a10';
+import { DEFAULT_TABLE_THEME, type TableTheme } from './theme';
 
 /** How far the solid rail apron drops below the surface (world units). */
 const APRON_DROP = 0.35;
 
-/** Oval poker table: felt top, padded rail, and a solid rail apron. */
-export default function PokerTableMesh() {
+/** Round poker table: felt top, padded rail, and a solid rail apron. */
+export default function PokerTableMesh({ theme = DEFAULT_TABLE_THEME }: { theme?: TableTheme }) {
   const y = TABLE.surfaceY;
   const railTopY = y + TABLE.railHeight;
   const feltGeometry = useMemo(() => createFeltGeometry(), []);
@@ -54,12 +50,12 @@ export default function PokerTableMesh() {
         receiveShadow
       >
         <primitive object={feltGeometry} attach="geometry" />
-        <meshStandardMaterial color={FELT} roughness={0.92} metalness={0.02} />
+        <meshStandardMaterial color={theme.felt} roughness={0.92} metalness={0.02} />
       </mesh>
 
       <mesh>
         <primitive object={apronGeometry} attach="geometry" />
-        <meshStandardMaterial color={APRON} roughness={0.85} metalness={0.03} />
+        <meshStandardMaterial color={theme.apron} roughness={0.85} metalness={0.03} />
       </mesh>
 
       {/* Flat rail rings sit just above the apron top so they never z-fight. */}
@@ -70,7 +66,7 @@ export default function PokerTableMesh() {
         castShadow
       >
         <primitive object={railGeometry} attach="geometry" />
-        <meshStandardMaterial color={RAIL} roughness={0.78} metalness={0.04} />
+        <meshStandardMaterial color={theme.rail} roughness={0.78} metalness={0.04} />
       </mesh>
 
       <mesh
@@ -80,7 +76,7 @@ export default function PokerTableMesh() {
         castShadow
       >
         <primitive object={railHighlightGeometry} attach="geometry" />
-        <meshStandardMaterial color={RAIL_HIGHLIGHT} roughness={0.65} metalness={0.05} />
+        <meshStandardMaterial color={theme.railHighlight} roughness={0.65} metalness={0.05} />
       </mesh>
     </group>
   );

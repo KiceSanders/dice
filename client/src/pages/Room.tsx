@@ -16,6 +16,7 @@ import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import { staticPoseFromDice } from '../table3d/dice/staticPose';
+import { tableEvents } from '../table3d/tableEvents';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
 
@@ -41,12 +42,13 @@ export default function Room() {
     const rollToBeat = snapshot?.game?.rollToBeat;
     return rollToBeat ? staticPoseFromDice(rollToBeat.dice) : null;
   }, [state.lastRoll, snapshot?.game?.rollToBeat]);
-  // Straight celebration cue for spectator views (the roller's own glow fires
-  // locally at settle). Recency is checked at the consumers.
-  const straightCue = useMemo(() => {
+  // Straight celebration for spectator views (the roller's own glow fires
+  // locally at settle): announced on the table event bus, stamped with the
+  // wire receive time so late-mounting views can judge freshness.
+  useEffect(() => {
     const roll = state.lastRoll;
-    if (!roll || detectStraight(roll.dice) === 'none') return undefined;
-    return { dice: roll.dice, receivedAt: roll.receivedAt };
+    if (!roll || detectStraight(roll.dice) === 'none') return;
+    tableEvents.emit({ type: 'straight', dice: roll.dice }, roll.receivedAt);
   }, [state.lastRoll]);
 
   useEffect(() => {
@@ -220,14 +222,8 @@ export default function Room() {
         myId={myId}
         onKick={(playerId) => send({ type: 'player:kick', playerId })}
         winnerId={state.roundEnd?.winnerId ?? null}
-        dice={
-          roll3d.tableDice ??
-          (remoteRoll.live || !roll3d.passiveDice
-            ? undefined
-            : { ...roll3d.passiveDice, straightCue })
-        }
+        dice={roll3d.tableDice ?? (remoteRoll.live ? undefined : (roll3d.passiveDice ?? undefined))}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
-        straightCue={straightCue}
         heldPose={showHeldPose ? heldPose : null}
         diceAiming={roll3d.diceAiming}
         onTablePointer={roll3d.onTablePointer}

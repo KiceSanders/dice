@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import { DEFAULT_TABLE_THEME, type TableTheme } from '../theme';
 import { KOOZIE } from './constants';
 import {
   createKoozieRimVisualGeometry,
@@ -11,8 +12,10 @@ import type { DicePhysicsTuning } from './tuning';
 /** Closed-bottom, open-top cup visual (no physics — colliders live on KoozieBody). */
 export default function KoozieMesh({
   cup = KOOZIE,
+  theme = DEFAULT_TABLE_THEME.cup,
 }: {
   cup?: Pick<DicePhysicsTuning['cup'], 'radius' | 'height' | 'rimInset'>;
+  theme?: TableTheme['cup'];
 }) {
   const { rimInset } = cup;
   const { centerY } = koozieWallLayout(cup);
@@ -24,17 +27,17 @@ export default function KoozieMesh({
   const mat = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
-        color: '#b8d8ec',
-        emissive: '#3a5a6e',
-        emissiveIntensity: 0.15,
+        color: theme.body,
+        emissive: theme.emissive,
+        emissiveIntensity: theme.emissiveIntensity,
         transparent: true,
-        opacity: 0.52,
+        opacity: theme.opacity,
         roughness: 0.55,
         metalness: 0.05,
         depthWrite: false,
         side: THREE.DoubleSide,
       }),
-    [],
+    [theme],
   );
 
   return (
@@ -45,9 +48,9 @@ export default function KoozieMesh({
       <mesh position={[0, cup.height * 0.5 - rimInset * 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <primitive object={rimGeometry} attach="geometry" />
         <meshPhysicalMaterial
-          color="#e8f4fa"
+          color={theme.rim}
           transparent
-          opacity={0.55}
+          opacity={theme.rimOpacity}
           roughness={0.4}
           depthWrite={false}
         />

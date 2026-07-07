@@ -27,7 +27,10 @@ npm run verify           # lint + check + test — run before declaring work don
    exhaustiveness rules, test scoping, docs-sync.
 5. **[docs/browser-testing.md](./docs/browser-testing.md)** — multi-tab browser
    verification for client work.
-6. **[docs/decisions/](./docs/decisions/)** — ADRs; read before changing 3D physics,
+6. **[docs/TABLE_UI.md](./docs/TABLE_UI.md)** — REQUIRED before table UI work (visuals,
+   effects, chips, skins, new 3D props, layout): the three-renderer rule, table events,
+   framing anchors, theme, and the DicePhysics edit rules.
+7. **[docs/decisions/](./docs/decisions/)** — ADRs; read before changing 3D physics,
    colliders, table/cup geometry, or the roll protocol (ADR 004).
 
 [PLAN.md](./PLAN.md) is the phase/progress log — check off tasks there, but do not treat
@@ -89,6 +92,7 @@ commands so both tools get the same procedure:
 |---|---|---|
 | Protocol/event change ripple | `protocol-change` skill | `/protocol-change` |
 | Game rule change | `game-rule-change` skill | `/game-rule-change` |
+| Table UI / visual / effect change | `table-ui-change` skill | `/table-ui-change` |
 | End-to-end multi-tab verification | `verify-game-flow` skill | `/verify-game-flow` |
 
 Source of truth is `.claude/skills/*/SKILL.md`. `.cursor/commands/*.md` is **generated** by

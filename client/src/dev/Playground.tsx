@@ -19,6 +19,7 @@ import {
   subscribeDicePhysicsTuning,
   updateDicePhysicsTuning,
 } from '../table3d/dice/tuning';
+import { tableEvents } from '../table3d/tableEvents';
 import {
   DEV_BOB,
   DEV_CAROL,
@@ -418,10 +419,10 @@ export default function Playground() {
   );
 
   // Straight celebration for the passive "view as" path (the roller's own
-  // view triggers locally at settle) — mirrors Room.tsx's cue wiring.
-  const straightCue = useMemo(() => {
-    if (!lastRoll || detectStraight(lastRoll.dice) === 'none') return undefined;
-    return { dice: lastRoll.dice, receivedAt: lastRoll.receivedAt };
+  // view triggers locally at settle) — mirrors Room.tsx's event wiring.
+  useEffect(() => {
+    if (!lastRoll || detectStraight(lastRoll.dice) === 'none') return;
+    tableEvents.emit({ type: 'straight', dice: lastRoll.dice }, lastRoll.receivedAt);
   }, [lastRoll]);
 
   const tableDice =
@@ -450,7 +451,6 @@ export default function Playground() {
             active: true,
             onSettled: () => {},
             onRelease: () => {},
-            straightCue,
           }
         : undefined;
 
