@@ -15,12 +15,7 @@ function isNonEmptyString(v: unknown, maxLen: number): v is string {
 }
 
 function isStraightPayoutConfig(v: unknown): v is StraightPayoutConfig {
-  return (
-    isRecord(v) &&
-    typeof v.enabled === 'boolean' &&
-    isFiniteNumber(v.amountPerPlayer) &&
-    isFiniteNumber(v.bigMultiplier)
-  );
+  return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.amountPerPlayer);
 }
 
 /** Structural check only; range clamping happens in the room layer (Phase 3.2). */

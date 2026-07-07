@@ -35,22 +35,21 @@ Scoring lives in `shared/src/game/score.ts`; ordering in `compare.ts`.
 - **Ones are wild**: each 1 joins whatever group makes the strongest hand (`1,1,3,3,3` →
   five 3s; `1,1,1,1,1` → five 6s). Wilds never count toward straights.
 - Hand A beats hand B, in order:
-  1. straight rank (big > little > none),
+  1. straight beats non-straight,
   2. among non-straights: larger `count`, then higher `face`,
   3. fewer `rollsUsed`,
   4. otherwise a **full tie** → sub-round.
 
 ## Straights
 
-- A straight is the literal faces `1-2-3-4-5` (little) or `2-3-4-5-6` (big) — no wilds.
-- Straights beat every non-straight hand; big beats little; equal straights tie-break on
-  `rollsUsed`.
+- A straight is the literal faces `1-2-3-4-5` or `2-3-4-5-6` — no wilds. Both patterns
+  are equivalent.
+- Straights beat every non-straight hand; equal straights tie-break on `rollsUsed`.
 - **Straight payout** (`settings.straightPayout`, applied in `engine.applyStraightPayout`):
   the moment a roll settles showing a straight, every other seated player immediately pays
-  the roller `amountPerPlayer` chips (`× bigMultiplier` for a big straight) from their own
-  pile, clamped to what they have — chips never go negative. Zero-sum, pot untouched, at
-  most once per turn, and it fires on the roll (the turn then continues normally). Replayed
-  rolls re-apply it identically.
+  the roller `amountPerPlayer` chips from their own pile, clamped to what they have — chips
+  never go negative. Zero-sum, pot untouched, at most once per turn, and it fires on the
+  roll (the turn then continues normally). Replayed rolls re-apply it identically.
 
 ## Standing
 
@@ -88,10 +87,10 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 | Setting | Default | Notes |
 |---|---|---|
 | `chipsPerRound` | 1 | Ante per player per round |
-| `maxRolls` | 3 | Roll ceiling for the round's first player |
+| `maxRolls` | 5 | Roll ceiling for the round's first player |
 | `maxPlayers` | 3 | Clamped to 2–3 |
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
-| `straightPayout` | `{ enabled: true, amountPerPlayer: 5, bigMultiplier: 2 }` | See Straights |
+| `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
 
 Defaults: `DEFAULT_SETTINGS` in `shared/src/types.ts`. Server-side clamping:
 `clampSettings` in `server/src/room.ts`.

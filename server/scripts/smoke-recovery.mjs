@@ -88,7 +88,7 @@ const settings = {
   maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightPayout: { enabled: false, amountPerPlayer: 5, bigMultiplier: 2 },
+  straightPayout: { enabled: false, amountPerPlayer: 5 },
 };
 
 // One physics roll (ADR 004): throwStart locks keeps, throwResult reports the faces.

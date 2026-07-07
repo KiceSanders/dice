@@ -25,7 +25,7 @@ export interface PoseFrame {
   cupVisible?: boolean;
 }
 
-export type StraightKind = 'none' | 'little' | 'big';
+export type StraightKind = 'none' | 'straight';
 
 /**
  * Instant side payment when a roll settles showing a straight (once per turn):
@@ -34,10 +34,8 @@ export type StraightKind = 'none' | 'little' | 'big';
  */
 export interface StraightPayoutConfig {
   enabled: boolean;
-  /** Chips each other seated player pays the roller (little straight). */
+  /** Chips each other seated player pays the roller. */
   amountPerPlayer: number;
-  /** Big straight: each player pays amountPerPlayer * bigMultiplier. */
-  bigMultiplier: number;
 }
 
 export interface RoomSettings {
@@ -53,14 +51,13 @@ export interface RoomSettings {
 
 export const DEFAULT_SETTINGS: RoomSettings = {
   chipsPerRound: 1,
-  maxRolls: 3,
+  maxRolls: 5,
   maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: {
     enabled: true,
     amountPerPlayer: 5,
-    bigMultiplier: 2,
   },
 };
 

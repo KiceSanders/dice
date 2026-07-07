@@ -5,12 +5,12 @@ import { glowDurationMs, glowEnvelope, STRAIGHT_GLOW, straightGlowOrder } from '
 const h = (...dice: Die[]): Die[] => dice;
 
 describe('straightGlowOrder', () => {
-  it('orders a little straight by ascending face', () => {
+  it('orders a straight by ascending face (1-2-3-4-5)', () => {
     // [3,1,5,2,4]: face 1 is at index 1, face 2 at 3, 3 at 0, 4 at 4, 5 at 2.
     expect(straightGlowOrder(h(3, 1, 5, 2, 4))).toEqual([1, 3, 0, 4, 2]);
   });
 
-  it('orders a big straight starting from face 2', () => {
+  it('orders a straight by ascending face (2-3-4-5-6)', () => {
     expect(straightGlowOrder(h(6, 5, 4, 3, 2))).toEqual([4, 3, 2, 1, 0]);
   });
 

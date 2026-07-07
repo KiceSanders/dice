@@ -56,7 +56,7 @@ describe('resolveRound', () => {
     const { winners } = resolveRound(
       hands([
         ['a', hand(5, 6, 1)],
-        ['b', hand(1, 5, 3, 'little')],
+        ['b', hand(1, 5, 3, 'straight')],
       ]),
     );
     expect(winners).toEqual(['b']);

@@ -1,10 +1,9 @@
 import type { GameStatePublic, HandScore, PlayerPublic } from '@dice/shared';
 import DiceRow from './DiceRow';
 
-/** Human-readable hand summary, e.g. "three 4s" or "Big straight". */
+/** Human-readable hand summary, e.g. "three 4s" or "Straight". */
 export function describeScore(score: HandScore): string {
-  if (score.straight === 'big') return 'Big straight';
-  if (score.straight === 'little') return 'Little straight';
+  if (score.straight === 'straight') return 'Straight';
   const words = ['', 'one', 'two', 'three', 'four', 'five'];
   return `${words[score.count] ?? score.count} ${score.face}${score.count > 1 ? 's' : ''}`;
 }

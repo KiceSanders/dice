@@ -62,7 +62,6 @@ const settings = {
   straightPayout: {
     enabled: true,
     amountPerPlayer: 5,
-    bigMultiplier: 2,
   },
 };
 

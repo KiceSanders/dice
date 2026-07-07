@@ -429,8 +429,7 @@ export class GameEngine {
     const roller = this.participantById(turn.playerId);
     if (!roller) return;
 
-    const perPlayer =
-      kind === 'big' ? config.amountPerPlayer * config.bigMultiplier : config.amountPerPlayer;
+    const perPlayer = config.amountPerPlayer;
     if (perPlayer <= 0) return;
 
     const payments: { playerId: PlayerId; amount: number }[] = [];

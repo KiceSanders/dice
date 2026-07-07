@@ -31,23 +31,19 @@ describe('compareHands', () => {
   });
 
   it('any straight beats any non-straight, even five of a kind', () => {
-    const little = hand(1, 5, 3, 'little');
+    const straight = hand(1, 5, 3, 'straight');
     const fiveSixes = hand(5, 6, 1);
-    expect(compareHands(little, fiveSixes)).toBe(1);
-    expect(compareHands(fiveSixes, little)).toBe(-1);
+    expect(compareHands(straight, fiveSixes)).toBe(1);
+    expect(compareHands(fiveSixes, straight)).toBe(-1);
   });
 
-  it('big straight beats little straight regardless of rolls', () => {
-    expect(compareHands(hand(1, 6, 3, 'big'), hand(1, 5, 1, 'little'))).toBe(1);
-  });
-
-  it('equal straights compare on rollsUsed only', () => {
-    expect(compareHands(hand(1, 6, 1, 'big'), hand(1, 6, 2, 'big'))).toBe(1);
-    expect(compareHands(hand(1, 5, 3, 'little'), hand(1, 5, 2, 'little'))).toBe(-1);
+  it('straights compare on rollsUsed only', () => {
+    expect(compareHands(hand(1, 6, 1, 'straight'), hand(1, 5, 2, 'straight'))).toBe(1);
+    expect(compareHands(hand(1, 5, 3, 'straight'), hand(1, 6, 2, 'straight'))).toBe(-1);
   });
 
   it('equal straights with equal rollsUsed are a full tie', () => {
-    expect(compareHands(hand(1, 6, 2, 'big'), hand(1, 6, 2, 'big'))).toBe(0);
-    expect(compareHands(hand(1, 5, 1, 'little'), hand(1, 5, 1, 'little'))).toBe(0);
+    expect(compareHands(hand(1, 6, 2, 'straight'), hand(1, 5, 2, 'straight'))).toBe(0);
+    expect(compareHands(hand(1, 5, 1, 'straight'), hand(1, 6, 1, 'straight'))).toBe(0);
   });
 });

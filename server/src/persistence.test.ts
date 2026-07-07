@@ -203,7 +203,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
 
     expect(room.startGame(host.id)).toBeNull();
     const engine = room.engine!;
-    // Little straight mid-round: p1 pays 5 on the spot (default payout config).
+    // Straight mid-round: p1 pays 5 on the spot (default payout config).
     expect(roll(engine, host.id, [1, 2, 3, 4, 5])).toBeNull();
     expect(room.players.get(host.id)!.chips).toBe(104); // 100 - 1 ante + 5
     expect(room.players.get(p1.id)!.chips).toBe(44); // 50 - 1 ante - 5

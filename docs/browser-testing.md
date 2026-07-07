@@ -135,7 +135,7 @@ Dice come only from client physics (no server RNG), so the settle override in
 `DicePhysics.tsx` is the way to force a straight:
 
 1. In the **roller's** tab console (dev builds only):
-   `window.__forceSettleFaces = [1, 2, 3, 4, 5]` (or `[2,3,4,5,6]` for big).
+   `window.__forceSettleFaces = [1, 2, 3, 4, 5]` (or `[2, 3, 4, 5, 6]`).
    Kept dice keep their committed values, so force on the **first** throw of a turn.
 2. Grab and throw the koozie. On settle: dice light up gold **one-by-one in
    ascending face order** (~1.6s, then fade). Grabbing the cup again clears it early.

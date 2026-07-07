@@ -15,7 +15,7 @@ import { useRemoteRoll } from '../game/useRemoteRoll';
 import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
-import { staticPoseFromDice } from '../table3d/dice/staticPose';
+import { poseFrameMatchesDice, staticPoseFromDice } from '../table3d/dice/staticPose';
 import { tableEvents } from '../table3d/tableEvents';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
@@ -159,7 +159,14 @@ export default function Room() {
     roll3d.heldPoseAt >= remoteRoll.heldPoseAt
       ? (roll3d.heldPose ?? remoteRoll.heldPose)
       : (remoteRoll.heldPose ?? roll3d.heldPose);
-  const heldPose = lastTurnPose ?? fallbackHeldPose;
+  // Captured poses can be stale (refresh, missed stream, a turn that ended
+  // without a throw) and every client captures independently — only show one
+  // whose faces equal the authoritative last roll; otherwise rebuild a
+  // correct static pose from the roll values so all clients agree.
+  const heldPose =
+    lastTurnPose && state.lastRoll && poseFrameMatchesDice(lastTurnPose, state.lastRoll.dice)
+      ? lastTurnPose
+      : fallbackHeldPose;
   const showHeldPose =
     inGame &&
     heldPose !== null &&

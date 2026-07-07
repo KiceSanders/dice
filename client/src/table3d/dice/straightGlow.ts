@@ -2,8 +2,8 @@ import { type Die, detectStraight } from '@dice/shared';
 
 /**
  * Straight celebration: when a roll settles showing a straight, the five dice
- * light up one-by-one in ascending face order (1→5 little, 2→6 big). Pure
- * timing/order helpers live here; useStraightGlow drives them per frame.
+ * light up one-by-one in ascending face order. Pure timing/order helpers live
+ * here; useStraightGlow drives them per frame.
  */
 export const STRAIGHT_GLOW = {
   /** Warm gold matching the table's accent point light. */
@@ -36,10 +36,9 @@ export interface GlowHandle {
  * unambiguous: e.g. [3,1,5,2,4] → [1,3,0,4,2] (the die showing 1 first).
  */
 export function straightGlowOrder(dice: Die[]): number[] | null {
-  const kind = detectStraight(dice);
-  if (kind === 'none') return null;
-  const lowest = kind === 'little' ? 1 : 2;
-  return dice.map((_, k) => dice.indexOf((lowest + k) as Die));
+  if (detectStraight(dice) === 'none') return null;
+  const sorted = [...dice].sort((a, b) => a - b);
+  return sorted.map((face) => dice.indexOf(face));
 }
 
 /** Glow level (0..1) for a die, given ms since its own onset. */

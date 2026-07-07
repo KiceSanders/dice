@@ -8,8 +8,7 @@ const BIG = '23456';
 export function detectStraight(dice: Die[]): StraightKind {
   if (dice.length !== HAND_SIZE) return 'none';
   const sorted = [...dice].sort((a, b) => a - b).join('');
-  if (sorted === LITTLE) return 'little';
-  if (sorted === BIG) return 'big';
+  if (sorted === LITTLE || sorted === BIG) return 'straight';
   return 'none';
 }
 

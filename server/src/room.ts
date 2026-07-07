@@ -58,7 +58,6 @@ export function clampSettings(s: RoomSettings): RoomSettings {
     straightPayout: {
       enabled: sp.enabled === undefined ? d.enabled : Boolean(sp.enabled),
       amountPerPlayer: clampInt(sp.amountPerPlayer ?? d.amountPerPlayer, 0, 100_000),
-      bigMultiplier: clampInt(sp.bigMultiplier ?? d.bigMultiplier, 1, 100),
     },
   };
 }

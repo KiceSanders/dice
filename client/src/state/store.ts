@@ -278,7 +278,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
 
     case 'straight:paid': {
       // Chip totals arrive via the next room:state snapshot; this is announce-only.
-      const text = `${playerName(state, msg.playerId)} rolled a ${msg.kind} straight — collects ${msg.total} chips (${msg.amountPerPlayer} each)`;
+      const text = `${playerName(state, msg.playerId)} rolled a straight — collects ${msg.total} chips (${msg.amountPerPlayer} each)`;
       return {
         ...state,
         toasts: pushToast(state.toasts, 'info', text),

@@ -45,7 +45,7 @@ const settings = {
   maxPlayers: 8,
   minBuyIn: 10,
   maxBuyIn: 1000,
-  straightPayout: { enabled: true, amountPerPlayer: 5, bigMultiplier: 2 },
+  straightPayout: { enabled: true, amountPerPlayer: 5 },
 };
 
 const alice = client('Alice');

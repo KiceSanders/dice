@@ -96,7 +96,11 @@ describe('GameEngine: physics throws (ADR 004)', () => {
     engine.beginThrow('p0', [0]);
     engine.commitThrow('p0', [4, 1, 2, 3, 5]);
     engine.beginThrow('p0', [0]);
-    engine.commitThrow('p0', [4, 2, 2, 6, 6]); // rollsUsed 3 = maxRolls
+    engine.commitThrow('p0', [4, 2, 2, 6, 6]);
+    engine.beginThrow('p0', [0]);
+    engine.commitThrow('p0', [4, 2, 2, 5, 5]);
+    engine.beginThrow('p0', [0]);
+    engine.commitThrow('p0', [4, 2, 2, 3, 3]); // rollsUsed 5 = maxRolls
 
     expect(events.some((e) => e.type === 'stood' && e.playerId === 'p0')).toBe(true);
     expect(engine.currentTurnPlayerId).toBe('p1');

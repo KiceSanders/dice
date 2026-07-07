@@ -118,23 +118,9 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
                 }
               />
             </div>
-            <div className="field">
-              <label htmlFor="set-payout-mult">Big multiplier</label>
-              <input
-                id="set-payout-mult"
-                type="number"
-                min={1}
-                value={value.straightPayout.bigMultiplier}
-                onChange={(e) =>
-                  setPayout({
-                    bigMultiplier: num(e.target.value, value.straightPayout.bigMultiplier),
-                  })
-                }
-              />
-            </div>
             <small className="field-help">
-              Little straight (1-2-3-4-5): each player pays the base amount. Big straight
-              (2-3-4-5-6): base × multiplier. Payments are capped by what a player has.
+              Each other seated player pays the base amount when a straight is rolled. Payments are
+              capped by what a player has.
             </small>
           </div>
         )}

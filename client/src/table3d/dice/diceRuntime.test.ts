@@ -1,16 +1,26 @@
 import type { Die } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
-import { DICE_COUNT, dieSlotPosition, KOOZIE } from './constants';
-import { KEPT_DIE_RAIL_Y, koozieRestPosition } from './diceLayout';
+import { DICE_COUNT, dieSlotPosition } from './constants';
+import { KEPT_DIE_RAIL_Y } from './diceLayout';
 import { buildRuntime } from './diceRuntime';
+import { createHomePose, isInsideCup } from './koozieMotion';
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 const TUNING = DEFAULT_DICE_PHYSICS_TUNING;
 const HAND: Die[] = [3, 1, 4, 6, 2];
+const HOME = createHomePose(TUNING);
+const HOME_POS = { x: HOME.position.x, y: HOME.position.y, z: HOME.position.z };
+const HOME_ROT = {
+  x: HOME.quaternion.x,
+  y: HOME.quaternion.y,
+  z: HOME.quaternion.z,
+  w: HOME.quaternion.w,
+};
 
-function distanceToDock(position: [number, number, number]): number {
-  const [dx, dy, dz] = koozieRestPosition(KOOZIE);
-  return Math.hypot(position[0] - dx, position[1] - dy, position[2] - dz);
+function expectInsideDockedCup(position: [number, number, number]): void {
+  expect(
+    isInsideCup({ x: position[0], y: position[1], z: position[2] }, HOME_POS, HOME_ROT, TUNING),
+  ).toBe(true);
 }
 
 describe('buildRuntime — cup mode (the roller)', () => {
@@ -23,8 +33,7 @@ describe('buildRuntime — cup mode (the roller)', () => {
       expect(rt.inCup).toBe(true);
       expect(rt.locked).toBe(false);
       expect(rt.rotation).toBeDefined();
-      // Spawned within the cup's interior around the dock position.
-      expect(distanceToDock(rt.position)).toBeLessThan(KOOZIE.radius + KOOZIE.height);
+      expectInsideDockedCup(rt.position);
     }
   });
 
@@ -48,7 +57,7 @@ describe('buildRuntime — cup mode (the roller)', () => {
       expect(rt.inCup).toBe(true);
       expect(rt.meshVisible).toBe(true); // values exist → dice are shown in the cup
       expect(rt.locked).toBe(false);
-      expect(distanceToDock(rt.position)).toBeLessThan(KOOZIE.radius + KOOZIE.height);
+      expectInsideDockedCup(rt.position);
     }
   });
 
