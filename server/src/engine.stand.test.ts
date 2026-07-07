@@ -47,7 +47,7 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(subRound).toBeDefined();
   });
 
-  it('forceStand bypasses the gate for timeouts/disconnects/kicks', () => {
+  it('forceStand bypasses the gate for disconnects/kicks', () => {
     const players = makePlayers();
     const { engine } = makeEngine(players);
     engine.start();

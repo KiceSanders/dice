@@ -66,7 +66,6 @@ export function usePlaygroundTurn(initialScene: PlaygroundScene) {
               dice,
               keptIndices,
               rollsUsed,
-              deadline: Date.now() + 90_000,
             },
           },
         },
@@ -131,7 +130,6 @@ function standSnapshot(scene: PlaygroundScene): PlaygroundScene {
               keptIndices: [],
               rollsUsed: 0,
               rollCap: turn.rollCap,
-              deadline: Date.now() + 90_000,
               throwing: false,
             }
           : null,

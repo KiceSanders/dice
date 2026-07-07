@@ -67,7 +67,7 @@ export type ServerMessage =
   | { type: 'turn:throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   /** Relay of the current roller's throw poses (ADR 004). */
   | { type: 'dice:frames'; playerId: PlayerId; frames: PoseFrame[] }
-  /** A turn ended with no completed roll (timeout/disconnect/kick): no hand. */
+  /** A turn ended with no completed roll (disconnect/kick): no hand. */
   | { type: 'turn:forfeited'; playerId: PlayerId }
   | {
       type: 'round:ended';

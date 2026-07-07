@@ -30,7 +30,7 @@ export type EngineEvent =
   | { type: 'throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   | { type: 'rolled'; playerId: PlayerId; dice: Die[]; rollNumber: number; kept: number[] }
   | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
-  /** Turn ended with no completed roll (timeout/disconnect/kick): no hand. */
+  /** Turn ended with no completed roll (disconnect/kick): no hand. */
   | { type: 'forfeited'; playerId: PlayerId }
   | {
       type: 'roundEnded';
@@ -65,20 +65,10 @@ export type EngineError = {
 const err = (code: EngineError['code'], message: string): EngineError => ({ code, message });
 
 export interface EngineOptions {
-  turnTimeoutMs?: number;
   roundEndDelayMs?: number;
-  throwTimeoutMs?: number;
 }
 
-export const TURN_TIMEOUT_MS = 60_000;
 export const ROUND_END_DELAY_MS = 5_000;
-/**
- * Grace period for the roller's client to report a physics result after
- * turn:throwStart (ADR 004). Client-side settle timeout is 10s; past this the
- * throw is abandoned and the turn force-resolves (stand on previously settled
- * dice, or forfeit) so a dead client cannot stall the game.
- */
-export const THROW_TIMEOUT_MS = 15_000;
 /** Beyond this sub-round depth, antes stop and sudden-death single rolls decide it. */
 export const MAX_SUBROUND_DEPTH = 10;
 
@@ -88,7 +78,6 @@ interface CurrentTurn {
   keptIndices: number[];
   rollsUsed: number;
   rollCap: number;
-  deadline: number;
   /** The instant straight payout fired this turn (it pays at most once). */
   straightPaid: boolean;
 }
@@ -117,12 +106,8 @@ export class GameEngine {
   /** In-flight physics throw (ADR 004): keeps locked at throwStart. */
   private pendingThrow: { playerId: PlayerId; keepIndices: number[] } | null = null;
 
-  private readonly turnTimeoutMs: number;
   private readonly roundEndDelayMs: number;
-  private readonly throwTimeoutMs: number;
-  private turnTimer: NodeJS.Timeout | null = null;
   private roundTimer: NodeJS.Timeout | null = null;
-  private throwTimer: NodeJS.Timeout | null = null;
   /** True for recovered engines until a player reconnects (PLAN.md 6.2). */
   private paused = false;
 
@@ -132,9 +117,7 @@ export class GameEngine {
     private readonly emit: (event: EngineEvent) => void,
     opts: EngineOptions = {},
   ) {
-    this.turnTimeoutMs = opts.turnTimeoutMs ?? TURN_TIMEOUT_MS;
     this.roundEndDelayMs = opts.roundEndDelayMs ?? ROUND_END_DELAY_MS;
-    this.throwTimeoutMs = opts.throwTimeoutMs ?? THROW_TIMEOUT_MS;
   }
 
   start(): void {
@@ -226,7 +209,6 @@ export class GameEngine {
   }
 
   private nextTurn(): void {
-    this.clearTurnTimer();
     this.clearPendingThrow();
     const player = this.queue.shift();
     if (!player) {
@@ -240,18 +222,13 @@ export class GameEngine {
       keptIndices: [],
       rollsUsed: 0,
       rollCap: this.roundRollCap ?? this.settings.maxRolls,
-      deadline: Date.now() + this.turnTimeoutMs,
       straightPaid: false,
     };
     this.emit({ type: 'stateChanged' });
 
     if (!player.connected) {
       this.forceStand(player.id);
-      return;
     }
-
-    this.turnTimer = setTimeout(() => this.forceStand(player.id), this.turnTimeoutMs);
-    this.turnTimer.unref?.();
   }
 
   private endRound(): void {
@@ -312,8 +289,7 @@ export class GameEngine {
 
   /**
    * Physics roll, phase 1 (ADR 004): the roller released the koozie. Locks
-   * the keep set and waits for `commitThrow`. If the result never arrives,
-   * `expireThrow` force-resolves the turn so the game cannot stall.
+   * the keep set and waits for `commitThrow`.
    */
   beginThrow(playerId: PlayerId, keepIndices: number[]): EngineError | null {
     const turn = this.guardTurn(playerId);
@@ -331,8 +307,6 @@ export class GameEngine {
     }
 
     this.pendingThrow = { playerId, keepIndices: [...keepIndices] };
-    this.throwTimer = setTimeout(() => this.expireThrow(), this.throwTimeoutMs);
-    this.throwTimer.unref?.();
     this.emit({
       type: 'throwStarted',
       playerId,
@@ -399,24 +373,14 @@ export class GameEngine {
     return null;
   }
 
-  /** Throw result never arrived (crash/disconnect mid-throw): force-resolve the turn. */
-  private expireThrow(): void {
-    const pending = this.pendingThrow;
-    if (!pending) return;
-    this.clearPendingThrow();
-    this.forceStand(pending.playerId);
-  }
-
   private clearPendingThrow(): void {
-    if (this.throwTimer) clearTimeout(this.throwTimer);
-    this.throwTimer = null;
     this.pendingThrow = null;
   }
 
   /**
    * Player-requested stand: rejected while the current hand loses to the
    * roll-to-beat (shared `canStandVoluntarily` — ties are allowed). Forced
-   * stands (roll cap, keep-all, timeout/disconnect/kick) call `stand` directly.
+   * stands (roll cap, keep-all, disconnect/kick) call `stand` directly.
    */
   standVoluntarily(playerId: PlayerId): EngineError | null {
     const turn = this.guardTurn(playerId);
@@ -491,7 +455,7 @@ export class GameEngine {
   }
 
   /**
-   * Auto-resolve a turn on timeout, disconnect, or kick. With settled dice the
+   * Auto-resolve a turn on disconnect or kick. With settled dice the
    * player stands on them; with none there is no server roll to fall back on
    * (ADR 004 — dice come only from client physics), so the turn is forfeited:
    * no hand, no shot at the pot, and any ante stays in.
@@ -547,7 +511,6 @@ export class GameEngine {
           keptIndices: [...this.currentTurn.keptIndices],
           rollsUsed: this.currentTurn.rollsUsed,
           rollCap: this.currentTurn.rollCap,
-          deadline: this.currentTurn.deadline,
           throwing: this.pendingThrow !== null,
         }
       : null;
@@ -596,24 +559,19 @@ export class GameEngine {
     this.startRound();
   }
 
-  /** Freeze all timers after a replay; the room resumes on the first rejoin. */
+  /** Freeze round-end scheduling after a replay; the room resumes on the first rejoin. */
   pause(): void {
     this.paused = true;
-    this.clearTurnTimer();
     this.clearPendingThrow();
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;
   }
 
-  /** Wake a recovered engine: fresh turn deadline, or schedule the next round. */
+  /** Wake a recovered engine: resume the current turn, or schedule the next round. */
   resume(): void {
     if (!this.paused) return;
     this.paused = false;
-    const turn = this.currentTurn;
-    if (turn) {
-      turn.deadline = Date.now() + this.turnTimeoutMs;
-      this.turnTimer = setTimeout(() => this.forceStand(turn.playerId), this.turnTimeoutMs);
-      this.turnTimer.unref?.();
+    if (this.currentTurn) {
       this.emit({ type: 'stateChanged' });
     } else if (this.phase === 'roundEnd') {
       this.roundTimer = setTimeout(() => this.startRound(), this.roundEndDelayMs);
@@ -623,13 +581,7 @@ export class GameEngine {
 
   // -- lifecycle --------------------------------------------------------------------
 
-  private clearTurnTimer(): void {
-    if (this.turnTimer) clearTimeout(this.turnTimer);
-    this.turnTimer = null;
-  }
-
   stop(): void {
-    this.clearTurnTimer();
     this.clearPendingThrow();
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;

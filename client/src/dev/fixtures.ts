@@ -23,8 +23,6 @@ export interface PlaygroundScene {
   snapshot: RoomSnapshot;
 }
 
-const TURN_DEADLINE = () => Date.now() + 90_000;
-
 function player(
   id: string,
   name: string,
@@ -78,7 +76,6 @@ function turn(
     keptIndices: opts.keptIndices ?? [],
     rollsUsed: opts.rollsUsed ?? 0,
     rollCap: opts.rollCap ?? DEFAULT_SETTINGS.maxRolls,
-    deadline: TURN_DEADLINE(),
     throwing: false,
   };
 }

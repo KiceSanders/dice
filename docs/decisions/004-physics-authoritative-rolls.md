@@ -15,9 +15,10 @@ The 3D koozie/dice physics (ADR [002](./002-rapier-physics-stack.md)/[003](./003
 - `turn:throwResult { dice }` — sent when the sim settles. The engine (`commitThrow`) validates turn owner, throw in flight, 5 dice in [1, 6], and **kept positions unchanged**, then applies the values exactly like an RNG roll — same `rolled` event, same `turn:rolled` broadcast, same event-log entry.
 - `dice:frames { frames }` — ~20 Hz koozie+dice poses, relayed verbatim to everyone else (`Room.broadcastExcept`), rate-limited per connection, silently dropped when invalid, never persisted. Spectators animate plain meshes from these; they run no physics.
 
-**Fallback:** if no result arrives within `THROW_TIMEOUT_MS` (15 s; the client settle timeout is 10 s), `expireThrow` re-rolls server-side via the legacy `roll()` path with the locked keeps, so a crashed or disconnected roller cannot stall the game. Turn timeout / kick (`forceStand`) also abandons a pending throw.
+**Pending throws:** if a throw is in flight and the roller disconnects or is kicked,
+`forceStand` abandons it. Host controls for stalled games are planned separately.
 
-**Trust model:** dice values are client-reported, so a tampered client could lie — accepted for friends-scale play. The kept-positions + range checks are the enforced invariants; the server stays authoritative over everything downstream (scoring, pot, turn order, timers).
+**Trust model:** dice values are client-reported, so a tampered client could lie — accepted for friends-scale play. The kept-positions + range checks are the enforced invariants; the server stays authoritative over everything downstream (scoring, pot, turn order).
 
 **Replay is untouched:** the log stores final `rolled` values; `ReplayRng` feeds them back through `roll()`/`keepAndReroll`, which reproduces physics-sourced dice exactly *because* kept positions cannot change.
 
@@ -38,7 +39,7 @@ The 3D koozie/dice physics (ADR [002](./002-rapier-physics-stack.md)/[003](./003
 
 ## Verification
 
-- `npm test` — [`engine.throw.test.ts`](../../server/src/engine.throw.test.ts) (begin/commit validation, fallback timer, cap auto-stand, timeout interplay), `protocol.test.ts` (message validation).
+- `npm test` — [`engine.throw.test.ts`](../../server/src/engine.throw.test.ts) (begin/commit validation, cap auto-stand), `protocol.test.ts` (message validation).
 - Two browsers in one room once client wiring lands: roller throws; spectator receives `turn:throwStarted` + `dice:frames` + `turn:rolled`.
 
 ## See also

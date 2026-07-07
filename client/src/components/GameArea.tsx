@@ -6,7 +6,6 @@ import type { LastRoll } from '../state/store';
 import DiceRow from './DiceRow';
 import GameHud from './GameHud';
 import Koozie from './Koozie';
-import TimerRing from './TimerRing';
 
 export interface TurnActions {
   onRoll?: (keepIndices: number[]) => void;
@@ -89,7 +88,6 @@ export default function GameArea({
             <span className="turn-rolls muted">
               roll {turn.rollsUsed} / {turn.rollCap}
             </span>
-            <TimerRing deadline={turn.deadline} />
           </div>
 
           {hide2DDice ? (

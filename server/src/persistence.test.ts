@@ -98,7 +98,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
     const rejoined = room2.rejoin(p1.rejoinToken, new FakeLink());
     expect(rejoined?.id).toBe(p1.id);
     expect(rejoined?.connected).toBe(true);
-    expect(room2.engine!.publicState().currentTurn!.deadline).toBeGreaterThan(Date.now());
+    expect(room2.engine!.publicState().currentTurn?.playerId).toBe(p1.id);
 
     // Play continues: P1 stands, host's three 3s beat the pair of 6s.
     expect(engine2.stand(p1.id)).toBeNull();

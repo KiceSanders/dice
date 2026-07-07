@@ -29,7 +29,6 @@ export function makeEngine(
     settings,
     (e) => events.push(e),
     {
-      turnTimeoutMs: 60_000,
       roundEndDelayMs: 5_000,
       ...engineOpts,
     },

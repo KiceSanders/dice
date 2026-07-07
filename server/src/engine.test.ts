@@ -161,18 +161,6 @@ describe('GameEngine: sit-outs and game end', () => {
 });
 
 describe('GameEngine: auto-stand paths', () => {
-  it('turn timer expiry with no roll forfeits the turn (ADR 004: no server roll)', () => {
-    const players = makePlayers();
-    const { engine, events } = makeEngine(players);
-    engine.start();
-    expect(engine.currentTurnPlayerId).toBe('p0');
-
-    vi.advanceTimersByTime(60_000);
-    expect(engine.currentTurnPlayerId).toBe('p1');
-    expect(ofType(events, 'rolled')).toHaveLength(0);
-    expect(ofType(events, 'forfeited')).toMatchObject([{ playerId: 'p0' }]);
-  });
-
   it("a disconnected player's turn is forfeited immediately", () => {
     const players = makePlayers();
     players[1]!.connected = false;

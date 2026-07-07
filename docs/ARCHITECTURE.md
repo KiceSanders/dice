@@ -28,7 +28,7 @@ pointer release on the koozie
   → client/src/table3d/dice/DicePhysics.tsx   (rapier cup/dice state machine)
   → client/src/game/useTableRoll.ts           (binds physics callbacks to the socket)
   → ws  turn:throwStart { keepIndices }
-  → server: router.ts → handlers.ts → engine.beginThrow   (locks keeps, arms 15s timeout)
+  → server: router.ts → handlers.ts → engine.beginThrow   (locks keeps, marks turn throwing)
   → broadcast turn:throwStarted; roller streams dice:frames (relayed to spectators,
     consumed by useRemoteRoll.ts → RemoteDiceView — never touches the reducer)
   → sim settles → ws turn:throwResult { dice }
@@ -43,9 +43,8 @@ pointer release on the koozie
   → pages/Room.tsx → Table → TableCanvas → 3D scene re-renders
 ```
 
-Timeout ladder: 60s turn (`TURN_TIMEOUT_MS`) → forced stand on settled dice, or **forfeit**
-if the turn has no dice (there is no server roll to fall back on); 15s throw
-(`THROW_TIMEOUT_MS`) → same force-resolution; 5s round-end delay → next round.
+Round-end delay: 5s (`ROUND_END_DELAY_MS`) → next round auto-starts. Disconnect/kick
+during a turn calls `forceStand` (stand on settled dice, or forfeit if none).
 
 ## Seat/view transform
 

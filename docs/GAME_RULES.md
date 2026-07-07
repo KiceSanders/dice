@@ -59,7 +59,7 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 - A player may stand after any roll **unless** a roll-to-beat exists and their current hand
   loses to it — then they must keep rolling until they beat it, tie it, or hit the cap.
   Ties are allowed (they force a sub-round).
-- Forced stands bypass the rule: roll cap reached (auto-stand), turn timeout, disconnect,
+- Forced stands bypass the rule: roll cap reached (auto-stand), disconnect,
   kick.
 - A turn that ends with **no completed roll** is **forfeited**: no hand, no shot at the pot,
   the ante stays in. If every turn in a round is forfeited the round has no winner
@@ -81,7 +81,7 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
-- Timeouts: 60s per turn, 15s for a throw result (`THROW_TIMEOUT_MS`), 5s round-end delay.
+- Round-end delay: 5s before the next round auto-starts.
 
 ## Room settings
 

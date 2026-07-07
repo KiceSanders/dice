@@ -96,8 +96,6 @@ export interface TurnState {
   rollsUsed: number;
   /** Max rolls allowed this turn (set by round leader's roll count). */
   rollCap: number;
-  /** Epoch ms when the turn auto-stands. */
-  deadline: number;
   /** True while a physics throw is in flight (throwStart → throwResult, ADR 004). */
   throwing: boolean;
 }

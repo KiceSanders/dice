@@ -7,7 +7,7 @@ import { scoreHand } from './score.js';
  * Voluntary stand rule: a player may end their turn after any roll, unless a
  * roll-to-beat exists and their current hand loses to it — then they must keep
  * rolling until they beat it, tie it (ties force a sub-round), or run out of
- * rolls. Forced stands (roll cap, keep-all, timeout, disconnect, kick) bypass
+ * rolls. Forced stands (roll cap, keep-all, disconnect, kick) bypass
  * this rule.
  */
 export function canStandVoluntarily(
