@@ -15,7 +15,7 @@ import { useRemoteRoll } from '../game/useRemoteRoll';
 import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
-import { poseFrameMatchesDice, staticPoseFromDice } from '../table3d/dice/staticPose';
+import { resolveLastRollPose, staticPoseFromDice } from '../table3d/dice/staticPose';
 import { tableEvents } from '../table3d/tableEvents';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
@@ -34,7 +34,7 @@ export default function Room() {
   const snapshot = state.snapshot;
 
   // 3D physics roll for the active roller; streamed playback of everyone
-  // else's throws, with passive slot dice when no stream arrived (ADR 004).
+  // else's throws, with StaticDiceView for the last settled roll (ADR 004).
   const roll3d = useTableRoll(state.snapshot, state.me?.playerId ?? null, send, connected);
   const remoteRoll = useRemoteRoll(ws, state.snapshot, state.me?.playerId ?? null);
   const fallbackHeldPose = useMemo(() => {
@@ -153,28 +153,27 @@ export default function Room() {
   const inviteUrl = `${window.location.origin}/room/${snapshot.roomId}`;
   const turn = snapshot.game?.currentTurn ?? null;
   const inGame = snapshot.phase !== 'lobby' && snapshot.game !== null;
-  // Between turns the table shows the most recently finished turn's pose —
-  // whichever of my own / the remote roller's held pose was captured last.
-  const lastTurnPose =
-    roll3d.heldPoseAt >= remoteRoll.heldPoseAt
-      ? (roll3d.heldPose ?? remoteRoll.heldPose)
-      : (remoteRoll.heldPose ?? roll3d.heldPose);
-  // Captured poses can be stale (refresh, missed stream, a turn that ended
-  // without a throw) and every client captures independently — only show one
-  // whose faces equal the authoritative last roll; otherwise rebuild a
-  // correct static pose from the roll values so all clients agree.
-  const heldPose =
-    lastTurnPose && state.lastRoll && poseFrameMatchesDice(lastTurnPose, state.lastRoll.dice)
-      ? lastTurnPose
-      : fallbackHeldPose;
+  const isMyTurn = turn !== null && turn.playerId === myId;
+  const heldPose = state.lastRoll
+    ? resolveLastRollPose(state.lastRoll, roll3d.heldRollPose, remoteRoll.heldRollPose)
+    : fallbackHeldPose;
+  // Local DicePhysics already renders the active roller's settled dice — hide
+  // the static last-roll layer so dice are not doubled on the felt.
+  const localSimShowsLastRoll =
+    roll3d.tableDice !== undefined &&
+    isMyTurn &&
+    turn !== null &&
+    turn.rollsUsed > 0 &&
+    state.lastRoll?.playerId === myId &&
+    state.lastRoll.rollNumber === turn.rollsUsed;
   const showHeldPose =
     inGame &&
     heldPose !== null &&
     !remoteRoll.live &&
     !turn?.throwing &&
-    !turn?.dice.length &&
     !roll3d.dragging &&
-    !roll3d.rolling;
+    !roll3d.rolling &&
+    !localSimShowsLastRoll;
 
   // Stand button on the table frame: only for the active 3D roller after their
   // first roll, hidden while aiming so it never fights the drag.
@@ -229,7 +228,7 @@ export default function Room() {
         myId={myId}
         onKick={(playerId) => send({ type: 'player:kick', playerId })}
         winnerId={state.roundEnd?.winnerId ?? null}
-        dice={roll3d.tableDice ?? (remoteRoll.live ? undefined : (roll3d.passiveDice ?? undefined))}
+        dice={roll3d.tableDice}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
         heldPose={showHeldPose ? heldPose : null}
         diceAiming={roll3d.diceAiming}

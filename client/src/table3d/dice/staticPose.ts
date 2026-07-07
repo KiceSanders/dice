@@ -1,4 +1,4 @@
-import type { BodyPose, Die, PoseFrame } from '@dice/shared';
+import type { BodyPose, Die, PlayerId, PoseFrame } from '@dice/shared';
 import * as THREE from 'three';
 import { DICE_COUNT, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
@@ -50,4 +50,41 @@ export function poseFrameMatchesDice(frame: PoseFrame, dice: Die[]): boolean {
     if (readTopFace(_quat) !== dice[i]) return false;
   }
   return true;
+}
+
+/** Authoritative identity for a committed roll (`turn:rolled`). */
+export interface RollIdentity {
+  playerId: PlayerId;
+  rollNumber: number;
+}
+
+/** Physically or streamed captured table pose tagged with the roll it came from. */
+export interface CapturedRollPose {
+  frame: PoseFrame;
+  /** Capture time — newest matching pose wins in Room. */
+  at: number;
+  rollId: RollIdentity;
+}
+
+export function rollIdentityMatches(captured: RollIdentity, lastRoll: RollIdentity): boolean {
+  return captured.playerId === lastRoll.playerId && captured.rollNumber === lastRoll.rollNumber;
+}
+
+/**
+ * Pick the best pose for `lastRoll`: a tagged capture whose roll id and faces
+ * both match, else a rebuilt static pose from the authoritative dice values.
+ */
+export function resolveLastRollPose(
+  lastRoll: RollIdentity & { dice: Die[]; kept: number[] },
+  local: CapturedRollPose | null,
+  remote: CapturedRollPose | null,
+): PoseFrame | null {
+  const candidates = [local, remote].filter((c): c is CapturedRollPose => c !== null);
+  const newestMatching = candidates
+    .filter((c) => rollIdentityMatches(c.rollId, lastRoll))
+    .sort((a, b) => b.at - a.at)[0];
+  if (newestMatching && poseFrameMatchesDice(newestMatching.frame, lastRoll.dice)) {
+    return newestMatching.frame;
+  }
+  return staticPoseFromDice(lastRoll.dice, lastRoll.kept);
 }

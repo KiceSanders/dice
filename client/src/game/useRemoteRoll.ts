@@ -1,25 +1,24 @@
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
 import { useEffect, useRef, useState } from 'react';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
+import { type CapturedRollPose, poseFrameMatchesDice } from '../table3d/dice/staticPose';
 import { poseFrameFromCanonical } from '../table3d/seatTransform';
 import type { WsClient } from '../ws/client';
 
 export interface RemoteRoll {
   feed: RemoteRollFeed;
-  /** True once the current remote turn has streamed at least one frame. */
+  /** True while a remote throw is actively streaming dice:frames. */
   live: boolean;
-  /** Last sampled remote table pose, preserved after a turn switch. */
-  heldPose: PoseFrame | null;
-  /** When heldPose was captured (0 when absent) — newest-wins in Room. */
-  heldPoseAt: number;
+  /** Last settled remote roll pose, tagged with turn:rolled identity. */
+  heldRollPose: CapturedRollPose | null;
 }
 
 /**
  * Spectator side of pose streaming (ADR 004): subscribes to dice:frames
  * straight off the socket — they arrive at stream rate and must never churn
  * the reducer — and buffers the current roller's frames for RemoteDiceView.
- * `live` distinguishes "watching a streamed throw" from "no stream this turn"
- * (mid-turn join, stream loss), where the caller falls back to passive dice.
+ * `live` is true only during an in-flight throw; after turn:rolled the feed
+ * clears and a tagged held pose preserves the settled layout for StaticDiceView.
  */
 export function useRemoteRoll(
   ws: WsClient,
@@ -30,7 +29,7 @@ export function useRemoteRoll(
   if (feedRef.current === null) feedRef.current = new RemoteRollFeed();
   const feed = feedRef.current;
   const [live, setLive] = useState(false);
-  const [held, setHeld] = useState<{ frame: PoseFrame; at: number } | null>(null);
+  const [held, setHeld] = useState<CapturedRollPose | null>(null);
 
   const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
   const remote = turnPlayerId !== null && turnPlayerId !== myId;
@@ -51,16 +50,28 @@ export function useRemoteRoll(
         setLive(true);
         setHeld(null);
       }
+      if (msg.type === 'turn:rolled' && msg.playerId === turnPlayerId) {
+        setLive(false);
+        const sample = feed.sample(performance.now(), 0);
+        if (sample && !sample.cupVisible) {
+          const frame: PoseFrame = {
+            t: 0,
+            bodies: sample.bodies,
+            cupVisible: sample.cupVisible,
+          };
+          if (poseFrameMatchesDice(frame, msg.dice)) {
+            setHeld({
+              frame,
+              at: performance.now(),
+              rollId: { playerId: msg.playerId, rollNumber: msg.rollNumber },
+            });
+          }
+        }
+        feed.clear();
+      }
     });
     return () => {
       off();
-      const sample = feed.sample(performance.now(), 0);
-      if (sample && !sample.cupVisible) {
-        setHeld({
-          frame: { t: 0, bodies: sample.bodies, cupVisible: sample.cupVisible },
-          at: performance.now(),
-        });
-      }
       feed.clear();
     };
   }, [ws, feed, remote, turnPlayerId, mySeat]);
@@ -68,7 +79,6 @@ export function useRemoteRoll(
   return {
     feed,
     live: remote && live,
-    heldPose: held?.frame ?? null,
-    heldPoseAt: held?.at ?? 0,
+    heldRollPose: held,
   };
 }

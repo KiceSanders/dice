@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
 import { togglePendingKeep } from '../game/keepSelection';
+import { staticPoseFromDice } from '../table3d/dice/staticPose';
 import {
   clearLiveTuning,
   DEFAULT_DICE_PHYSICS_TUNING,
@@ -418,7 +419,7 @@ export default function Playground() {
     [turn, isMyTurn, pendingKeep],
   );
 
-  // Straight celebration for the passive "view as" path (the roller's own
+  // Straight celebration for the spectator static view (the roller's own
   // view triggers locally at settle) — mirrors Room.tsx's event wiring.
   useEffect(() => {
     if (!lastRoll || detectStraight(lastRoll.dice) === 'none') return;
@@ -441,18 +442,19 @@ export default function Playground() {
           onRollingChange: setRolling,
           onKeepToggle,
         }
-      : turn
-        ? {
-            releaseSignal: 0,
-            releaseVelocity: { x: 0, y: 0, z: 0 },
-            keepIndices: turn.keptIndices,
-            dice: turn.dice,
-            canDrag: false,
-            active: true,
-            onSettled: () => {},
-            onRelease: () => {},
-          }
-        : undefined;
+      : undefined;
+
+  const heldPose = useMemo(
+    () => (lastRoll ? staticPoseFromDice(lastRoll.dice, lastRoll.kept) : null),
+    [lastRoll],
+  );
+  const localSimShowsLastRoll =
+    isMyTurn &&
+    turn !== null &&
+    turn.rollsUsed > 0 &&
+    lastRoll?.playerId === myId &&
+    lastRoll.rollNumber === turn.rollsUsed;
+  const showHeldPose = heldPose !== null && !localSimShowsLastRoll && !rolling && !dragging;
 
   const setDie = (index: number, value: Die) => {
     if (!turn) return;
@@ -549,6 +551,7 @@ export default function Playground() {
         myId={myId}
         onKick={() => {}}
         dice={tableDice}
+        heldPose={showHeldPose ? heldPose : null}
         diceAiming={dragging || (pointerOnTable && isMyTurn && !rolling)}
         onTablePointer={onTablePointer}
         stand={

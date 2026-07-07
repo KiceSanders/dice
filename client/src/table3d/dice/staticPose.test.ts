@@ -4,7 +4,13 @@ import { viewRotationY } from '../layout';
 import { rotateBodyPoseY } from '../seatTransform';
 import { DICE_COUNT, dieSlotPosition } from './constants';
 import { keptDieRailPosition } from './diceLayout';
-import { poseFrameMatchesDice, staticPoseFromDice } from './staticPose';
+import {
+  type CapturedRollPose,
+  poseFrameMatchesDice,
+  resolveLastRollPose,
+  rollIdentityMatches,
+  staticPoseFromDice,
+} from './staticPose';
 
 describe('staticPoseFromDice', () => {
   it('places kept dice on the rail and unkept dice on felt slots', () => {
@@ -42,5 +48,58 @@ describe('poseFrameMatchesDice', () => {
       };
       expect(poseFrameMatchesDice(rotated, dice)).toBe(true);
     }
+  });
+});
+
+describe('rollIdentityMatches', () => {
+  it('matches player and roll number exactly', () => {
+    expect(
+      rollIdentityMatches({ playerId: 'p1', rollNumber: 2 }, { playerId: 'p1', rollNumber: 2 }),
+    ).toBe(true);
+    expect(
+      rollIdentityMatches({ playerId: 'p1', rollNumber: 2 }, { playerId: 'p1', rollNumber: 3 }),
+    ).toBe(false);
+  });
+});
+
+describe('resolveLastRollPose', () => {
+  const dice: Die[] = [3, 1, 4, 6, 2];
+  const lastRoll = { playerId: 'p1', rollNumber: 2, dice, kept: [1, 3] as number[] };
+  const capturedFrame = staticPoseFromDice([3, 1, 4, 6, 5], [1, 3])!;
+  const matchingFrame = staticPoseFromDice(dice, [1, 3])!;
+
+  function capture(frame: typeof capturedFrame, rollNumber: number): CapturedRollPose {
+    return {
+      frame,
+      at: 100,
+      rollId: { playerId: 'p1', rollNumber },
+    };
+  }
+
+  it('prefers a tagged capture whose roll id and faces both match', () => {
+    const resolved = resolveLastRollPose(
+      lastRoll,
+      capture(matchingFrame, 2),
+      capture(matchingFrame, 2),
+    );
+    expect(resolved).toBe(matchingFrame);
+  });
+
+  it('rejects a stale capture with matching faces but the wrong roll number', () => {
+    const resolved = resolveLastRollPose(lastRoll, capture(matchingFrame, 1), null);
+    expect(resolved).not.toBe(matchingFrame);
+    expect(resolved).toEqual(staticPoseFromDice(dice, [1, 3]));
+  });
+
+  it('rejects a capture with the right roll id but wrong faces', () => {
+    const resolved = resolveLastRollPose(lastRoll, capture(capturedFrame, 2), null);
+    expect(resolved).toEqual(staticPoseFromDice(dice, [1, 3]));
+  });
+
+  it('picks the newest matching capture between local and remote sources', () => {
+    const older = { ...capture(matchingFrame, 2), at: 50 };
+    const newer = { ...capture(matchingFrame, 2), at: 200 };
+    const resolved = resolveLastRollPose(lastRoll, older, newer);
+    expect(resolved).toBe(newer.frame);
   });
 });

@@ -15,6 +15,13 @@ possible; where code stays complex for a reason, that reason is documented here.
 | `RemoteDiceView` | Spectators during a streamed throw — replays poses, no physics | `client/src/table3d/dice/RemoteDiceView.tsx` |
 | `StaticDiceView` | Everyone between turns — frozen last pose | `client/src/table3d/dice/StaticDiceView.tsx` |
 
+**Last-roll dice on the felt:** the most recent `turn:rolled` stays visible for every
+viewer until the next roller grabs/releases the koozie (or a streamed throw is in flight).
+Spectators and the incoming roller see it through `StaticDiceView` — never a passive
+`DicePhysics` mount with fixed slot layout. Only the active roller uses `DicePhysics`;
+captured poses are tagged with `{ playerId, rollNumber }` and validated against
+`state.lastRoll` before reuse (`staticPose.ts`).
+
 They already share the presentational meshes (`PipDie`, `KoozieMesh`). **Any new visual
 must either (a) live in a shared presentational component used by all three, or (b) be
 driven by a table event (below) so it renders independently of which view is mounted.**
