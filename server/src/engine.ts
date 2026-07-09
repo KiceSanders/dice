@@ -13,6 +13,7 @@ import {
   compareHands,
   detectStraight,
   HAND_SIZE,
+  orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
 } from '@dice/shared';
@@ -100,7 +101,8 @@ export class GameEngine {
   private rollToBeat: { playerId: PlayerId; score: HandScore; dice: Die[] } | null = null;
   /** First finisher's rollsUsed caps everyone after them (roll-count pressure). */
   private roundRollCap: number | null = null;
-  private lastWinnerId: PlayerId | null = null;
+  /** Seat that opened the previous round/sub-round (null = first round of a game). */
+  private lastFirstRollerSeat: number | null = null;
   private subRound: SubRoundState | null = null;
 
   /** In-flight physics throw (ADR 004): keeps locked at throwStart. */
@@ -155,7 +157,8 @@ export class GameEngine {
     this.hands.clear();
     this.rollToBeat = null;
     this.roundRollCap = null;
-    this.queue = this.orderFromWinner(able);
+    this.queue = orderPlayersFromFirstRollerSeat(able, this.lastFirstRollerSeat);
+    this.rememberFirstRoller(this.queue[0] ?? null);
     this.emit({
       type: 'roundStarted',
       roundNumber: this.roundNumber,
@@ -193,19 +196,16 @@ export class GameEngine {
     this.rollToBeat = null;
     // maxRolls resets; sudden death forces a single roll each.
     this.roundRollCap = suddenDeath ? 1 : null;
-    this.queue = [...tied].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+    this.queue = orderPlayersFromFirstRollerSeat(tied, this.lastFirstRollerSeat);
+    this.rememberFirstRoller(this.queue[0] ?? null);
 
     this.emit({ type: 'subRoundStarted', tiedPlayerIds: tiedIds, anteAmount, depth, antes });
     this.emit({ type: 'stateChanged' });
     this.nextTurn();
   }
 
-  /** Seat order starting left of the previous round's winner. */
-  private orderFromWinner(players: EnginePlayer[]): EnginePlayer[] {
-    const ordered = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
-    const winnerIdx = ordered.findIndex((p) => p.id === this.lastWinnerId);
-    if (winnerIdx < 0) return ordered;
-    return [...ordered.slice(winnerIdx + 1), ...ordered.slice(0, winnerIdx + 1)];
+  private rememberFirstRoller(player: EnginePlayer | null): void {
+    if (player?.seat != null) this.lastFirstRollerSeat = player.seat;
   }
 
   private nextTurn(): void {
@@ -259,7 +259,6 @@ export class GameEngine {
     const potWon = this.pot;
     if (winner) winner.chips += potWon;
     this.pot = 0;
-    this.lastWinnerId = winnerId;
     this.subRound = null;
     this.phase = 'roundEnd';
 
@@ -535,19 +534,25 @@ export class GameEngine {
   // -- persistence (PLAN.md Phase 6) -------------------------------------------------
 
   /** State that survives round-end compaction. Only meaningful in `roundEnd`. */
-  persistedState(): { roundNumber: number; pot: number; lastWinnerId: PlayerId | null } {
+  persistedState(): { roundNumber: number; pot: number; lastFirstRollerSeat: number | null } {
     return {
       roundNumber: this.roundNumber,
       pot: this.pot,
-      lastWinnerId: this.lastWinnerId,
+      lastFirstRollerSeat: this.lastFirstRollerSeat,
     };
   }
 
   /** Restore from a compaction snapshot (always taken at a round boundary). */
-  restore(state: { roundNumber: number; pot: number; lastWinnerId: PlayerId | null }): void {
+  restore(state: {
+    roundNumber: number;
+    pot: number;
+    lastFirstRollerSeat?: number | null;
+    /** @deprecated pre-turn-order-rule snapshots; ignored. */
+    lastWinnerId?: PlayerId | null;
+  }): void {
     this.roundNumber = state.roundNumber;
     this.pot = state.pot;
-    this.lastWinnerId = state.lastWinnerId;
+    this.lastFirstRollerSeat = state.lastFirstRollerSeat ?? null;
     this.phase = 'roundEnd';
   }
 

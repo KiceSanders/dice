@@ -41,10 +41,12 @@ describe('GameEngine: full scripted round', () => {
     expect(engine.phase).toBe('roundEnd');
   });
 
-  it('next round starts after the delay, rotated left of the winner', () => {
+  it('next round starts after the delay, first roller rotated counter-clockwise', () => {
     const players = makePlayers();
     const { engine } = makeEngine(players);
     engine.start();
+    // Round 1 opens at seat 0; within-round order is clockwise: p0 → p1 → p2.
+    expect(engine.currentTurnPlayerId).toBe('p0');
     roll(engine, 'p0', [6, 6, 6, 6, 6]); // five 6s, wins
     engine.stand('p0');
     roll(engine, 'p1', [1, 1, 2, 3, 4]);
@@ -56,7 +58,18 @@ describe('GameEngine: full scripted round', () => {
     vi.advanceTimersByTime(5_000);
     expect(engine.phase).toBe('playing');
     expect(engine.roundNumber).toBe(2);
-    expect(engine.currentTurnPlayerId).toBe('p1'); // left of p0
+    // Counter-clockwise of seat 0 is seat 2, then clockwise: p2 → p0 → p1.
+    expect(engine.currentTurnPlayerId).toBe('p2');
+
+    // Round 2: p2 wins; next opener is CCW of seat 2 → seat 1.
+    roll(engine, 'p2', [6, 6, 6, 6, 6]);
+    engine.stand('p2');
+    roll(engine, 'p0', [1, 1, 2, 3, 4]);
+    engine.stand('p0');
+    roll(engine, 'p1', [1, 1, 2, 3, 5]);
+    engine.stand('p1');
+    vi.advanceTimersByTime(5_000);
+    expect(engine.currentTurnPlayerId).toBe('p1');
   });
 });
 

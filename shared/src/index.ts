@@ -4,5 +4,6 @@ export * from './game/dice.js';
 export * from './game/resolve.js';
 export * from './game/score.js';
 export * from './game/stand.js';
+export * from './game/turnOrder.js';
 export * from './protocol.js';
 export * from './types.js';

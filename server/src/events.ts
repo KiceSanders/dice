@@ -32,7 +32,8 @@ export interface PersistedPlayer {
 export interface PersistedGame {
   roundNumber: number;
   pot: number;
-  lastWinnerId: PlayerId | null;
+  /** Seat that opened the last round/sub-round; next opener is CCW from this. */
+  lastFirstRollerSeat: number | null;
 }
 
 export interface ChatHistoryEntry {

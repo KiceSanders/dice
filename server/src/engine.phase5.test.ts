@@ -39,14 +39,14 @@ describe('sub-rounds: ties', () => {
     expect(engine.pot).toBe(18);
     expect(players.map((p) => p.chips)).toEqual([91, 91]);
 
-    // Sub-round plays out; p0 (three 6s) beats p1 (two 5s) and takes everything.
-    turn(engine, 'p0', [6, 6, 6, 1, 2]);
-    turn(engine, 'p1', [5, 5, 1, 2, 3]);
+    // Sub-round opens counter-clockwise of the round's first roller (p0 → p1).
+    turn(engine, 'p1', [6, 6, 6, 1, 2]);
+    turn(engine, 'p0', [5, 5, 1, 2, 3]);
     const end = ofType(events, 'roundEnded')[0]!;
-    expect(end.winnerId).toBe('p0');
+    expect(end.winnerId).toBe('p1');
     expect(end.potWon).toBe(18);
-    expect(players[0]!.chips).toBe(109);
-    expect(players[1]!.chips).toBe(91);
+    expect(players[0]!.chips).toBe(91);
+    expect(players[1]!.chips).toBe(109);
   });
 
   it('sub-round excludes non-tied players and resets the roll cap', () => {
@@ -59,14 +59,15 @@ describe('sub-rounds: ties', () => {
 
     const sub = ofType(events, 'subRoundStarted')[0]!;
     expect(sub.tiedPlayerIds).toEqual(['p0', 'p1']);
-    expect(engine.currentTurnPlayerId).toBe('p0');
+    // Round opened at p0 → sub-round opens at p1 (CCW), not the same first roller.
+    expect(engine.currentTurnPlayerId).toBe('p1');
     // Roll cap reset: full maxRolls available again despite round cap of 1.
     expect(engine.publicState().currentTurn?.rollCap).toBe(DEFAULT_SETTINGS.maxRolls);
     expect(engine.publicState().subRound).toMatchObject({ depth: 1 });
 
-    turn(engine, 'p0', [6, 6, 1, 2, 3]);
-    expect(engine.currentTurnPlayerId).toBe('p1'); // p2 never re-enters
     turn(engine, 'p1', [5, 5, 1, 2, 3]);
+    expect(engine.currentTurnPlayerId).toBe('p0'); // p2 never re-enters
+    turn(engine, 'p0', [6, 6, 1, 2, 3]);
     expect(ofType(events, 'roundEnded')[0]!.winnerId).toBe('p0');
   });
 
@@ -74,11 +75,11 @@ describe('sub-rounds: ties', () => {
     const players = makePlayers([100, 100]);
     const { engine, events } = makeEngine(players);
     engine.start();
-    turn(engine, 'p0', TIE); // round tie
+    turn(engine, 'p0', TIE); // round: p0 first
     turn(engine, 'p1', TIE);
-    turn(engine, 'p0', TIE); // sub-round 1 tie
-    turn(engine, 'p1', TIE);
-    turn(engine, 'p0', [6, 6, 6, 1, 2]); // sub-round 2: p0 wins
+    turn(engine, 'p1', TIE); // sub-round 1: p1 first (CCW of p0)
+    turn(engine, 'p0', TIE);
+    turn(engine, 'p0', [6, 6, 6, 1, 2]); // sub-round 2: p0 first (CCW of p1)
     turn(engine, 'p1', [5, 5, 1, 2, 3]);
 
     const subs = ofType(events, 'subRoundStarted');
@@ -105,8 +106,8 @@ describe('sub-rounds: ties', () => {
     // Pot: 3+3 antes + 6 (p0 sub) + 1 (p1 all-in) = 13.
     expect(engine.pot).toBe(13);
 
+    turn(engine, 'p1', [6, 6, 6, 6, 1]); // four 6s — goes first (CCW), wins
     turn(engine, 'p0', [2, 2, 1, 3, 4]);
-    turn(engine, 'p1', [6, 6, 6, 6, 1]); // four 6s — wins
     const end = ofType(events, 'roundEnded')[0]!;
     expect(end.winnerId).toBe('p1');
     expect(players[1]!.chips).toBe(13); // takes the whole pot, no side pots
@@ -118,18 +119,23 @@ describe('sub-rounds: ties', () => {
     engine.start();
 
     // Initial round + sub-rounds at depths 1–10 all tie; depth 11 is sudden death.
+    // First roller alternates each level (CCW rotation).
     for (let i = 0; i < 11; i++) {
-      turn(engine, 'p0', TIE);
-      turn(engine, 'p1', TIE);
+      const first = engine.currentTurnPlayerId!;
+      const second = first === 'p0' ? 'p1' : 'p0';
+      turn(engine, first, TIE);
+      turn(engine, second, TIE);
     }
-    turn(engine, 'p0', [6, 6, 6, 1, 2]); // depth 11 sudden death: p0 wins
-    turn(engine, 'p1', [5, 5, 1, 2, 3]);
+    const first = engine.currentTurnPlayerId!;
+    const second = first === 'p0' ? 'p1' : 'p0';
+    turn(engine, first, [6, 6, 6, 1, 2]); // depth 11 sudden death: first wins
+    turn(engine, second, [5, 5, 1, 2, 3]);
 
     const subs = ofType(events, 'subRoundStarted');
     expect(subs.at(-1)).toMatchObject({ depth: 11, anteAmount: 0 }); // no ante in sudden death
     // Sudden death is a single forced roll.
     const end = ofType(events, 'roundEnded')[0]!;
-    expect(end.winnerId).toBe('p0');
+    expect(end.winnerId).toBe(first);
     // Total chips conserved.
     expect(players[0]!.chips + players[1]!.chips).toBe(20_000);
   });

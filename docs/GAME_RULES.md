@@ -16,7 +16,12 @@ Rolling a straight triggers an instant side payment from every other seated play
 1. A **round** begins: every seated player antes `settings.chipsPerRound` into the pot.
    Players who cannot cover the ante sit the round out (they keep their seat). If fewer than
    2 players can ante, the game ends.
-2. Players act in seat order, starting left of the previous round's winner.
+2. Players act **clockwise** in seat order. The **first roller** rotates
+   **counter-clockwise** from the previous first roller each round and each
+   sub-round (so the same seat never opens twice in a row, including after a
+   tie). The first round of a game starts at the lowest seat. If the previous
+   first roller is sitting out or not in a tie, walk counter-clockwise until a
+   participant is hit.
 3. A turn is up to `rollCap` rolls of the 5 dice. After each roll the player may **keep**
    dice (kept dice are locked for the turn — they can never be un-kept) and re-roll the
    rest. Keeping all 5 is rejected — stand instead.
