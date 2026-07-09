@@ -9,6 +9,12 @@ export interface RemoteRoll {
   feed: RemoteRollFeed;
   /** True while a remote throw is actively streaming dice:frames. */
   live: boolean;
+  /**
+   * True while the remote roller's streamed cup is in play (held/pouring).
+   * Selecting-phase frames keep `live` true with cupVisible:false — use this
+   * (not `live`) to hide the spectator parked dock as soon as they grab.
+   */
+  cupInPlay: boolean;
   /** Last settled remote roll pose, tagged with turn:rolled identity. */
   heldRollPose: CapturedRollPose | null;
 }
@@ -29,6 +35,7 @@ export function useRemoteRoll(
   if (feedRef.current === null) feedRef.current = new RemoteRollFeed();
   const feed = feedRef.current;
   const [live, setLive] = useState(false);
+  const [cupInPlay, setCupInPlay] = useState(false);
   const [held, setHeld] = useState<CapturedRollPose | null>(null);
 
   const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
@@ -39,19 +46,25 @@ export function useRemoteRoll(
     if (!remote || turnPlayerId === null) {
       feed.clear();
       setLive(false);
+      setCupInPlay(false);
       return;
     }
     setLive(false);
+    setCupInPlay(false);
     const off = ws.onMessage((msg) => {
       if (msg.type === 'dice:frames' && msg.playerId === turnPlayerId) {
         // Wire frames are canonical table space; the feed (and everything
         // rendered from it) lives in this viewer's view space.
         feed.push(msg.frames.map((f) => poseFrameFromCanonical(f, mySeat)));
         setLive(true);
+        // Batches are phase-consistent: held/pour flush with cupVisible true;
+        // selecting flushes immediately with cupVisible false.
+        setCupInPlay(msg.frames.some((f) => f.cupVisible === true));
         setHeld(null);
       }
       if (msg.type === 'turn:rolled' && msg.playerId === turnPlayerId) {
         setLive(false);
+        setCupInPlay(false);
         const sample = feed.sample(performance.now(), 0);
         if (sample && !sample.cupVisible) {
           const frame: PoseFrame = {
@@ -79,6 +92,7 @@ export function useRemoteRoll(
   return {
     feed,
     live: remote && live,
+    cupInPlay: remote && cupInPlay,
     heldRollPose: held,
   };
 }

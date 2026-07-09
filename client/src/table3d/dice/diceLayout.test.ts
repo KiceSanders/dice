@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FELT_SCALE, RAIL_OUTER_WORLD, TABLE, TABLE_WALL_OUTER } from '../layout';
+import { FELT_SCALE, RAIL_OUTER_WORLD, TABLE, TABLE_SEAT_COUNT, TABLE_WALL_OUTER } from '../layout';
 import { projectToNdc } from '../project';
 import { DIE_SIZE, FELT_BOUND_X, FELT_BOUND_Z, KOOZIE } from './constants';
 import {
   KEPT_DIE_SPACING,
-  KOOZIE_GRAB_GUARD_POINT,
+  KOOZIE_NEAR_DOCK_GUARD_POINT,
   keepSlotForIndex,
   keptDieRailPosition,
   koozieRestPosition,
@@ -25,21 +25,37 @@ function isOutsidePlayBounds(x: number, z: number, cupRadius: number): boolean {
   return Math.hypot(x / a, z / b) > 1;
 }
 
+function wallOuterRadius(): number {
+  // Isotropic felt → circular wall; radial distance of the wall outer face.
+  return FELT_SCALE.x * TABLE_WALL_OUTER;
+}
+
 describe('diceLayout', () => {
   const rest = koozieRestPosition(KOOZIE);
 
-  it('koozie docks across the table (−Z), fully outside the containment wall', () => {
+  it('koozie docks at +Z (display seat 0), fully outside the containment wall', () => {
     expect(rest[0]).toBeCloseTo(0, 3);
+    expect(rest[2]).toBeGreaterThan(0);
     // The cup's near edge is beyond the wall's outer face — a settled die can
     // never touch, hide behind, or sit under the parked cup.
-    expect(rest[2] + KOOZIE.radius).toBeLessThan(-(FELT_SCALE.z * TABLE_WALL_OUTER));
+    expect(rest[2] - KOOZIE.radius).toBeGreaterThan(FELT_SCALE.z * TABLE_WALL_OUTER);
   });
 
-  it('koozie dock is sunken behind the far rail with the rim peeking over', () => {
+  it('koozie docks at every display seat outside the containment wall', () => {
+    for (let seat = 0; seat < TABLE_SEAT_COUNT; seat++) {
+      const [x, , z] = koozieRestPosition(KOOZIE, seat);
+      const radial = Math.hypot(x, z);
+      expect(radial - KOOZIE.radius, `seat ${seat} near edge`).toBeGreaterThan(wallOuterRadius());
+      expect(isOutsidePlayBounds(x, z, KOOZIE.radius), `seat ${seat} outside play`).toBe(true);
+    }
+  });
+
+  it('koozie dock is sunken behind the rail with the rim peeking over', () => {
     const rimY = rest[1] + KOOZIE.height / 2;
     const railTopY = TABLE.surfaceY + TABLE.railHeight;
     expect(rimY).toBeGreaterThan(railTopY);
-    // Only a band peeks over — the cup body is below the rail line.
+    // Only a band peeks over — the cup body is below the rail line so it
+    // does not paint over kept dice (seat 0) or float onto the felt (sides).
     expect(rimY - railTopY).toBeLessThan(KOOZIE.height / 2);
   });
 
@@ -65,17 +81,33 @@ describe('diceLayout', () => {
 });
 
 describe('table framing (fixed SEAT_VIEW camera)', () => {
-  it('the whole docked koozie is inside the camera frame', () => {
-    const [x, y, z] = koozieRestPosition(KOOZIE);
-    expectOnScreen([x, y, z], 'cup center');
-    expectOnScreen([x, y + KOOZIE.height / 2, z], 'cup top rim');
-    expectOnScreen([x, y - KOOZIE.height / 2, z], 'cup bottom');
-    expectOnScreen([x - KOOZIE.radius, y, z], 'cup left edge');
-    expectOnScreen([x + KOOZIE.radius, y, z], 'cup right edge');
-    // Worst case: the rim's far edge projects highest — any camera/table/cup
-    // change that pushes it off-screen must fail here, loudly, not clip silently.
-    expectOnScreen([x, y + KOOZIE.height / 2, z - KOOZIE.radius], 'cup far rim edge');
+  it('display seat 0: rim band is on-screen below kept dice (body may clip under NDC −1)', () => {
+    const [x, y, z] = koozieRestPosition(KOOZIE, 0);
+    // Near-camera fringe: only the peeking rim must stay in frame.
+    expectOnScreen([x, y + KOOZIE.height / 2, z], 'seat 0 cup top rim');
+    expectOnScreen([x - KOOZIE.radius, y + KOOZIE.height / 2, z], 'seat 0 rim left');
+    expectOnScreen([x + KOOZIE.radius, y + KOOZIE.height / 2, z], 'seat 0 rim right');
+    const rimNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
+    for (let slot = 0; slot < 2; slot++) {
+      const kept = keptDieRailPosition(slot, 2);
+      expect(rimNdcY, `rim below kept slot ${slot}`).toBeLessThan(projectToNdc(kept).y);
+    }
   });
+
+  for (const seat of [1, 2]) {
+    it(`display seat ${seat} docked koozie is inside the camera frame`, () => {
+      const [x, y, z] = koozieRestPosition(KOOZIE, seat);
+      expectOnScreen([x, y, z], `seat ${seat} cup center`);
+      expectOnScreen([x, y + KOOZIE.height / 2, z], `seat ${seat} cup top rim`);
+      expectOnScreen([x, y - KOOZIE.height / 2, z], `seat ${seat} cup bottom`);
+      expectOnScreen([x - KOOZIE.radius, y, z], `seat ${seat} cup left edge`);
+      expectOnScreen([x + KOOZIE.radius, y, z], `seat ${seat} cup right edge`);
+      const radial = Math.hypot(x, z) || 1;
+      const ox = (x / radial) * KOOZIE.radius;
+      const oz = (z / radial) * KOOZIE.radius;
+      expectOnScreen([x + ox, y + KOOZIE.height / 2, z + oz], `seat ${seat} cup outward rim edge`);
+    });
+  }
 
   it('a full kept-dice row on the near rail is inside the camera frame', () => {
     for (let slot = 0; slot < 5; slot++) {
@@ -85,42 +117,45 @@ describe('table framing (fixed SEAT_VIEW camera)', () => {
   });
 });
 
-describe('koozie grab guard (fixed SEAT_VIEW camera)', () => {
-  const guardNdcY = projectToNdc(KOOZIE_GRAB_GUARD_POINT).y;
+describe('koozie near-dock grab guard (fixed SEAT_VIEW camera)', () => {
+  const guardNdcY = projectToNdc(KOOZIE_NEAR_DOCK_GUARD_POINT).y;
 
-  it('projects above every point a settled die stack can occupy', () => {
-    // Two-die stack tops sampled along the far half of the play-bounds
-    // ellipse (conservatively on the boundary itself, no die-half inset).
-    const stackTopY = TABLE.surfaceY + DIE_SIZE * 2 + 0.003;
-    for (let i = 0; i <= 16; i++) {
-      const theta = Math.PI + (i / 16) * Math.PI; // far (−Z) arc
-      const top: [number, number, number] = [
-        FELT_BOUND_X * Math.cos(theta),
-        stackTopY,
-        FELT_BOUND_Z * Math.sin(theta),
-      ];
-      expect(projectToNdc(top).y, `die stack top at theta=${theta.toFixed(2)}`).toBeLessThan(
-        guardNdcY,
+  it('projects above the docked cup rim, leaving a grabbable band below kept dice', () => {
+    // Screen y grows downward; higher NDC y = higher on screen = toward far rail.
+    // Guard sits at kept-rail die bottoms; docked rim must project *below* it
+    // (lower NDC y) so there is a band of screen space where dock grabs are honored.
+    const [x, y, z] = koozieRestPosition(KOOZIE);
+    const rimTopNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
+    expect(rimTopNdcY).toBeLessThan(guardNdcY);
+  });
+
+  it('projects at or below every kept-die bottom so keep/unkeep clicks stay above the guard', () => {
+    for (let slot = 0; slot < 5; slot++) {
+      const [x, y, z] = keptDieRailPosition(slot, 5);
+      const bottom: [number, number, number] = [x, y - DIE_SIZE / 2, z];
+      // Kept die bottoms are at/above the guard (higher NDC y) → pointerBelow
+      // rejects cup grabs there and die handlers receive the click.
+      expect(projectToNdc(bottom).y, `kept die ${slot} bottom`).toBeGreaterThanOrEqual(
+        guardNdcY - 1e-6,
       );
     }
   });
 
-  it('projects below the docked cup rim, leaving a grabbable band', () => {
-    const [x, y, z] = koozieRestPosition(KOOZIE);
-    const rimTopNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
-    expect(guardNdcY).toBeLessThan(rimTopNdcY);
-  });
-
-  it('cup rim projects above the far rail silhouette (the apron occluder)', () => {
-    // The rail apron mesh occludes everything behind it below its top edge;
-    // the docked rim must clear that silhouette or the cup vanishes entirely.
-    const railTopEdgeNdcY = projectToNdc([
-      0,
-      TABLE.surfaceY + TABLE.railHeight,
-      -(FELT_SCALE.z * RAIL_OUTER_WORLD),
-    ]).y;
-    const [x, y, z] = koozieRestPosition(KOOZIE);
-    const rimTopNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
-    expect(rimTopNdcY).toBeGreaterThan(railTopEdgeNdcY);
+  it('cup rim projects above the side-rail silhouette (apron occluder)', () => {
+    // Side docks sit behind the rail from the camera; the rim must clear the
+    // apron silhouette or the cup vanishes. (Seat 0 is in front of the near
+    // rail — apron occlusion does not apply the same way.)
+    for (const seat of [1, 2]) {
+      const [x, y, z] = koozieRestPosition(KOOZIE, seat);
+      const radial = Math.hypot(x, z) || 1;
+      const railEdge: [number, number, number] = [
+        (x / radial) * FELT_SCALE.x * RAIL_OUTER_WORLD,
+        TABLE.surfaceY + TABLE.railHeight,
+        (z / radial) * FELT_SCALE.z * RAIL_OUTER_WORLD,
+      ];
+      const railTopEdgeNdcY = projectToNdc(railEdge).y;
+      const rimTopNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
+      expect(rimTopNdcY, `seat ${seat} rim above apron`).toBeGreaterThan(railTopEdgeNdcY);
+    }
   });
 });

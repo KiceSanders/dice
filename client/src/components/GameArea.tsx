@@ -97,8 +97,8 @@ export default function GameArea({
                   ? 'Drag to aim — release to throw.'
                   : mouseThrow
                     ? turn.rollsUsed > 0 && turn.dice.length > 0 && !turnActions?.disabled
-                      ? 'Click dice on the table to keep them. Click the koozie across the table to roll again.'
-                      : 'Grab the koozie across the table, drag it around, then release to roll.'
+                      ? 'Click dice on the table to keep them. Click the koozie in front of you to roll again.'
+                      : 'Grab the koozie in front of you, drag it around, then release to roll.'
                     : turn.dice.length > 0 || turnActions?.disabled
                       ? 'Dice on the table…'
                       : isMyTurn

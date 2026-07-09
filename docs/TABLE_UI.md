@@ -57,9 +57,9 @@ is in frame at every browser size (the viewport is always 16:9 — see Layout be
   automatically. Do **not** hardcode raw coordinates without a framing assertion — use
   `projectToNdc` from `client/src/table3d/project.ts` if you must test a bespoke point
   (see the koozie framing tests in `diceLayout.test.ts` for the pattern).
-- The camera is fixed (`SEAT_VIEW` in `layout.ts`) and the frame is nearly full at the
-  top edge — the parked koozie's rim sits ~1% inside it. Assume there is **no slack**
-  near edges; the tests will tell you.
+- The camera is fixed (`SEAT_VIEW` in `layout.ts`) and the frame is tight at the
+  edges — the parked koozie at every display seat is framing-tested. Assume there
+  is **no slack** near edges; the tests will tell you.
 - Physics props (knockable chips etc.) are a deliberate escalation: prefer non-physics
   meshes/animations first. Anything entering the rapier world must follow ADR 001/002
   (procedural colliders from layout constants, `liveBody()` guards).
@@ -77,12 +77,15 @@ values in mesh components.
   Streamed poses are localized per viewer by rotating around Y in seat-angle steps
   (`seatTransform.ts`); only a rotationally symmetric table maps onto itself under that
   rotation. Re-ovalizing the table puts other players' dice on the rail.
-- **The parked koozie docks outside the containment wall** behind the far rail; dice
-  cannot reach it, and a screen-space **grab guard** (`pointerAboveKoozieGuard`) ensures
-  clicks anywhere a die can appear always go to the die. Framing + guard geometry is
-  pinned by `diceLayout.test.ts`. See ADR 003 for placement history.
-- **The rail apron** (in `PokerTableMesh`) is the occluder that hides the docked cup's
-  sunken body — remove it and the cup floats through the table edge.
+- **The parked koozie docks outside the containment wall** at the active player's
+  display seat (`koozieRestPosition`); dice cannot reach it. A screen-space **grab
+  guard** (`pointerBelowNearDockGuard`) ensures keep-clicks on the near rail always
+  go to the die. Framing + guard geometry is pinned by `diceLayout.test.ts`. See
+  ADR 003 for placement history. Spectators see a non-interactive `ParkedKoozie`
+  whenever they are not the roller and no remote throw is streaming.
+- **The rail apron** (in `PokerTableMesh`) is the occluder that hides the docked
+  cup's sunken body on side seats — remove it and the cup floats through the table
+  edge. Seat 0 only needs the rim band in frame.
 
 ## 2D layout — how "fits in the browser" works
 

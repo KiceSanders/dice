@@ -14,13 +14,13 @@ import {
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
 describe('koozieMotion', () => {
-  it('createHomePose docks the cup upright across the table beyond the far rail', () => {
+  it('createHomePose docks the cup upright at the near rail (+Z)', () => {
     const home = createHomePose();
     const [x, y, z] = koozieRestPosition(KOOZIE);
     expect(home.position.x).toBeCloseTo(x, 5);
     expect(home.position.y).toBeCloseTo(y, 5);
     expect(home.position.z).toBeCloseTo(z, 5);
-    expect(home.position.z).toBeLessThan(-2.2);
+    expect(home.position.z).toBeGreaterThan(2.2);
     expect(home.quaternion.w).toBeCloseTo(1, 2);
   });
 

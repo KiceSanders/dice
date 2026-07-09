@@ -5,6 +5,7 @@ import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
 import type { CapturedRollPose } from '../table3d/dice/staticPose';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
+import { displaySeatIndex } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
 import { togglePendingKeep } from './keepSelection';
 
@@ -50,6 +51,14 @@ export function useTableRoll(
   const turn = snapshot?.game?.currentTurn ?? null;
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
   const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
+  const activeSeat =
+    turn !== null ? (snapshot?.players.find((p) => p.id === turn.playerId)?.seat ?? null) : null;
+  // Spectators see a parked cup at the active player's display seat. The
+  // roller mounts DicePhysics instead (always docks at display seat 0).
+  const parkedKoozieDisplaySeat =
+    snapshot?.phase === 'playing' && activeSeat !== null && !isMyTurn
+      ? displaySeatIndex(activeSeat, mySeat)
+      : null;
 
   // New roll confirmed or turn changed: sync selection to the server's locked
   // keeps and drop any stale interaction state.
@@ -231,5 +240,7 @@ export function useTableRoll(
     rolling,
     dragging,
     heldRollPose: held,
+    /** Spectator parked-cup display seat; null for the roller or off-play. */
+    parkedKoozieDisplaySeat,
   };
 }

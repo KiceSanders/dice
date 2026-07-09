@@ -20,6 +20,7 @@ import {
   subscribeDicePhysicsTuning,
   updateDicePhysicsTuning,
 } from '../table3d/dice/tuning';
+import { displaySeatIndex } from '../table3d/layout';
 import { tableEvents } from '../table3d/tableEvents';
 import {
   DEV_BOB,
@@ -393,6 +394,13 @@ export default function Playground() {
 
   const turn = snapshot.game?.currentTurn ?? null;
   const isMyTurn = turn !== null && turn.playerId === myId;
+  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
+  const activeSeat =
+    turn !== null ? (snapshot.players.find((p) => p.id === turn.playerId)?.seat ?? null) : null;
+  const parkedKoozieDisplaySeat =
+    snapshot.phase === 'playing' && activeSeat !== null && !isMyTurn
+      ? displaySeatIndex(activeSeat, mySeat)
+      : null;
 
   useEffect(() => {
     setPendingKeepState(turn ? [...turn.keptIndices] : []);
@@ -564,9 +572,9 @@ export default function Playground() {
           : rolling
             ? 'Rolling…'
             : isMyTurn && turn && turn.rollsUsed > 0 && turn.dice.length > 0
-              ? 'Click dice on the table to keep them. Click the koozie across the table to roll again.'
+              ? 'Click dice on the table to keep them. Click the koozie in front of you to roll again.'
               : isMyTurn
-                ? 'Grab the koozie across the table, drag it around, then release to roll.'
+                ? 'Grab the koozie in front of you, drag it around, then release to roll.'
                 : 'No server required. Keep / stand update local state only. Share this URL to reopen the same scene.'}
       </p>
 
@@ -578,6 +586,7 @@ export default function Playground() {
         onKick={() => {}}
         dice={tableDice}
         heldPose={showHeldPose ? heldPose : null}
+        parkedKoozieDisplaySeat={parkedKoozieDisplaySeat}
         diceAiming={dragging || (pointerOnTable && isMyTurn && !rolling)}
         onTablePointer={onTablePointer}
         stand={

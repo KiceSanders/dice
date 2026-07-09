@@ -41,11 +41,17 @@ export default function KoozieMesh({
   );
 
   return (
-    <group>
-      <mesh castShadow receiveShadow position={[0, centerY, 0]} material={mat}>
+    // renderOrder below PipDie (2) so the transparent cup never paints over
+    // kept dice when their screen projections overlap near the dock.
+    <group renderOrder={-1}>
+      <mesh castShadow receiveShadow position={[0, centerY, 0]} material={mat} renderOrder={-1}>
         <primitive object={wallGeometry} attach="geometry" />
       </mesh>
-      <mesh position={[0, cup.height * 0.5 - rimInset * 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, cup.height * 0.5 - rimInset * 0.5, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+        renderOrder={-1}
+      >
         <primitive object={rimGeometry} attach="geometry" />
         <meshPhysicalMaterial
           color={theme.rim}

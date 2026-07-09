@@ -27,7 +27,6 @@ import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
 import { spawnDiceInCupLocal } from './koozieColliders';
 import {
   createHeldStateFromPose,
-  createHomePose,
   createPourState,
   isInsideCup,
   type KoozieHeldState,
@@ -38,7 +37,7 @@ import {
 import {
   canvasLayoutElement,
   hitCup,
-  pointerAboveKoozieGuard,
+  pointerBelowNearDockGuard,
   pointerOnPlane,
 } from './pointerToFelt';
 import { STRAIGHT_GLOW } from './straightGlow';
@@ -798,19 +797,19 @@ export default function DicePhysics({
   const handleKoozieGrab = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
       if (event.button !== 0) return;
-      // The docked cup's pick mesh extends below the rail line; only the rim
-      // band above the far-rail dice zone may start a grab.
-      if (!pointerAboveKoozieGuard(event.clientY, gl.domElement, camera)) return;
+      // The docked cup's pick mesh can overlap the kept-rail die zone; only the
+      // rim band below the kept-die tops may start a grab.
+      if (!pointerBelowNearDockGuard(event.clientY, gl.domElement, camera)) return;
       beginDrag(event.clientX, event.clientY);
     },
     [beginDrag, camera, gl],
   );
 
   // Hover mirrors the grab guard exactly: the `grab` cursor shows only where a
-  // click would actually pick the cup up, not on the rail-occluded lower body.
+  // click would actually pick the cup up, not on the kept-rail die zone.
   const handleKoozieHover = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
-      setHoveringKoozie(pointerAboveKoozieGuard(event.clientY, gl.domElement, camera));
+      setHoveringKoozie(pointerBelowNearDockGuard(event.clientY, gl.domElement, camera));
     },
     [camera, gl],
   );
@@ -937,7 +936,7 @@ export default function DicePhysics({
       // stopPropagation) so the r3f die handlers still receive the click.
       if (
         !inTable ||
-        !pointerAboveKoozieGuard(e.clientY, canvas, camera) ||
+        !pointerBelowNearDockGuard(e.clientY, canvas, camera) ||
         !hitCup(
           e.clientX,
           e.clientY,

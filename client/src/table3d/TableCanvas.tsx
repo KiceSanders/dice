@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import { Suspense } from 'react';
 import DicePhysics from './dice/DicePhysics';
+import ParkedKoozie from './dice/ParkedKoozie';
 import RemoteDiceView from './dice/RemoteDiceView';
 import type { RemoteRollFeed } from './dice/remoteFeed';
 import StaticDiceView from './dice/StaticDiceView';
@@ -24,13 +25,24 @@ function SceneContent({
   dice,
   remoteFeed,
   heldPose,
+  parkedKoozieDisplaySeat,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
+  /** Active turn's display seat for the spectator parked cup; null to hide. */
+  parkedKoozieDisplaySeat?: number | null;
 }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
+  // Roller owns the interactive cup in DicePhysics. Spectators get a
+  // read-only dock at the active seat whenever Room passes a display seat —
+  // including mid-turn while selecting-phase pose frames keep remoteFeed
+  // "live" (those frames have cupVisible:false, so RemoteDiceView would
+  // otherwise leave the cup missing). Room nulls the seat once the roller
+  // grabs (cupInPlay) or throws, so the streamed cup is the only one on screen.
+  const showParkedKoozie =
+    !dice && parkedKoozieDisplaySeat !== null && parkedKoozieDisplaySeat !== undefined;
 
   return (
     <>
@@ -73,6 +85,7 @@ function SceneContent({
           the roller is dragging, rolling, or has dice of their own. */}
       {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
       {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} />}
+      {showParkedKoozie && <ParkedKoozie displaySeat={parkedKoozieDisplaySeat} />}
     </>
   );
 }
@@ -81,6 +94,7 @@ interface Props {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
+  parkedKoozieDisplaySeat?: number | null;
 }
 
 /** Cap pixel ratio on high-DPR displays so Chromebook-class GPUs keep frame budget. */
@@ -90,7 +104,12 @@ function tableCanvasDpr(): number | [number, number] {
 }
 
 /** WebGL canvas — table mesh + physics dice; labels are 2D overlays in Table.tsx. */
-export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props) {
+export default function TableCanvas({
+  dice,
+  remoteFeed,
+  heldPose = null,
+  parkedKoozieDisplaySeat = null,
+}: Props) {
   return (
     <Canvas
       className="table-canvas"
@@ -108,7 +127,12 @@ export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props
       }}
     >
       <Suspense fallback={null}>
-        <SceneContent dice={dice} remoteFeed={remoteFeed} heldPose={heldPose} />
+        <SceneContent
+          dice={dice}
+          remoteFeed={remoteFeed}
+          heldPose={heldPose}
+          parkedKoozieDisplaySeat={parkedKoozieDisplaySeat}
+        />
       </Suspense>
     </Canvas>
   );

@@ -129,8 +129,8 @@ export const KOOZIE = {
   tiltDurationMs: 680,
   /**
    * Generous pickup radii are safe only because grabs of the docked cup are
-   * additionally gated by pointerAboveKoozieGuard — clicks in the dice zone
-   * never reach the cup regardless of these values.
+   * additionally gated by pointerBelowNearDockGuard (below kept-die bottoms) —
+   * keep/unkeep clicks on the rail never reach the cup regardless of these.
    */
   hitRadius: 0.34,
   /** Screen-space pickup radius in CSS pixels. */

@@ -1,9 +1,10 @@
 import {
   FELT_SCALE,
-  RAIL_INNER_WORLD,
   RAIL_MESH_SCALE,
   RAIL_OUTER,
+  seatAngle,
   TABLE,
+  TABLE_SEAT_COUNT,
   TABLE_WALL_OUTER,
 } from '../layout';
 import { DIE_HALF, DIE_SIZE } from './constants';
@@ -25,42 +26,51 @@ export function keepSlotForIndex(dieIndex: number, keepIndices: number[]): numbe
 
 /** Gap between the containment wall's outer face and the docked cup's near edge. */
 const KOOZIE_DOCK_GAP = 0.02;
-/** How far the cup rim sits above the rail top — the visible, grabbable band. */
-const KOOZIE_DOCK_RIM_ABOVE_RAIL = 0.04;
+/**
+ * How far the cup rim sits above the rail top. Kept low so the body sits
+ * behind the rail apron (side seats) / below kept dice on screen (seat 0).
+ * Seat-0 framing only requires the rim band on-screen — the body may sit
+ * just under NDC −1, same “peek” idea as the old far dock.
+ */
+const KOOZIE_DOCK_RIM_ABOVE_RAIL = 0.12;
 
 /**
- * Koozie rest/park spot: docked fully OUTSIDE the containment wall past the
- * far rail, straight across from the roller, sunken so only the rim band
- * peeks over the rail. The wall keeps dice inside the felt, so a settled die
- * can never touch or hide behind the parked cup. The local sim always puts
- * the roller at the bottom (+Z), so this is seat-independent. Clicking the
- * dock teleports the cup back onto the felt. Placements higher up (on the
- * rail, or beyond it at felt height) project off-screen at 16:9 — the framing
- * test in diceLayout.test.ts projects the dock through SEAT_VIEW to keep it
- * inside the fixed camera's frame.
+ * Koozie rest/park spot: docked fully OUTSIDE the containment wall at the
+ * active player's display seat, sunken so only the rim band peeks over the
+ * rail. Display seat 0 is the local viewer (+Z / bottom of screen); seats 1
+ * and 2 are the side docks for spectators. The wall keeps dice inside the
+ * felt, so a settled die can never touch or hide behind the parked cup. The
+ * roller's sim always docks at display seat 0 (view-local). Clicking the dock
+ * teleports the cup back onto the felt. Framing tests in diceLayout.test.ts
+ * project every seat dock through SEAT_VIEW.
  */
-export function koozieRestPosition(cup: {
-  radius: number;
-  height: number;
-}): [number, number, number] {
+export function koozieRestPosition(
+  cup: {
+    radius: number;
+    height: number;
+  },
+  displaySeat = 0,
+): [number, number, number] {
+  const angle = seatAngle(displaySeat, TABLE_SEAT_COUNT);
+  // FELT_SCALE is isotropic (circle); either axis is fine for the radial.
+  const radial = FELT_SCALE.x * TABLE_WALL_OUTER + cup.radius + KOOZIE_DOCK_GAP;
   return [
-    0,
+    Math.cos(angle) * radial,
     TABLE.surfaceY + TABLE.railHeight + KOOZIE_DOCK_RIM_ABOVE_RAIL - cup.height / 2,
-    -(FELT_SCALE.z * TABLE_WALL_OUTER + cup.radius + KOOZIE_DOCK_GAP),
+    Math.sin(angle) * radial,
   ];
 }
 
 /**
- * Highest point a selectable die can occupy at the far play boundary (covers
- * a two-die stack). Cup grabs are honored only when the pointer is above this
- * point's screen projection, so a click anywhere a die can appear always goes
- * to the die — the guard is what keeps the generous cup hit radii safe now
- * that the docked cup projects close to the far-rail dice zone.
+ * Bottom of a kept die on the near rail. Docked-cup grabs (roller, display
+ * seat 0) are honored only when the pointer is *below* this point's screen
+ * projection — so a click anywhere on a kept die (including unkeep) always
+ * goes to the die, not the generous cup hit radii.
  */
-export const KOOZIE_GRAB_GUARD_POINT: [number, number, number] = [
+export const KOOZIE_NEAR_DOCK_GUARD_POINT: [number, number, number] = [
   0,
-  TABLE.surfaceY + DIE_SIZE * 2 + 0.04,
-  -(FELT_SCALE.z * RAIL_INNER_WORLD),
+  KEPT_DIE_RAIL_Y - DIE_HALF,
+  NEAR_RAIL_Z,
 ];
 
 /**

@@ -231,6 +231,13 @@ export default function Room() {
         dice={roll3d.tableDice}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
         heldPose={showHeldPose ? heldPose : null}
+        // Hide the spectator dock as soon as the roller grabs (cupInPlay from
+        // streamed cupVisible:true) or the server marks throwing. Selecting-
+        // phase frames keep remoteRoll.live true with cupVisible:false — those
+        // must leave the parked dock up.
+        parkedKoozieDisplaySeat={
+          turn?.throwing || remoteRoll.cupInPlay ? null : roll3d.parkedKoozieDisplaySeat
+        }
         diceAiming={roll3d.diceAiming}
         onTablePointer={roll3d.onTablePointer}
         stand={standControl}

@@ -35,8 +35,16 @@ export const TABLE_ANCHORS = {
   /** Right rail top at the table's widest point. */
   rightRail: { position: [RAIL_MID_X, RAIL_TOP_Y, 0], extent: { x: 0.15, y: 0.2, z: 0.4 } },
   /**
-   * Parked koozie dock behind the far rail — OCCUPIED by the cup; reference
-   * position only (zero budget). The cup's own framing test pins its extremes.
+   * Parked-koozie rim peek at display seat 0 — OCCUPIED by the cup; reference
+   * only (zero budget). The cup body sits below the near-camera fringe; the
+   * rim is what stays in frame. Side docks use koozieRestPosition(cup, seat);
+   * diceLayout.test.ts pins every seat's extremes.
    */
-  farDock: { position: koozieRestPosition(KOOZIE), extent: { x: 0, y: 0, z: 0 } },
+  nearDock: {
+    position: (() => {
+      const [x, y, z] = koozieRestPosition(KOOZIE);
+      return [x, y + KOOZIE.height / 2, z] as const;
+    })(),
+    extent: { x: 0, y: 0, z: 0 },
+  },
 } as const satisfies Record<string, TableAnchor>;
