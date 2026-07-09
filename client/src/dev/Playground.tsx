@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
 import { togglePendingKeep } from '../game/keepSelection';
-import { staticPoseFromDice } from '../table3d/dice/staticPose';
+import { resolveTableRestPose } from '../table3d/dice/staticPose';
 import {
   clearLiveTuning,
   DEFAULT_DICE_PHYSICS_TUNING,
@@ -478,8 +478,10 @@ export default function Playground() {
         }
       : undefined;
 
+  // Same resolver as production (ADR 005): real rest pose when the sim
+  // provided one (single-seat, so seat 0), slot layout otherwise.
   const heldPose = useMemo(
-    () => (lastRoll ? staticPoseFromDice(lastRoll.dice, lastRoll.kept) : null),
+    () => (lastRoll ? resolveTableRestPose(lastRoll, 0).frame : null),
     [lastRoll],
   );
   const localSimShowsLastRoll =

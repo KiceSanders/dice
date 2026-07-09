@@ -107,7 +107,12 @@ function applyReplayEvent(room: Room, event: RoomEvent): void {
 
     case 'rolled': {
       const engine = requireEngine(room, event.type);
-      const error = engine.replayRolled(event.playerId, event.dice, event.kept);
+      const error = engine.replayRolled(
+        event.playerId,
+        event.dice,
+        event.kept,
+        event.restPose ?? null,
+      );
       if (error) throw new Error(`replay roll rejected: ${error.message}`);
       break;
     }

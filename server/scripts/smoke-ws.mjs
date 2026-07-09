@@ -37,11 +37,13 @@ ws.on('open', async () => {
   msg = await reply();
   assert(msg.type === 'error' && msg.code === 'BAD_REQUEST', `missing fields → ${msg.message}`);
 
+  // Every ClientMessage type has a handler (HandlerMap is exhaustive), so a
+  // valid type sent before joining a room hits the membership guard instead.
   ws.send(JSON.stringify({ type: 'game:start' }));
   msg = await reply();
   assert(
-    msg.type === 'error' && /no handler/.test(msg.message),
-    `valid-but-unwired type → ${msg.message}`,
+    msg.type === 'error' && /join a room first/.test(msg.message),
+    `valid type without a room → ${msg.message}`,
   );
 
   console.log('smoke test passed');

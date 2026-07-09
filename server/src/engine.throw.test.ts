@@ -1,6 +1,6 @@
 import type { Die } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeEngine, makePlayers, ofType } from './engine.testkit.js';
+import { makeEngine, makePlayers, ofType, restPoseFor, roll } from './engine.testkit.js';
 
 const bad = { code: 'BAD_REQUEST' };
 
@@ -104,5 +104,95 @@ describe('GameEngine: physics throws (ADR 004)', () => {
 
     expect(events.some((e) => e.type === 'stood' && e.playerId === 'p0')).toBe(true);
     expect(engine.currentTurnPlayerId).toBe('p1');
+  });
+});
+
+describe('GameEngine: authoritative rest pose (ADR 005)', () => {
+  const DICE: Die[] = [4, 4, 4, 2, 1];
+
+  it('stores a valid pose on the turn, the rolled event, and the snapshot', () => {
+    const { engine, events } = makeEngine(makePlayers());
+    engine.start();
+    const pose = restPoseFor(DICE);
+
+    expect(roll(engine, 'p0', DICE, [], pose)).toBeNull();
+    expect(ofType(events, 'rolled')[0]?.restPose).toEqual(pose);
+    expect(engine.publicState().currentTurn?.restPose).toEqual(pose);
+  });
+
+  it('drops an invalid pose but never the throw', () => {
+    const { engine, events } = makeEngine(makePlayers());
+    engine.start();
+
+    // Faces disagree with the reported values (e.g. dev face override).
+    const wrongFaces = restPoseFor([6, 6, 6, 6, 6]);
+    expect(roll(engine, 'p0', DICE, [], wrongFaces)).toBeNull();
+    expect(ofType(events, 'rolled')[0]?.restPose).toBeNull();
+    expect(engine.publicState().currentTurn?.dice).toEqual(DICE);
+
+    // Off the table.
+    const offTable = restPoseFor(DICE).map(
+      (p) => [p[0] + 10, p[1], p[2], p[3], p[4], p[5], p[6]] as typeof p,
+    );
+    expect(roll(engine, 'p0', [4, 4, 4, 2, 2], [0, 1, 2], offTable)).toBeNull();
+    expect(ofType(events, 'rolled')[1]?.restPose).toBeNull();
+    expect(engine.publicState().currentTurn?.restPose).toBeNull();
+  });
+
+  it('a reroll without a pose clears the previous roll pose', () => {
+    const { engine } = makeEngine(makePlayers());
+    engine.start();
+    expect(roll(engine, 'p0', DICE, [], restPoseFor(DICE))).toBeNull();
+    expect(roll(engine, 'p0', [4, 4, 4, 6, 6], [0, 1, 2])).toBeNull();
+    expect(engine.publicState().currentTurn?.restPose).toBeNull();
+  });
+
+  it('carries the pose into rollToBeat on a voluntary stand', () => {
+    const { engine } = makeEngine(makePlayers());
+    engine.start();
+    const pose = restPoseFor(DICE);
+    expect(roll(engine, 'p0', DICE, [], pose)).toBeNull();
+    expect(engine.stand('p0')).toBeNull();
+
+    const state = engine.publicState();
+    expect(state.rollToBeat?.playerId).toBe('p0');
+    expect(state.rollToBeat?.restPose).toEqual(pose);
+    // The next player's fresh turn has no pose of its own.
+    expect(state.currentTurn?.restPose).toBeNull();
+  });
+
+  it('carries the capping roll pose into rollToBeat on the roll-cap auto-stand', () => {
+    const players = makePlayers();
+    const { engine } = makeEngine(players);
+    engine.start();
+
+    const hands: Die[][] = [
+      [4, 4, 4, 2, 1],
+      [4, 1, 2, 3, 5],
+      [4, 2, 2, 6, 6],
+      [4, 2, 2, 5, 5],
+      [4, 2, 2, 3, 3],
+    ];
+    let lastPose: ReturnType<typeof restPoseFor> = [];
+    hands.forEach((dice, i) => {
+      lastPose = restPoseFor(dice);
+      expect(roll(engine, 'p0', dice, i === 0 ? [] : [0], lastPose)).toBeNull();
+    });
+
+    // rollsUsed hit maxRolls → auto-stand; the final roll's pose must be the
+    // one on rollToBeat (settleRoll sets it before stand runs).
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    expect(engine.publicState().rollToBeat?.restPose).toEqual(lastPose);
+  });
+
+  it('replayRolled restores the recorded pose', () => {
+    const { engine } = makeEngine(makePlayers());
+    engine.start();
+    const pose = restPoseFor(DICE);
+    expect(engine.replayRolled('p0', DICE, [], pose)).toBeNull();
+    expect(engine.publicState().currentTurn?.restPose).toEqual(pose);
+    // Legacy log lines replay as null.
+    expect(engine.replayRolled('p0', [4, 4, 4, 6, 6], [0, 1, 2], null)).toBeNull();
+    expect(engine.publicState().currentTurn?.restPose).toBeNull();
   });
 });

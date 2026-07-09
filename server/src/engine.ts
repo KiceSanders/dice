@@ -1,4 +1,5 @@
 import type {
+  BodyPose,
   Die,
   GameStatePublic,
   HandScore,
@@ -16,6 +17,7 @@ import {
   orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
+  validateRestPose,
 } from '@dice/shared';
 
 /** Live view of a seated player. The engine mutates `chips` directly. */
@@ -29,7 +31,15 @@ export interface EnginePlayer {
 export type EngineEvent =
   | { type: 'roundStarted'; roundNumber: number; antes: { playerId: PlayerId; amount: number }[] }
   | { type: 'throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
-  | { type: 'rolled'; playerId: PlayerId; dice: Die[]; rollNumber: number; kept: number[] }
+  | {
+      type: 'rolled';
+      playerId: PlayerId;
+      dice: Die[];
+      rollNumber: number;
+      kept: number[];
+      /** Validated rest pose (canonical space, ADR 005) or null when unavailable. */
+      restPose: BodyPose[] | null;
+    }
   | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
   /** Turn ended with no completed roll (disconnect/kick): no hand. */
   | { type: 'forfeited'; playerId: PlayerId }
@@ -81,6 +91,8 @@ interface CurrentTurn {
   rollCap: number;
   /** The instant straight payout fired this turn (it pays at most once). */
   straightPaid: boolean;
+  /** Validated rest pose of the latest roll (canonical space, ADR 005). */
+  restPose: BodyPose[] | null;
 }
 
 /**
@@ -98,7 +110,12 @@ export class GameEngine {
   private queue: EnginePlayer[] = [];
   private currentTurn: CurrentTurn | null = null;
   private hands = new Map<PlayerId, { score: HandScore; dice: Die[] }>();
-  private rollToBeat: { playerId: PlayerId; score: HandScore; dice: Die[] } | null = null;
+  private rollToBeat: {
+    playerId: PlayerId;
+    score: HandScore;
+    dice: Die[];
+    restPose: BodyPose[] | null;
+  } | null = null;
   /** First finisher's rollsUsed caps everyone after them (roll-count pressure). */
   private roundRollCap: number | null = null;
   /** Seat that opened the previous round/sub-round (null = first round of a game). */
@@ -223,6 +240,7 @@ export class GameEngine {
       rollsUsed: 0,
       rollCap: this.roundRollCap ?? this.settings.maxRolls,
       straightPaid: false,
+      restPose: null,
     };
     this.emit({ type: 'stateChanged' });
 
@@ -321,7 +339,7 @@ export class GameEngine {
    * positions must be unchanged — that plus the range check is the entire
    * integrity check available under client-reported rolls.
    */
-  commitThrow(playerId: PlayerId, dice: Die[]): EngineError | null {
+  commitThrow(playerId: PlayerId, dice: Die[], restPose?: BodyPose[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
     const pending = this.pendingThrow;
@@ -338,32 +356,55 @@ export class GameEngine {
       }
     }
 
+    // Soft gate (ADR 005): a bad pose is dropped, never the throw — the dice
+    // values stay authoritative (this also covers dev face overrides, whose
+    // reported values intentionally disagree with the physics pose).
+    let pose: BodyPose[] | null = null;
+    if (restPose) {
+      const reason = validateRestPose(restPose, dice);
+      if (reason === null) pose = restPose;
+      else console.warn(`rest pose dropped for ${playerId}: ${reason}`);
+    }
+
     this.clearPendingThrow();
-    return this.settleRoll(turn, dice, pending.keepIndices);
+    return this.settleRoll(turn, dice, pending.keepIndices, pose);
   }
 
   /** Log replay (PLAN.md Phase 6): re-apply a recorded `rolled` event verbatim. */
-  replayRolled(playerId: PlayerId, dice: Die[], kept: number[]): EngineError | null {
+  replayRolled(
+    playerId: PlayerId,
+    dice: Die[],
+    kept: number[],
+    restPose: BodyPose[] | null,
+  ): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
-    return this.settleRoll(turn, dice, kept);
+    return this.settleRoll(turn, dice, kept, restPose);
   }
 
   /**
    * Apply settled faces to the turn — the single dice entry point for the live
    * physics path and log replay, so the straight payout and auto-stand fire
-   * identically in both.
+   * identically in both. `restPose` must be set on the turn before the roll-cap
+   * auto-stand below, so a capping roll carries its pose into rollToBeat.
    */
-  private settleRoll(turn: CurrentTurn, dice: Die[], kept: number[]): EngineError | null {
+  private settleRoll(
+    turn: CurrentTurn,
+    dice: Die[],
+    kept: number[],
+    restPose: BodyPose[] | null,
+  ): EngineError | null {
     turn.dice = [...dice];
     turn.rollsUsed += 1;
     turn.keptIndices = [...kept];
+    turn.restPose = restPose ? restPose.map((p): BodyPose => [...p]) : null;
     this.emit({
       type: 'rolled',
       playerId: turn.playerId,
       dice: [...turn.dice],
       rollNumber: turn.rollsUsed,
       kept: [...turn.keptIndices],
+      restPose: turn.restPose,
     });
     this.applyStraightPayout(turn);
 
@@ -403,7 +444,7 @@ export class GameEngine {
     this.emit({ type: 'stood', playerId, dice: [...turn.dice], score: { ...score } });
 
     if (this.rollToBeat === null || compareHands(score, this.rollToBeat.score) > 0) {
-      this.rollToBeat = { playerId, score, dice: [...turn.dice] };
+      this.rollToBeat = { playerId, score, dice: [...turn.dice], restPose: turn.restPose };
     }
     if (this.roundRollCap === null) this.roundRollCap = turn.rollsUsed;
 
@@ -510,6 +551,9 @@ export class GameEngine {
           rollsUsed: this.currentTurn.rollsUsed,
           rollCap: this.currentTurn.rollCap,
           throwing: this.pendingThrow !== null,
+          restPose: this.currentTurn.restPose
+            ? this.currentTurn.restPose.map((p): BodyPose => [...p])
+            : null,
         }
       : null;
 
@@ -523,6 +567,9 @@ export class GameEngine {
             playerId: this.rollToBeat.playerId,
             score: { ...this.rollToBeat.score },
             dice: [...this.rollToBeat.dice],
+            restPose: this.rollToBeat.restPose
+              ? this.rollToBeat.restPose.map((p): BodyPose => [...p])
+              : null,
           }
         : null,
       subRound: this.subRound

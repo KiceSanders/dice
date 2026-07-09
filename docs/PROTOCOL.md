@@ -18,7 +18,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `settings:update` | `{ settings }` | Host only, between rounds |
 | `game:start` | `{}` | Host only, ≥2 seated |
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, keeps locked |
-| `turn:throwResult` | `{ dice }` | Phase 2: settled faces; kept positions must be unchanged |
+| `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
 | `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
 | `turn:stand` | `{}` | Voluntary stand (gated by `canStandVoluntarily`) |
 | `chat:send` | `{ text }` | ≤500 chars, rate-limited |
@@ -38,7 +38,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `seat:denied` | `{}` | To the requester |
 | `turn:throwStarted` | `{ playerId, kept, rollNumber }` | A throw is in flight |
 | `dice:frames` | `{ playerId, frames }` | Relay of the roller's poses |
-| `turn:rolled` | `{ playerId, dice, rollNumber, kept }` | The settled roll |
+| `turn:rolled` | `{ playerId, dice, rollNumber, kept, restPose }` | The settled roll; `restPose` is the server-validated rest layout (`BodyPose[] \| null`, ADR 005) every viewer renders between turns |
 | `turn:forfeited` | `{ playerId }` | Turn ended with no completed roll |
 | `straight:paid` | `{ playerId, kind, amountPerPlayer, total, payments }` | Instant side payment |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
@@ -62,7 +62,7 @@ update this table.**
 |---|---|---|---|
 | `roundStarted` | `roundStarted` ✓ | — (snapshot only) | via `room:state` |
 | `throwStarted` | — (not recorded) | `turn:throwStarted` | ignored by reducer; 3D table consumes off the socket |
-| `rolled` | `rolled` ✓ | `turn:rolled` | `lastRoll` (animation) |
+| `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |
 | `stood` | `stood` ✓ | — (snapshot only) | via `room:state` |
 | `forfeited` | `forfeited` ✓ | `turn:forfeited` | system chat line |
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
@@ -82,3 +82,9 @@ through `room:state` snapshots (plus `chat:message` for chat). Replay path:
 `dice:frames` and `turn:throwStarted` are streaming/transient — never persisted, never in
 the reducer's state. Everything a recovered room needs lives in the `RoomEvent` log
 (`server/logs/<roomId>.log`, JSON Lines, compacted to a snapshot at each round end).
+
+The settled **rest pose** is the exception that proves the rule (ADR 005): unlike the
+frame stream, the final layout IS state. It rides `turn:rolled`, lives in the snapshot
+(`currentTurn.restPose`, `rollToBeat.restPose` — canonical table space), and survives
+crash recovery via the persisted `rolled` event, so every viewer — including rejoiners —
+renders the dice where they physically landed.

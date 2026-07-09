@@ -153,7 +153,7 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
         conn.sendError('BAD_REQUEST', 'no game in progress');
         return;
       }
-      const error = c.room.engine.commitThrow(c.playerId, msg.dice);
+      const error = c.room.engine.commitThrow(c.playerId, msg.dice, msg.restPose);
       if (error) conn.sendError(error.code, error.message);
     },
 

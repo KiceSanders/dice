@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { roll } from './engine.testkit.js';
+import { restPoseFor, roll } from './engine.testkit.js';
 import { RoomLogStore, recoverRooms } from './persistence.js';
 import type { ClientLink, Room } from './room.js';
 import { RoomManager } from './roomManager.js';
@@ -124,12 +124,14 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(room.startGame(host.id)).toBeNull();
 
     const engine = room.engine!;
+    const standPose = restPoseFor([3, 3, 2, 2, 1]);
     expect(engine.beginThrow(host.id, [])).toBeNull();
     expect(engine.commitThrow(host.id, [3, 3, 4, 5, 6])).toBeNull();
     expect(engine.beginThrow(host.id, [0, 1])).toBeNull();
-    expect(engine.commitThrow(host.id, [3, 3, 2, 2, 1])).toBeNull();
+    expect(engine.commitThrow(host.id, [3, 3, 2, 2, 1], standPose)).toBeNull();
     expect(engine.stand(host.id)).toBeNull();
 
+    // p1's roll reports no pose (e.g. pre-ADR-005 client) — must replay as null.
     expect(engine.beginThrow(p1.id, [])).toBeNull();
     expect(engine.commitThrow(p1.id, [2, 2, 6, 6, 5])).toBeNull();
     expect(engine.beginThrow(p1.id, [2, 3])).toBeNull(); // in flight at "crash"
@@ -144,9 +146,12 @@ describe('persistence & crash recovery (Phase 6)', () => {
     // Committed physics dice re-applied exactly via replayRolled.
     expect(after.rollToBeat?.playerId).toBe(host.id);
     expect(after.rollToBeat?.dice).toEqual([3, 3, 2, 2, 1]);
+    // The rest pose survives the crash with the hand it belongs to (ADR 005).
+    expect(after.rollToBeat?.restPose).toEqual(standPose);
     expect(after.currentTurn?.playerId).toBe(p1.id);
     expect(after.currentTurn?.dice).toEqual([2, 2, 6, 6, 5]);
     expect(after.currentTurn?.rollsUsed).toBe(1);
+    expect(after.currentTurn?.restPose).toBeNull();
     // The un-committed throw is not in the log: p1 just re-throws after rejoin.
     expect(after.currentTurn?.throwing).toBe(false);
 

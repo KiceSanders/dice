@@ -632,9 +632,10 @@ export default function DicePhysics({
         settleCountRef.current = 0;
         setSimRolling(false);
         enterSelectingPhase(values);
-        onPoseFrameRef.current?.(samplePoseFrame(performance.now()));
+        const settleFrame = samplePoseFrame(performance.now());
+        onPoseFrameRef.current?.(settleFrame);
         onRollingChangeRef.current?.(false);
-        onSettledRef.current(values);
+        onSettledRef.current(values, settleFrame);
       });
     },
     [readCurrentDieValues, enterSelectingPhase, samplePoseFrame],

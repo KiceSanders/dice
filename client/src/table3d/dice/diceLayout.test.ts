@@ -1,7 +1,16 @@
+import { REST_POSE_BOUNDS } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
 import { FELT_SCALE, RAIL_OUTER_WORLD, TABLE, TABLE_SEAT_COUNT, TABLE_WALL_OUTER } from '../layout';
 import { projectToNdc } from '../project';
-import { DIE_SIZE, FELT_BOUND_X, FELT_BOUND_Z, KOOZIE } from './constants';
+import {
+  DICE_COUNT,
+  DICE_FELT_Y,
+  DIE_SIZE,
+  dieSlotPosition,
+  FELT_BOUND_X,
+  FELT_BOUND_Z,
+  KOOZIE,
+} from './constants';
 import {
   KEPT_DIE_SPACING,
   KOOZIE_NEAR_DOCK_GUARD_POINT,
@@ -77,6 +86,38 @@ describe('diceLayout', () => {
   it('keepSlotForIndex maps die index to tray slot', () => {
     expect(keepSlotForIndex(2, [1, 2, 4])).toBe(1);
     expect(keepSlotForIndex(0, [1, 2, 4])).toBe(-1);
+  });
+});
+
+describe('layout stays inside REST_POSE_BOUNDS (ADR 005)', () => {
+  // The server rejects rest poses outside the shared envelope. Every position
+  // this layout can legitimately produce — felt slots, the kept-dice rail, and
+  // anywhere inside the containment wall — must pass, or honest rollers would
+  // silently drop into the slot-layout fallback after a layout tweak.
+  function expectInsideBounds([x, y, z]: [number, number, number], label: string) {
+    expect(Math.hypot(x, z), `${label} radius`).toBeLessThanOrEqual(REST_POSE_BOUNDS.maxRadius);
+    expect(y, `${label} y`).toBeGreaterThanOrEqual(REST_POSE_BOUNDS.minY);
+    expect(y, `${label} y`).toBeLessThanOrEqual(REST_POSE_BOUNDS.maxY);
+  }
+
+  it('felt slots are inside the bounds', () => {
+    for (let i = 0; i < DICE_COUNT; i++) {
+      expectInsideBounds(dieSlotPosition(i), `felt slot ${i}`);
+    }
+  });
+
+  it('a full kept row on the rail is inside the bounds', () => {
+    for (let slot = 0; slot < DICE_COUNT; slot++) {
+      expectInsideBounds(keptDieRailPosition(slot, DICE_COUNT), `kept slot ${slot}`);
+    }
+  });
+
+  it('the containment wall (max scatter) and die heights are inside the bounds', () => {
+    // A die resting against the wall's inner face is the farthest a settled
+    // die can physically be; a die stacked on another is the highest.
+    expect(FELT_SCALE.x * TABLE_WALL_OUTER).toBeLessThanOrEqual(REST_POSE_BOUNDS.maxRadius);
+    expectInsideBounds([0, DICE_FELT_Y, 0], 'die on felt');
+    expectInsideBounds([0, DICE_FELT_Y + DIE_SIZE, 0], 'die stacked on a die');
   });
 });
 

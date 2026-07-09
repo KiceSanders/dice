@@ -124,7 +124,7 @@ describe('straight payout (instant zero-sum side payment)', () => {
       settings: payoutSettings({ amountPerPlayer: 5 }),
     });
     engine.start();
-    expect(engine.replayRolled('p0', LOW_STRAIGHT, [])).toBeNull();
+    expect(engine.replayRolled('p0', LOW_STRAIGHT, [], null)).toBeNull();
 
     expect(ofType(events, 'straightPaid')).toHaveLength(1);
     expect(players.map((p) => p.chips)).toEqual([104, 94]);

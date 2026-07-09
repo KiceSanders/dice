@@ -103,8 +103,17 @@ const validators: Record<ClientMessage['type'], Validator> = {
     isIndexArray(m.keepIndices)
       ? null
       : 'keepIndices must be an array of ≤5 unique integers in [0, 4]',
-  'turn:throwResult': (m) =>
-    isDiceArray(m.dice) ? null : 'dice must be exactly 5 integers in [1, 6]',
+  'turn:throwResult': (m) => {
+    if (!isDiceArray(m.dice)) return 'dice must be exactly 5 integers in [1, 6]';
+    // Shape only — semantic checks (bounds, faces) are the engine's soft gate
+    // (ADR 005). A malformed array is a client bug, so hard-reject it.
+    if (m.restPose !== undefined) {
+      if (!Array.isArray(m.restPose) || m.restPose.length !== 5 || !m.restPose.every(isBodyPose)) {
+        return 'restPose must be exactly 5 body poses when present';
+      }
+    }
+    return null;
+  },
   'dice:frames': (m) =>
     Array.isArray(m.frames) &&
     m.frames.length >= 1 &&

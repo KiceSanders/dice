@@ -1,4 +1,5 @@
 import type {
+  BodyPose,
   Die,
   ErrorCode,
   HandScore,
@@ -28,6 +29,8 @@ export interface LastRoll {
   dice: Die[];
   rollNumber: number;
   kept: number[];
+  /** Server-validated rest pose (canonical space, ADR 005) or null. */
+  restPose: BodyPose[] | null;
   /** Client receive time, so the animation re-triggers on every roll. */
   receivedAt: number;
 }
@@ -194,6 +197,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           dice: msg.dice,
           rollNumber: msg.rollNumber,
           kept: msg.kept,
+          restPose: msg.restPose,
           receivedAt: Date.now(),
         },
       };

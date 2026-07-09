@@ -427,6 +427,7 @@ export class Room {
           dice: event.dice,
           kept: event.kept,
           rollNumber: event.rollNumber,
+          restPose: event.restPose ?? undefined,
         });
         this.broadcast({
           type: 'turn:rolled',
@@ -434,6 +435,7 @@ export class Room {
           dice: event.dice,
           rollNumber: event.rollNumber,
           kept: event.kept,
+          restPose: event.restPose,
         });
         this.broadcastState();
         break;

@@ -1,4 +1,5 @@
 import type {
+  BodyPose,
   Die,
   HandScore,
   PlayerId,
@@ -77,7 +78,15 @@ export type RoomEvent =
       roundNumber: number;
       antes: { playerId: PlayerId; amount: number }[];
     }
-  | { type: 'rolled'; playerId: PlayerId; dice: Die[]; kept: number[]; rollNumber: number }
+  | {
+      type: 'rolled';
+      playerId: PlayerId;
+      dice: Die[];
+      kept: number[];
+      rollNumber: number;
+      /** Validated rest pose (ADR 005); optional so pre-ADR-005 logs still parse. */
+      restPose?: BodyPose[];
+    }
   | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
   /** Turn ended with no completed roll: replay must advance past the player. */
   | { type: 'forfeited'; playerId: PlayerId }

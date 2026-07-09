@@ -31,16 +31,21 @@ pointer release on the koozie
   → server: router.ts → handlers.ts → engine.beginThrow   (locks keeps, marks turn throwing)
   → broadcast turn:throwStarted; roller streams dice:frames (relayed to spectators,
     consumed by useRemoteRoll.ts → RemoteDiceView — never touches the reducer)
-  → sim settles → ws turn:throwResult { dice }
-  → engine.commitThrow    (integrity: 5 dice ∈ [1,6], kept positions unchanged)
-  → engine.settleRoll     (single entry point shared with log replay)
-      → emit 'rolled' → persisted + broadcast turn:rolled
+  → sim settles → ws turn:throwResult { dice, restPose }
+  → engine.commitThrow    (integrity: 5 dice ∈ [1,6], kept positions unchanged;
+                           restPose soft-gated by shared validateRestPose — bounds +
+                           faces must match the dice, else dropped to null, never the throw)
+  → engine.settleRoll     (single entry point shared with log replay; sets turn.restPose
+                           before the roll-cap auto-stand so rollToBeat inherits it)
+      → emit 'rolled' → persisted + broadcast turn:rolled { …, restPose }
       → applyStraightPayout (instant zero-sum side payment)
       → auto-stand at rollCap
   → room.onEngineEvent    (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
-  → room.broadcastState   (authoritative RoomSnapshot → every client)
+  → room.broadcastState   (authoritative RoomSnapshot → every client; snapshot carries
+                           currentTurn.restPose / rollToBeat.restPose for rejoiners)
   → client/src/state/store.ts reducer folds room:state / turn:rolled into AppState
-  → pages/Room.tsx → Table → TableCanvas → 3D scene re-renders
+  → pages/Room.tsx → resolveTableRestPose (single settled-layout resolver, ADR 005)
+  → Table → TableCanvas → 3D scene re-renders
 ```
 
 Round-end delay: 5s (`ROUND_END_DELAY_MS`) → next round auto-starts. Disconnect/kick

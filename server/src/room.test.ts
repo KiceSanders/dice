@@ -1,6 +1,7 @@
 import type { ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { restPoseFor } from './engine.testkit.js';
 import { type ClientLink, clampSettings, Room, sanitizeName } from './room.js';
 import { RoomManager } from './roomManager.js';
 
@@ -229,6 +230,39 @@ describe('Room snapshots', () => {
     expect(hostSnap.seatRequests).toHaveLength(1);
     expect(annSnap.seatRequests).toHaveLength(1); // her own
     expect(annSnap.players.map((pl) => pl.name).sort()).toEqual(['Ann', 'Host']);
+  });
+});
+
+describe('Room roll broadcasts (ADR 005)', () => {
+  it('turn:rolled carries the validated rest pose to every client', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { link } = seatPlayer(room, 'P1');
+    expect(room.startGame(host.id)).toBeNull();
+
+    const engine = room.engine!;
+    const dice = [4, 4, 4, 2, 1] as const;
+    const pose = restPoseFor([...dice]);
+    expect(engine.beginThrow(host.id, [])).toBeNull();
+    expect(engine.commitThrow(host.id, [...dice], pose)).toBeNull();
+
+    const rolled = link.ofType('turn:rolled');
+    expect(rolled).toHaveLength(1);
+    expect(rolled[0]).toMatchObject({ playerId: host.id, dice: [...dice], restPose: pose });
+    // The follow-up snapshot exposes it too (rejoin path).
+    expect(link.ofType('room:state').at(-1)?.snapshot.game?.currentTurn?.restPose).toEqual(pose);
+  });
+
+  it('turn:rolled carries restPose null when the roller sent none', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { link } = seatPlayer(room, 'P1');
+    expect(room.startGame(host.id)).toBeNull();
+
+    const engine = room.engine!;
+    expect(engine.beginThrow(host.id, [])).toBeNull();
+    expect(engine.commitThrow(host.id, [4, 4, 4, 2, 1])).toBeNull();
+    expect(link.ofType('turn:rolled')[0]?.restPose).toBeNull();
   });
 });
 

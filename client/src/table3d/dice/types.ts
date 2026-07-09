@@ -19,8 +19,12 @@ export interface TableDiceProps {
   releaseSignal: number;
   /** Pointer velocity at release. */
   releaseVelocity: ThrowVelocity;
-  /** Called when dice settle after a throw. */
-  onSettled: (dice: Die[]) => void;
+  /**
+   * Called when dice settle after a throw. `settleFrame` is the view-local
+   * pose sampled at that instant (kept dice already railed, cup hidden) — the
+   * source of the authoritative rest pose sent to the server (ADR 005).
+   */
+  onSettled: (dice: Die[], settleFrame: PoseFrame) => void;
   /** Called when rolling state changes. */
   onRollingChange?: (rolling: boolean) => void;
   /** Called on mouseup after a drag with sampled throw velocity. */

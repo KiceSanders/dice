@@ -152,6 +152,38 @@ same override; switch **View as** to check the passive glow.
 
 ---
 
+## Settled dice rest pose (ADR 005) — 2 tabs + throttling
+
+Verifies every viewer sees the dice **where they physically landed**, never the
+center-line slot layout. Setup: tabs A (host, seated) and B (seated), game started.
+**Watch both DevTools consoles throughout** — `[dice] slot-layout fallback` must not
+appear except where marked *expected*; `window.__diceDebug.slotFallbackCount` exposes a
+running counter.
+
+1. **Roll:** A rolls. After settle, both tabs show the identical scatter (B sees it
+   rotated to A's seat) — not five dice in a line across the table's center.
+2. **Keep + reroll:** A keeps 2 dice and rolls again. Both tabs: kept dice sit at A's
+   rail edge, the rest scattered where they landed.
+3. **Turn switch:** A stands. While B idles pre-roll, both tabs still show A's final
+   layout unchanged.
+4. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
+   real layout (snapshot `restPose`) — this used to be a guaranteed fallback.
+5. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its
+   own real layout.
+6. **Late joiner:** open a third tab as a spectator after a roll — real layout on join.
+7. **Lossy stream:** DevTools → Network → throttle B to Slow 3G during A's throw. The
+   live animation may stutter, but after `turn:rolled` B snaps to the correct settled
+   layout (the pose rides the message, not the stream).
+8. **Crash recovery:** restart the server mid-round after a roll; when both tabs
+   reconnect the layout is restored from the event log.
+9. **Fresh round (fallback *expected*):** at a new round before any roll, a lingering
+   `rollToBeat` with no pose may render slot layout + one dev warn — legitimate.
+10. **Dev face override (fallback *expected*):** with `window.__forceSettleFaces` set,
+    the reported values disagree with the physics pose, so the client omits it, the
+    server would drop it anyway, and viewers get the slot layout.
+
+---
+
 ## UI selectors & automation tips
 
 | What | How to find |

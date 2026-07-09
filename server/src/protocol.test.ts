@@ -92,6 +92,30 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'turn:throwResult' })).toMatchObject({ ok: false });
   });
 
+  it('validates turn:throwResult restPose shape (ADR 005)', () => {
+    const dice = [1, 2, 3, 4, 5];
+    const pose = [0, 0.06, 0, 0, 0, 0, 1];
+    const restPose = [pose, pose, pose, pose, pose];
+    // Optional: absent is fine (covered above); present must be 5 body poses.
+    expect(parse({ type: 'turn:throwResult', dice, restPose })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:throwResult', dice, restPose: restPose.slice(0, 4) })).toMatchObject(
+      { ok: false },
+    );
+    expect(
+      parse({ type: 'turn:throwResult', dice, restPose: [pose, pose, pose, pose, [0, 0, 0]] }),
+    ).toMatchObject({ ok: false });
+    expect(
+      parse({
+        type: 'turn:throwResult',
+        dice,
+        restPose: [pose, pose, pose, pose, [0, Number.NaN, 0, 0, 0, 0, 1]],
+      }),
+    ).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:throwResult', dice, restPose: 'nope' })).toMatchObject({
+      ok: false,
+    });
+  });
+
   it('validates dice:frames pose batches', () => {
     const pose = [0, 0.1, 0, 0, 0, 0, 1];
     const frame = { t: 16, bodies: [pose, pose, pose, pose, pose, pose] };

@@ -17,10 +17,16 @@ possible; where code stays complex for a reason, that reason is documented here.
 
 **Last-roll dice on the felt:** the most recent `turn:rolled` stays visible for every
 viewer until the next roller grabs/releases the koozie (or a streamed throw is in flight).
-Spectators and the incoming roller see it through `StaticDiceView` — never a passive
-`DicePhysics` mount with fixed slot layout. Only the active roller uses `DicePhysics`;
-captured poses are tagged with `{ playerId, rollNumber }` and validated against
-`state.lastRoll` before reuse (`staticPose.ts`).
+Spectators and the incoming roller see it through `StaticDiceView`, fed by **one resolver**:
+`resolveTableRestPose` in `staticPose.ts` (ADR 005). Its priority is the server-validated
+`restPose` carried on `turn:rolled` and every snapshot (canonical space → rotated to the
+viewer's seat), with the values-only slot layout as a last resort that logs
+`[dice] slot-layout fallback` in dev and counts on `window.__diceDebug`. **Adding a new
+pose source means adding a tier inside that resolver — never a new per-client capture
+path**; the old opportunistic captures (roller sim / streamed-frame snapshots) were exactly
+the recurring center-line regression and were deleted. Note the kept-dice consequence: with
+an authoritative pose, kept dice render at the *roller's* rail edge for every viewer (same
+as live streaming); only the slot fallback rails them viewer-locally.
 
 They already share the presentational meshes (`PipDie`, `KoozieMesh`). **Any new visual
 must either (a) live in a shared presentational component used by all three, or (b) be

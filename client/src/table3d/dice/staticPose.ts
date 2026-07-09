@@ -1,18 +1,23 @@
-import type { BodyPose, Die, PlayerId, PoseFrame } from '@dice/shared';
-import * as THREE from 'three';
+import type { BodyPose, Die, GameStatePublic, PoseFrame } from '@dice/shared';
+import { viewRotationY } from '../layout';
+import { rotateBodyPoseY } from '../seatTransform';
 import { DICE_COUNT, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
-import { quaternionForFace, readTopFace } from './faceValue';
+import { quaternionForFace } from './faceValue';
 
 const HIDDEN_CUP_POSE: BodyPose = [0, 0, 0, 0, 0, 0, 1];
-const _quat = new THREE.Quaternion();
 
 function diePose(position: [number, number, number], value: Die): BodyPose {
   const q = quaternionForFace(value);
   return [position[0], position[1], position[2], q.x, q.y, q.z, q.w];
 }
 
-/** Build a stable non-physics table pose from committed dice values. */
+/**
+ * Build a stable non-physics table pose from committed dice values — the
+ * LAST-RESORT layout (dice in slots across the felt, kept dice railed). All
+ * between-turn dice go through `resolveTableRestPose`; this is only rendered
+ * when no authoritative rest pose exists (pre-first-roll, dropped pose).
+ */
 export function staticPoseFromDice(dice: Die[], keepIndices: number[] = []): PoseFrame | null {
   if (dice.length < DICE_COUNT) return null;
 
@@ -33,58 +38,79 @@ export function staticPoseFromDice(dice: Die[], keepIndices: number[] = []): Pos
 }
 
 /**
- * True when a captured table pose shows exactly these dice values, per die
- * index (frame bodies are cup-first, then hand-index order; seat-localizing
- * Y-rotations preserve top faces). Used to validate a physically captured
- * "last roll" pose against the authoritative turn:rolled values before
- * showing it between turns — capture pipelines (local sim frames vs streamed
- * frames) can be stale after refreshes, missed streams, or turns that ended
- * without a throw, and a pretty pose with wrong faces is worse than none.
+ * Everything the resolver needs to lay out the last settled roll: the
+ * authoritative dice values, locked keeps, and the server-validated rest pose
+ * (canonical table space, ADR 005) when one exists.
  */
-export function poseFrameMatchesDice(frame: PoseFrame, dice: Die[]): boolean {
-  if (dice.length < DICE_COUNT) return false;
-  for (let i = 0; i < DICE_COUNT; i++) {
-    const pose = frame.bodies[i + 1];
-    if (!pose) return false;
-    _quat.set(pose[3], pose[4], pose[5], pose[6]);
-    if (readTopFace(_quat) !== dice[i]) return false;
-  }
-  return true;
-}
-
-/** Authoritative identity for a committed roll (`turn:rolled`). */
-export interface RollIdentity {
-  playerId: PlayerId;
-  rollNumber: number;
-}
-
-/** Physically or streamed captured table pose tagged with the roll it came from. */
-export interface CapturedRollPose {
-  frame: PoseFrame;
-  /** Capture time — newest matching pose wins in Room. */
-  at: number;
-  rollId: RollIdentity;
-}
-
-export function rollIdentityMatches(captured: RollIdentity, lastRoll: RollIdentity): boolean {
-  return captured.playerId === lastRoll.playerId && captured.rollNumber === lastRoll.rollNumber;
+export interface HeldRollInput {
+  dice: Die[];
+  kept: number[];
+  restPose: BodyPose[] | null;
 }
 
 /**
- * Pick the best pose for `lastRoll`: a tagged capture whose roll id and faces
- * both match, else a rebuilt static pose from the authoritative dice values.
+ * Which roll the felt should show between throws, in priority order: the live
+ * `turn:rolled` state, else the current turn from a snapshot (rejoin mid-turn),
+ * else the roll to beat (rejoin between turns). Null when nothing has been
+ * rolled yet.
  */
-export function resolveLastRollPose(
-  lastRoll: RollIdentity & { dice: Die[]; kept: number[] },
-  local: CapturedRollPose | null,
-  remote: CapturedRollPose | null,
-): PoseFrame | null {
-  const candidates = [local, remote].filter((c): c is CapturedRollPose => c !== null);
-  const newestMatching = candidates
-    .filter((c) => rollIdentityMatches(c.rollId, lastRoll))
-    .sort((a, b) => b.at - a.at)[0];
-  if (newestMatching && poseFrameMatchesDice(newestMatching.frame, lastRoll.dice)) {
-    return newestMatching.frame;
+export function pickHeldRollInput(
+  lastRoll: HeldRollInput | null,
+  game: GameStatePublic | null,
+): HeldRollInput | null {
+  if (lastRoll) return { dice: lastRoll.dice, kept: lastRoll.kept, restPose: lastRoll.restPose };
+  const turn = game?.currentTurn;
+  if (turn && turn.dice.length >= DICE_COUNT) {
+    return { dice: turn.dice, kept: turn.keptIndices, restPose: turn.restPose };
   }
-  return staticPoseFromDice(lastRoll.dice, lastRoll.kept);
+  const rollToBeat = game?.rollToBeat ?? null;
+  if (rollToBeat) return { dice: rollToBeat.dice, kept: [], restPose: rollToBeat.restPose };
+  return null;
+}
+
+/** Canonical-space rest pose → a view-local static frame for this viewer's seat. */
+export function restPoseToFrame(restPose: BodyPose[], mySeat: number): PoseFrame {
+  const angle = -viewRotationY(mySeat);
+  return {
+    t: 0,
+    bodies: [HIDDEN_CUP_POSE, ...restPose.map((p) => rotateBodyPoseY(p, angle))],
+    cupVisible: false,
+  };
+}
+
+/**
+ * Observability for the slot-layout fallback (browser-testing checklist reads
+ * `window.__diceDebug`): outside pre-first-roll idles and intentionally
+ * dropped poses, the counter staying at 0 is the regression guard.
+ */
+export const diceDebug = { slotFallbackCount: 0 };
+
+declare global {
+  interface Window {
+    __diceDebug?: typeof diceDebug;
+  }
+}
+if (typeof window !== 'undefined') window.__diceDebug = diceDebug;
+
+/**
+ * THE resolver for settled dice on the felt. Priority: the server-validated
+ * rest pose (every viewer sees the dice where they physically landed), else
+ * the slot layout rebuilt from values. Adding a new pose source means adding
+ * a tier here — never a new per-client capture path (ADR 005).
+ */
+export function resolveTableRestPose(
+  input: HeldRollInput,
+  mySeat: number,
+): { frame: PoseFrame | null; source: 'authoritative' | 'slot-fallback' } {
+  if (input.restPose && input.restPose.length === DICE_COUNT) {
+    // No face re-check here: the server already validated pose ↔ values, and
+    // re-reading faces from a slightly tilted settled quaternion is exactly
+    // the misread that used to knock viewers into the slot fallback.
+    return { frame: restPoseToFrame(input.restPose, mySeat), source: 'authoritative' };
+  }
+  diceDebug.slotFallbackCount += 1;
+  if (import.meta.env.DEV) {
+    console.warn('[dice] slot-layout fallback', { dice: input.dice, kept: input.kept });
+  }
+  return { frame: staticPoseFromDice(input.dice, input.kept), source: 'slot-fallback' };
 }

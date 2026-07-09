@@ -1,43 +1,25 @@
 import type { Die } from '@dice/shared';
+import { quaternionFaceUp, readTopFaceFromQuat } from '@dice/shared';
 import * as THREE from 'three';
 
 /**
- * Face normals in die-local space (+Y is "1", opposites sum to 7).
- * Must match PipDie mesh orientation.
+ * Thin three.js wrappers over the shared face/quaternion helpers (ADR 005).
+ * The face-normal convention (must match PipDie mesh orientation) lives in
+ * shared/src/game/restPose.ts so the server's rest-pose validation can never
+ * drift from what this renderer draws — faceValue.test.ts pins the parity.
  */
-const FACE_NORMALS: Record<Die, THREE.Vector3> = {
-  1: new THREE.Vector3(0, 1, 0),
-  6: new THREE.Vector3(0, -1, 0),
-  2: new THREE.Vector3(0, 0, 1),
-  5: new THREE.Vector3(0, 0, -1),
-  3: new THREE.Vector3(1, 0, 0),
-  4: new THREE.Vector3(-1, 0, 0),
-};
-
-const _normal = new THREE.Vector3();
-const _up = new THREE.Vector3(0, 1, 0);
-const _quat = new THREE.Quaternion();
 
 /** Which face points up given the die's world rotation. */
 export function readTopFace(rotation: THREE.Quaternion): Die {
-  let best: Die = 1;
-  let bestDot = -Infinity;
-  for (const value of [1, 2, 3, 4, 5, 6] as Die[]) {
-    _normal.copy(FACE_NORMALS[value]).applyQuaternion(rotation);
-    if (_normal.y > bestDot) {
-      bestDot = _normal.y;
-      best = value;
-    }
-  }
-  return best;
+  return readTopFaceFromQuat([rotation.x, rotation.y, rotation.z, rotation.w]);
 }
 
 /** Orientation that puts `value` face up (world +Y), with slight jitter optional. */
 export function quaternionForFace(value: Die, jitter = 0): THREE.Quaternion {
-  const local = FACE_NORMALS[value];
-  _quat.setFromUnitVectors(local, _up);
+  const [qx, qy, qz, qw] = quaternionFaceUp(value);
+  const quat = new THREE.Quaternion(qx, qy, qz, qw);
   if (jitter > 0) {
-    _quat.multiply(
+    quat.multiply(
       new THREE.Quaternion().setFromEuler(
         new THREE.Euler(
           (Math.random() - 0.5) * jitter,
@@ -47,5 +29,5 @@ export function quaternionForFace(value: Die, jitter = 0): THREE.Quaternion {
       ),
     );
   }
-  return _quat.clone();
+  return quat;
 }

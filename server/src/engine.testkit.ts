@@ -1,5 +1,5 @@
-import type { Die, PlayerId, RoomSettings } from '@dice/shared';
-import { DEFAULT_SETTINGS } from '@dice/shared';
+import type { BodyPose, Die, PlayerId, RoomSettings } from '@dice/shared';
+import { DEFAULT_SETTINGS, quaternionFaceUp } from '@dice/shared';
 import {
   type EngineError,
   type EngineEvent,
@@ -46,10 +46,19 @@ export function roll(
   id: PlayerId,
   dice: Die[],
   keep: number[] = [],
+  restPose?: BodyPose[],
 ): EngineError | null {
   const begun = engine.beginThrow(id, keep);
   if (begun) return begun;
-  return engine.commitThrow(id, dice);
+  return engine.commitThrow(id, dice, restPose);
+}
+
+/** A valid on-table rest pose matching `dice` (passes validateRestPose). */
+export function restPoseFor(dice: Die[]): BodyPose[] {
+  return dice.map((value, i) => {
+    const [qx, qy, qz, qw] = quaternionFaceUp(value);
+    return [0.3 * i - 0.6, 0.063, 0.4 - 0.25 * i, qx, qy, qz, qw];
+  });
 }
 
 export function ofType<T extends EngineEvent['type']>(

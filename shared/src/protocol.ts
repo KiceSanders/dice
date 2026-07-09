@@ -8,6 +8,7 @@
  */
 
 import type {
+  BodyPose,
   Die,
   HandScore,
   PlayerId,
@@ -33,8 +34,12 @@ export type ClientMessage =
   | { type: 'game:start' }
   /** Physics roll, phase 1: koozie released. Locks the keep set (ADR 004). */
   | { type: 'turn:throwStart'; keepIndices: number[] }
-  /** Physics roll, phase 2: the sim settled on these faces. */
-  | { type: 'turn:throwResult'; dice: Die[] }
+  /**
+   * Physics roll, phase 2: the sim settled on these faces. `restPose` is where
+   * the dice came to rest (canonical space, hand-index order, ADR 005) —
+   * optional; the server drops it (never the throw) if validation fails.
+   */
+  | { type: 'turn:throwResult'; dice: Die[]; restPose?: BodyPose[] }
   /** Live throw poses; relayed to everyone else in the room, never persisted. */
   | { type: 'dice:frames'; frames: PoseFrame[] }
   | { type: 'turn:stand' }
@@ -62,7 +67,15 @@ export type ServerMessage =
   | { type: 'room:state'; snapshot: RoomSnapshot }
   | { type: 'seat:requested'; playerId: PlayerId; playerName: string; buyIn: number }
   | { type: 'seat:denied' }
-  | { type: 'turn:rolled'; playerId: PlayerId; dice: Die[]; rollNumber: number; kept: number[] }
+  | {
+      type: 'turn:rolled';
+      playerId: PlayerId;
+      dice: Die[];
+      rollNumber: number;
+      kept: number[];
+      /** Validated rest pose (canonical space) or null when unavailable (ADR 005). */
+      restPose: BodyPose[] | null;
+    }
   /** A physics throw is in flight; final values arrive via turn:rolled. */
   | { type: 'turn:throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   /** Relay of the current roller's throw poses (ADR 004). */

@@ -95,6 +95,12 @@ export interface TurnState {
   rollCap: number;
   /** True while a physics throw is in flight (throwStart → throwResult, ADR 004). */
   throwing: boolean;
+  /**
+   * Where the last roll's dice physically came to rest (ADR 005): canonical
+   * table space, one pose per die in hand-index order, cup excluded. Null
+   * until the first roll or when the roller's pose failed validation.
+   */
+  restPose: BodyPose[] | null;
 }
 
 export interface SubRoundState {
@@ -109,7 +115,13 @@ export interface GameStatePublic {
   /** Seat-ordered player ids still to act this (sub-)round. */
   turnQueue: PlayerId[];
   currentTurn: TurnState | null;
-  rollToBeat: { playerId: PlayerId; score: HandScore; dice: Die[] } | null;
+  rollToBeat: {
+    playerId: PlayerId;
+    score: HandScore;
+    dice: Die[];
+    /** Rest pose of the leading hand (see TurnState.restPose). */
+    restPose: BodyPose[] | null;
+  } | null;
   subRound: SubRoundState | null;
 }
 

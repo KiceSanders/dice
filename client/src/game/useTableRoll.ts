@@ -1,9 +1,8 @@
 import type { ClientMessage, Die, PoseFrame, RoomSnapshot } from '@dice/shared';
-import { canStandVoluntarily } from '@dice/shared';
+import { canStandVoluntarily, validateRestPose } from '@dice/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
-import type { CapturedRollPose } from '../table3d/dice/staticPose';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { displaySeatIndex } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
@@ -42,11 +41,7 @@ export function useTableRoll(
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [releaseSignal, setReleaseSignal] = useState(0);
   const [releaseVelocity, setReleaseVelocity] = useState<ThrowVelocity>(ZERO_VELOCITY);
-  const [held, setHeld] = useState<CapturedRollPose | null>(null);
   const pendingKeepRef = useRef<number[]>([]);
-  const latestPoseRef = useRef<PoseFrame | null>(null);
-  const wasMyTurnRef = useRef(false);
-  const myRollNumberRef = useRef(0);
 
   const turn = snapshot?.game?.currentTurn ?? null;
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
@@ -70,46 +65,29 @@ export function useTableRoll(
     setRolling(false);
   }, [turn?.playerId, turn?.rollsUsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (isMyTurn && turn) {
-      myRollNumberRef.current = turn.rollsUsed;
-    }
-  }, [isMyTurn, turn?.rollsUsed]);
-
   const onRelease = useCallback(
     (velocity: ThrowVelocity) => {
-      if (turn && isMyTurn) {
-        myRollNumberRef.current = turn.rollsUsed + 1;
-      }
       setReleaseVelocity(velocity);
       setReleaseSignal((s) => s + 1);
       setRolling(true);
-      setHeld(null);
       send({ type: 'turn:throwStart', keepIndices: pendingKeepRef.current });
     },
-    [send, turn, isMyTurn],
+    [send],
   );
 
-  const captureHeldPose = useCallback(() => {
-    if (!myId) return;
-    const lastPose = latestPoseRef.current;
-    if (!lastPose || lastPose.cupVisible) return;
-    setHeld({
-      frame: lastPose,
-      at: performance.now(),
-      rollId: { playerId: myId, rollNumber: myRollNumberRef.current },
-    });
-  }, [myId]);
-
   const onSettled = useCallback(
-    (dice: Die[]) => {
+    (dice: Die[], settleFrame: PoseFrame) => {
       setRolling(false);
-      // Capture before the server's auto-stand/turn-advance snapshot can
-      // unmount DicePhysics, avoiding a one-frame fallback to centered slots.
-      captureHeldPose();
-      send({ type: 'turn:throwResult', dice });
+      // Report where the dice came to rest alongside the values (ADR 005):
+      // canonical space, dice only (frame bodies are cup-first). Validate with
+      // the same shared check the server runs — if it would be dropped there
+      // (e.g. dev face overrides), omit it rather than blocking the throw.
+      const canonical = poseFrameToCanonical(settleFrame, mySeat);
+      const restPose = canonical.bodies.slice(1);
+      const valid = restPose.length === dice.length && validateRestPose(restPose, dice) === null;
+      send({ type: 'turn:throwResult', dice, ...(valid ? { restPose } : {}) });
     },
-    [send, captureHeldPose],
+    [send, mySeat],
   );
 
   // Pose streaming out to spectators: batch samples, flush by count or timer.
@@ -128,9 +106,6 @@ export function useTableRoll(
   const onPoseFrame = useCallback(
     (frame: PoseFrame) => {
       if (!isValidPoseFrame(frame)) return;
-      // heldPose renders locally, so keep the view-local frame; only the wire
-      // gets the canonical (seat-rotated) copy.
-      latestPoseRef.current = frame;
       const canonical = poseFrameToCanonical(frame, mySeat);
       frameBufRef.current.push(canonical);
       if (!canonical.cupVisible || frameBufRef.current.length >= FRAMES_PER_MESSAGE) flushFrames();
@@ -142,17 +117,6 @@ export function useTableRoll(
   );
 
   useEffect(() => () => flushFrames(), [flushFrames]);
-
-  useEffect(() => {
-    const wasMyTurn = wasMyTurnRef.current;
-    if (wasMyTurn && !isMyTurn && myId) {
-      captureHeldPose();
-    }
-    // My own sim owns the table for the whole turn — drop the stale pose so it
-    // can't resurface later as ghost dice from a previous round.
-    if (!wasMyTurn && isMyTurn) setHeld(null);
-    wasMyTurnRef.current = isMyTurn;
-  }, [isMyTurn, turn?.playerId, myId, captureHeldPose]);
 
   const onKeepToggle = useCallback(
     (index: number) => {
@@ -239,7 +203,6 @@ export function useTableRoll(
     onTablePointer,
     rolling,
     dragging,
-    heldRollPose: held,
     /** Spectator parked-cup display seat; null for the roller or off-play. */
     parkedKoozieDisplaySeat,
   };

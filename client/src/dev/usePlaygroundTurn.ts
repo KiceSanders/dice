@@ -1,4 +1,4 @@
-import type { Die, RoomSnapshot } from '@dice/shared';
+import type { Die, PoseFrame, RoomSnapshot } from '@dice/shared';
 import { useCallback, useRef, useState } from 'react';
 import type { LastRoll } from '../state/store';
 import type { ThrowVelocity } from '../table3d/dice/types';
@@ -37,7 +37,7 @@ export function usePlaygroundTurn(initialScene: PlaygroundScene) {
     setReleaseSignal((s) => s + 1);
   }, []);
 
-  const commitRoll = useCallback((dice: Die[]) => {
+  const commitRoll = useCallback((dice: Die[], settleFrame?: PoseFrame) => {
     setRolling(false);
     setSceneState((prev) => {
       const game = prev.snapshot.game;
@@ -52,6 +52,8 @@ export function usePlaygroundTurn(initialScene: PlaygroundScene) {
         dice,
         rollNumber: rollsUsed,
         kept: keptIndices,
+        // Playground is single-seat (view space == canonical space).
+        restPose: settleFrame ? settleFrame.bodies.slice(1) : null,
         receivedAt: Date.now(),
       });
 
@@ -131,6 +133,7 @@ function standSnapshot(scene: PlaygroundScene): PlaygroundScene {
               rollsUsed: 0,
               rollCap: turn.rollCap,
               throwing: false,
+              restPose: null,
             }
           : null,
       },

@@ -77,6 +77,7 @@ function turn(
     rollsUsed: opts.rollsUsed ?? 0,
     rollCap: opts.rollCap ?? DEFAULT_SETTINGS.maxRolls,
     throwing: false,
+    restPose: null,
   };
 }
 
@@ -154,6 +155,7 @@ export const PLAYGROUND_SCENES: PlaygroundScene[] = [
           playerId: DEV_BOB,
           score: { count: 3, face: 5, rollsUsed: 2, straight: 'none' },
           dice: [5, 5, 5, 2, 1],
+          restPose: null,
         },
         currentTurn: turn(DEV_YOU, {
           dice: [2, 2, 4, 6, 1],

@@ -15,7 +15,7 @@ import { useRemoteRoll } from '../game/useRemoteRoll';
 import { useTableRoll } from '../game/useTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
-import { resolveLastRollPose, staticPoseFromDice } from '../table3d/dice/staticPose';
+import { pickHeldRollInput, resolveTableRestPose } from '../table3d/dice/staticPose';
 import { tableEvents } from '../table3d/tableEvents';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
@@ -37,11 +37,14 @@ export default function Room() {
   // else's throws, with StaticDiceView for the last settled roll (ADR 004).
   const roll3d = useTableRoll(state.snapshot, state.me?.playerId ?? null, send, connected);
   const remoteRoll = useRemoteRoll(ws, state.snapshot, state.me?.playerId ?? null);
-  const fallbackHeldPose = useMemo(() => {
-    if (state.lastRoll) return staticPoseFromDice(state.lastRoll.dice, state.lastRoll.kept);
-    const rollToBeat = snapshot?.game?.rollToBeat;
-    return rollToBeat ? staticPoseFromDice(rollToBeat.dice) : null;
-  }, [state.lastRoll, snapshot?.game?.rollToBeat]);
+  // Settled dice on the felt: one resolver for every viewer (ADR 005) — the
+  // server-validated rest pose from turn:rolled or the snapshot (rejoins),
+  // with the values-only slot layout as the observable last resort.
+  const mySeatForPose = snapshot?.players.find((p) => p.id === state.me?.playerId)?.seat ?? 0;
+  const heldPose = useMemo(() => {
+    const input = pickHeldRollInput(state.lastRoll, snapshot?.game ?? null);
+    return input ? resolveTableRestPose(input, mySeatForPose).frame : null;
+  }, [state.lastRoll, snapshot?.game, mySeatForPose]);
   // Straight celebration for spectator views (the roller's own glow fires
   // locally at settle): announced on the table event bus, stamped with the
   // wire receive time so late-mounting views can judge freshness.
@@ -154,9 +157,6 @@ export default function Room() {
   const turn = snapshot.game?.currentTurn ?? null;
   const inGame = snapshot.phase !== 'lobby' && snapshot.game !== null;
   const isMyTurn = turn !== null && turn.playerId === myId;
-  const heldPose = state.lastRoll
-    ? resolveLastRollPose(state.lastRoll, roll3d.heldRollPose, remoteRoll.heldRollPose)
-    : fallbackHeldPose;
   // Local DicePhysics already renders the active roller's settled dice — hide
   // the static last-roll layer so dice are not doubled on the felt.
   const localSimShowsLastRoll =
