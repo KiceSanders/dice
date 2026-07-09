@@ -83,13 +83,19 @@ interface Props {
   heldPose?: PoseFrame | null;
 }
 
+/** Cap pixel ratio on high-DPR displays so Chromebook-class GPUs keep frame budget. */
+function tableCanvasDpr(): number | [number, number] {
+  if (typeof window === 'undefined') return [1, 2];
+  return window.devicePixelRatio > 1.5 ? 1 : [1, 2];
+}
+
 /** WebGL canvas — table mesh + physics dice; labels are 2D overlays in Table.tsx. */
 export default function TableCanvas({ dice, remoteFeed, heldPose = null }: Props) {
   return (
     <Canvas
       className="table-canvas"
       shadows
-      dpr={[1, 2]}
+      dpr={tableCanvasDpr()}
       camera={{
         position: [...SEAT_VIEW.position],
         fov: SEAT_VIEW.fov,

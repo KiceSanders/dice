@@ -42,6 +42,7 @@ type ControlSetter = (values: Record<string, number | boolean | string>) => void
 function tuningToControls(tuning: DicePhysicsTuning): Record<string, number | boolean | string> {
   return {
     gravityY: tuning.world.gravityY,
+    timeStepHz: Math.round(1 / tuning.world.timeStep),
     timeScale: tuning.world.timeScale,
     debug: tuning.world.debug,
     dieFriction: tuning.dice.friction,
@@ -49,6 +50,8 @@ function tuningToControls(tuning: DicePhysicsTuning): Record<string, number | bo
     dieDensity: tuning.dice.density,
     linearDamping: tuning.dice.linearDamping,
     angularDamping: tuning.dice.angularDamping,
+    heldMaxLinVel: tuning.dice.heldMaxLinVel,
+    heldMaxAngVel: tuning.dice.heldMaxAngVel,
     pendulumFollow: tuning.pendulum.follow,
     pendulumLength: tuning.pendulum.length,
     pendulumDamping: tuning.pendulum.dampingRatio,
@@ -90,6 +93,15 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           max: -8,
           step: 1,
           onChange: (gravityY: number) => updateDicePhysicsTuning({ world: { gravityY } }),
+        },
+        timeStepHz: {
+          value: Math.round(1 / defaults.world.timeStep),
+          min: 30,
+          max: 120,
+          step: 30,
+          label: 'timeStep Hz',
+          onChange: (hz: number) =>
+            updateDicePhysicsTuning({ world: { timeStep: 1 / Math.max(hz, 1) } }),
         },
         timeScale: {
           value: defaults.world.timeScale,
@@ -139,6 +151,20 @@ function PhysicsTuningControls({ rerack }: { rerack: () => void }) {
           step: 0.01,
           onChange: (angularDamping: number) =>
             updateDicePhysicsTuning({ dice: { angularDamping } }),
+        },
+        heldMaxLinVel: {
+          value: defaults.dice.heldMaxLinVel,
+          min: 1,
+          max: 12,
+          step: 0.1,
+          onChange: (heldMaxLinVel: number) => updateDicePhysicsTuning({ dice: { heldMaxLinVel } }),
+        },
+        heldMaxAngVel: {
+          value: defaults.dice.heldMaxAngVel,
+          min: 4,
+          max: 40,
+          step: 1,
+          onChange: (heldMaxAngVel: number) => updateDicePhysicsTuning({ dice: { heldMaxAngVel } }),
         },
       }),
       Pendulum: folder({

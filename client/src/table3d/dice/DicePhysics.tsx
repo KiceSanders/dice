@@ -1050,6 +1050,15 @@ export default function DicePhysics({
         clampPivotToTable(pivotTarget, latestTuning);
         const pose = stepHeldPose(state, pivotTarget, scaledDelta, reducedMotion, latestTuning);
         setCupPose(cup, pose);
+        // Cap in-cup energy while the kinematic trimesh moves — settle clamps
+        // alone left drag free to explode on laggy frames (ADR 002).
+        for (let i = 0; i < DICE_COUNT; i++) {
+          const rt = runtimeRef.current[i];
+          if (!rt?.visible || rt.locked) continue;
+          const body = liveBody(dieRefs.current[i]?.body);
+          if (!body) continue;
+          clampBodyVelocity(body, latestTuning.dice.heldMaxLinVel, latestTuning.dice.heldMaxAngVel);
+        }
       }
       return;
     }

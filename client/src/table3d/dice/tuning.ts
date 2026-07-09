@@ -16,6 +16,9 @@ export interface DicePhysicsTuning {
     angularDamping: number;
     maxLinVel: number;
     maxAngVel: number;
+    /** Velocity caps applied every frame while the cup is held (drag). */
+    heldMaxLinVel: number;
+    heldMaxAngVel: number;
   };
   table: {
     friction: number;
@@ -81,7 +84,9 @@ const DEFAULT_CUP_FLOAT_Y = DICE_FELT_Y + 0.72;
 export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
   world: {
     gravityY: PHYSICS.gravity[1],
-    timeStep: 1 / 120,
+    // 60 Hz halves catch-up steps on laggy frames vs 120 Hz (Chromebook death spiral).
+    // Playground Leva can still raise this for A/B.
+    timeStep: 1 / 60,
     timeScale: 1,
     debug: false,
   },
@@ -89,10 +94,14 @@ export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
     friction: PHYSICS.dieFriction,
     restitution: PHYSICS.dieRestitution,
     density: PHYSICS.dieDensity,
-    linearDamping: PHYSICS.linearDamping,
-    angularDamping: PHYSICS.angularDamping,
+    // Light bleed-off so in-cup contacts don't retain energy forever during drag.
+    linearDamping: 0.2,
+    angularDamping: 0.25,
     maxLinVel: PHYSICS.maxLinVel,
     maxAngVel: PHYSICS.maxAngVel,
+    // Tighter than settle caps — kinematic cup walls can otherwise explode dice.
+    heldMaxLinVel: 4,
+    heldMaxAngVel: 18,
   },
   table: {
     friction: PHYSICS.tableFriction,
@@ -124,8 +133,10 @@ export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
     accelerationSmooth: 12,
     length: 0.42,
     dampingRatio: 0.72,
-    maxTilt: 0.56,
-    maxPivotSpeed: 3.2,
+    // Softer than the original 0.56 / 3.2 so a fast swipe can't slam the
+    // kinematic trimesh through stacked dice on a slow frame.
+    maxTilt: 0.48,
+    maxPivotSpeed: 2.4,
   },
   release: {
     tipAngle: 3.05,

@@ -8,6 +8,9 @@ const _up = new THREE.Vector3(0, 1, 0);
 const _axis = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _scratch = new THREE.Vector3();
+const _pivotTarget = new THREE.Vector3();
+const _toTarget = new THREE.Vector3();
+const _rawAccel = new THREE.Vector3();
 const _bottom = new THREE.Vector3();
 const _targetPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
 
@@ -148,8 +151,8 @@ export function stepHeldPose(
 ): KooziePose {
   const safeDt = Math.max(Math.min(dt, 1 / 20), 1 / 240);
   const maxStep = tuning.pendulum.maxPivotSpeed * safeDt;
-  const target = pivotTarget.clone();
-  const toTarget = pivotTarget.clone().sub(state.pivot);
+  const target = _pivotTarget;
+  const toTarget = _toTarget.copy(pivotTarget).sub(state.pivot);
   if (toTarget.length() > maxStep) {
     toTarget.setLength(maxStep);
     target.copy(state.pivot).add(toTarget);
@@ -160,7 +163,7 @@ export function stepHeldPose(
   state.pivot.lerp(target, expSmoothing(tuning.pendulum.follow, safeDt));
 
   const rawVel = _scratch.subVectors(state.pivot, state.prevPivot).divideScalar(safeDt);
-  const rawAccel = rawVel.clone().sub(state.pivotVel).divideScalar(safeDt);
+  const rawAccel = _rawAccel.copy(rawVel).sub(state.pivotVel).divideScalar(safeDt);
   state.pivotVel.lerp(rawVel, expSmoothing(tuning.pendulum.velocitySmooth, safeDt));
   state.pivotAccel.lerp(rawAccel, expSmoothing(tuning.pendulum.accelerationSmooth, safeDt));
 

@@ -110,6 +110,9 @@ next to them. Rules when you must touch it:
 
 - Cup phases: `idle → held → pouring → settling → selecting → (idle | hidden)`. State
   transitions happen in exactly one place each; search `setCupPhase` before adding one.
+- While `held`, unkept dice stay dynamic for slosh but are **velocity-clamped every
+  frame** (`heldMaxLinVel` / `heldMaxAngVel` in tuning) so a laggy kinematic cup
+  cannot explode in-cup contacts (ADR 002).
 - Fixed/locked bodies move **declaratively only** (props / `layoutGen` remounts); never
   `setTranslation` on a fixed body (rapier skips mesh sync — invisible desync).
 - The window-level capture `pointerdown` handler must `return` (no `stopPropagation`)

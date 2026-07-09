@@ -54,8 +54,9 @@ export const PHYSICS = {
   /** Invisible outer wall — contain dice, minimal bounce. */
   wallFriction: 0.9,
   wallRestitution: 0.02,
-  linearDamping: 0,
-  angularDamping: 0,
+  /** Defaults; production tuning may raise these (see DEFAULT_DICE_PHYSICS_TUNING). */
+  linearDamping: 0.2,
+  angularDamping: 0.25,
   settleLinVel: 0.08,
   settleAngVel: 0.45,
   settleFrames: 18,
