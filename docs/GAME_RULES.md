@@ -23,8 +23,8 @@ Rolling a straight triggers an instant side payment from every other seated play
    first roller is sitting out or not in a tie, walk counter-clockwise until a
    participant is hit.
 3. A turn is up to `rollCap` rolls of the 5 dice. After each roll the player may **keep**
-   dice (kept dice are locked for the turn — they can never be un-kept) and re-roll the
-   rest. Keeping all 5 is rejected — stand instead.
+   any of the five dice for the next throw — including releasing dice kept on earlier
+   rolls of the same turn — and re-roll the rest. Keeping all 5 is rejected — stand instead.
 4. **Roll-count pressure**: the first player to stand sets the roll cap for everyone after
    them that round. `settings.maxRolls` is the ceiling for the round's first player.
 5. Rolls are **physics throws reported by the roller's client** (ADR 004): `turn:throwStart`

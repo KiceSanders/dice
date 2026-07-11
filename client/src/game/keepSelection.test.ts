@@ -32,8 +32,16 @@ describe('pending keep ownership', () => {
 });
 
 describe('togglePendingKeep', () => {
-  it('adds and removes unlocked dice after the first roll', () => {
-    expect(togglePendingKeep(3, [1], [1], true)).toEqual([1, 3]);
-    expect(togglePendingKeep(3, [1, 3], [1], true)).toEqual([1]);
+  it('returns null before the first roll', () => {
+    expect(togglePendingKeep(0, [], false)).toBeNull();
+  });
+
+  it('adds and removes dice after the first roll', () => {
+    expect(togglePendingKeep(3, [1], true)).toEqual([1, 3]);
+    expect(togglePendingKeep(3, [1, 3], true)).toEqual([1]);
+  });
+
+  it('allows releasing a previously kept index', () => {
+    expect(togglePendingKeep(0, [0], true)).toEqual([]);
   });
 });

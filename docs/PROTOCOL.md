@@ -17,7 +17,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `player:kick` | `{ playerId }` | Host only |
 | `settings:update` | `{ settings }` | Host only, between rounds |
 | `game:start` | `{}` | Host only, ≥2 seated |
-| `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, keeps locked |
+| `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
 | `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
 | `turn:stand` | `{}` | Voluntary stand (gated by `canStandVoluntarily`) |

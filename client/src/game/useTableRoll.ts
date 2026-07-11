@@ -126,12 +126,7 @@ export function useTableRoll(
   const onKeepToggle = useCallback(
     (index: number) => {
       if (!turn || !isMyTurn) return;
-      const next = togglePendingKeep(
-        index,
-        pendingKeepRef.current,
-        turn.keptIndices,
-        turn.rollsUsed > 0,
-      );
+      const next = togglePendingKeep(index, pendingKeepRef.current, turn.rollsUsed > 0);
       if (!next) return;
       pendingKeepRef.current = next;
       setPendingSelection(pendingKeepSelection(turn, next));
@@ -164,7 +159,6 @@ export function useTableRoll(
           releaseSignal,
           releaseVelocity,
           keepIndices: pendingKeep,
-          lockedKeepIndices: turn.keptIndices,
           dice: turn.dice,
           canDrag,
           active: true,

@@ -99,9 +99,9 @@ describe('GameEngine: roll-cap pressure', () => {
 });
 
 describe('GameEngine: keep validation', () => {
-  it('rejects keeps on the first roll, un-keeping, and bad indices', () => {
+  it('rejects keeps on the first roll and bad indices; allows releasing prior keeps', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players);
+    const { engine } = makeEngine(players, { settings: { ...DEFAULT_SETTINGS, maxRolls: 5 } });
     engine.start();
 
     expect(roll(engine, 'p0', [4, 4, 4, 2, 1], [0])).toMatchObject({ code: 'BAD_REQUEST' });
@@ -111,11 +111,22 @@ describe('GameEngine: keep validation', () => {
     expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [0, 0])).toMatchObject({ code: 'BAD_REQUEST' });
     expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [0, 1, 2])).toBeNull();
 
-    // Kept dice are locked: [0,1,2] must stay in the keep set.
-    expect(roll(engine, 'p0', [4, 4, 4, 5, 5], [0, 1])).toMatchObject({
-      code: 'BAD_REQUEST',
-      message: 'kept dice cannot be released',
-    });
+    // Prior keeps may be released: drop index 2, keep only [0, 1].
+    expect(roll(engine, 'p0', [4, 4, 6, 5, 5], [0, 1])).toBeNull();
+    expect(engine.publicState().currentTurn?.keptIndices).toEqual([0, 1]);
+  });
+
+  it('allows releasing an earlier keep and keeping newly rolled indices', () => {
+    const players = makePlayers();
+    const { engine } = makeEngine(players, { settings: { ...DEFAULT_SETTINGS, maxRolls: 5 } });
+    engine.start();
+
+    // Keep one 6 at index 0, then roll the rest into three 5s and swap keeps.
+    expect(roll(engine, 'p0', [6, 2, 3, 4, 5])).toBeNull();
+    expect(roll(engine, 'p0', [6, 5, 5, 5, 1], [0])).toBeNull();
+    expect(roll(engine, 'p0', [2, 5, 5, 5, 1], [1, 2, 3])).toBeNull();
+    expect(engine.publicState().currentTurn?.dice).toEqual([2, 5, 5, 5, 1]);
+    expect(engine.publicState().currentTurn?.keptIndices).toEqual([1, 2, 3]);
   });
 
   it('keeping all 5 dice is rejected — the client stands instead', () => {

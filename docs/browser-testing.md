@@ -191,23 +191,26 @@ running counter.
    rotated to A's seat) — not five dice in a line across the table's center.
 2. **Keep + reroll:** A keeps 2 dice and rolls again. Both tabs: kept dice sit at A's
    rail edge, the rest scattered where they landed.
-3. **Turn switch with keeps:** A keeps 4 dice, completes the hand, then stands. While B
+3. **Unkeep prior keep:** A keeps 1 die, rolls again, then clicks that previously kept
+   die to release it. It moves near the table center (no this-roll felt pose). A keeps
+   newly rolled faces instead, throws again — the released index is re-rolled (new face).
+4. **Turn switch with keeps:** A keeps 4 dice, completes the hand, then stands. While B
    idles pre-roll, both tabs still show A's final layout unchanged and **exactly 5 dice
    total**. B must not get an additional near-rail row of 4 face-1 dice. When B grabs the
    koozie, A's held pose hides and B's own dice proceed through the normal throw flow.
-4. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
+5. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
    real layout (snapshot `restPose`) — this used to be a guaranteed fallback.
-5. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its
+6. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its
    own real layout.
-6. **Late joiner:** open a third tab as a spectator after a roll — real layout on join.
-7. **Lossy stream:** DevTools → Network → throttle B to Slow 3G during A's throw. The
+7. **Late joiner:** open a third tab as a spectator after a roll — real layout on join.
+8. **Lossy stream:** DevTools → Network → throttle B to Slow 3G during A's throw. The
    live animation may stutter, but after `turn:rolled` B snaps to the correct settled
    layout (the pose rides the message, not the stream).
-8. **Crash recovery:** restart the server mid-round after a roll; when both tabs
+9. **Crash recovery:** restart the server mid-round after a roll; when both tabs
    reconnect the layout is restored from the event log.
-9. **Fresh round (fallback *expected*):** at a new round before any roll, a lingering
-   `rollToBeat` with no pose may render slot layout + one dev warn — legitimate.
-10. **Dev face override (fallback *expected*):** with `window.__forceSettleFaces` set,
+10. **Fresh round (fallback *expected*):** at a new round before any roll, a lingering
+    `rollToBeat` with no pose may render slot layout + one dev warn — legitimate.
+11. **Dev face override (fallback *expected*):** with `window.__forceSettleFaces` set,
     the reported values disagree with the physics pose, so the client omits it, the
     server would drop it anyway, and viewers get the slot layout.
 

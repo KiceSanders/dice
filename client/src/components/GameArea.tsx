@@ -52,7 +52,7 @@ export default function GameArea({
   const turn = game?.currentTurn ?? null;
   const isMyTurn = turn !== null && turn.playerId === myId;
 
-  // Dice the player intends to keep on the next roll (always includes locked ones).
+  // Dice the player intends to keep on the next roll.
   const [pendingKeepLocal, setPendingKeepLocal] = useState<number[]>([]);
   const pendingKeep = pendingKeepProp ?? pendingKeepLocal;
   const setPendingKeep = onPendingKeepChange ?? setPendingKeepLocal;
@@ -67,7 +67,7 @@ export default function GameArea({
 
   const toggleKeep = (i: number) => {
     if (!turn || !isMyTurn) return;
-    const next = togglePendingKeep(i, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
+    const next = togglePendingKeep(i, pendingKeep, turn.rollsUsed > 0);
     if (next) setPendingKeep(next);
   };
 
@@ -129,7 +129,7 @@ export default function GameArea({
           )}
           {isMyTurn && turn.rollsUsed > 0 && turn.rollsUsed < turn.rollCap && !hide2DDice && (
             <small className="muted keep-hint">
-              Click dice to keep them — kept dice stay locked for the turn.
+              Click dice to keep or release them before the next throw.
             </small>
           )}
         </div>

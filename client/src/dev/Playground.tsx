@@ -447,7 +447,7 @@ export default function Playground() {
   const onKeepToggle = useCallback(
     (index: number) => {
       if (!turn || !isMyTurn) return;
-      const next = togglePendingKeep(index, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
+      const next = togglePendingKeep(index, pendingKeep, turn.rollsUsed > 0);
       if (!next) return;
       setPendingSelection(pendingKeepSelection(turn, next));
       return next;
@@ -499,7 +499,6 @@ export default function Playground() {
           releaseSignal,
           releaseVelocity,
           keepIndices: pendingKeep,
-          lockedKeepIndices: turn.keptIndices,
           dice: turn.dice,
           canDrag: true,
           active: true,

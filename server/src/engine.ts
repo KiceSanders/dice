@@ -316,7 +316,7 @@ export class GameEngine {
     if (turn.dice === null) {
       if (keepIndices.length > 0) return err('BAD_REQUEST', 'nothing to keep on the first roll');
     } else {
-      const valid = this.validateKeep(turn, keepIndices);
+      const valid = this.validateKeep(keepIndices);
       if (valid) return valid;
       if (keepIndices.length === HAND_SIZE) {
         return err('BAD_REQUEST', 'all dice kept — stand instead');
@@ -529,17 +529,13 @@ export class GameEngine {
     return this.currentTurn;
   }
 
-  private validateKeep(turn: CurrentTurn, keepIndices: number[]): EngineError | null {
+  private validateKeep(keepIndices: number[]): EngineError | null {
     const unique = new Set(keepIndices);
     if (unique.size !== keepIndices.length) return err('BAD_REQUEST', 'duplicate keep indices');
     for (const i of keepIndices) {
       if (!Number.isInteger(i) || i < 0 || i >= HAND_SIZE) {
         return err('BAD_REQUEST', `invalid keep index: ${i}`);
       }
-    }
-    // Kept dice are locked: the new keep set must include everything already kept.
-    for (const i of turn.keptIndices) {
-      if (!unique.has(i)) return err('BAD_REQUEST', 'kept dice cannot be released');
     }
     return null;
   }

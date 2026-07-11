@@ -33,8 +33,6 @@ export interface TableDiceProps {
   onDragChange?: (dragging: boolean) => void;
   /** False while dice are rolling — disables pick-up. */
   canDrag?: boolean;
-  /** Server-committed keeps from prior rolls — cannot be un-kept. */
-  lockedKeepIndices?: number[];
   /** Click a die on the felt or side tray to toggle keep. */
   // biome-ignore lint/suspicious/noConfusingVoidType: handlers may return the updated keep set or nothing
   onKeepToggle?: (index: number) => number[] | void;

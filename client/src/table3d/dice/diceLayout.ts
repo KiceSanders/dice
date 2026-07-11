@@ -7,7 +7,7 @@ import {
   TABLE_SEAT_COUNT,
   TABLE_WALL_OUTER,
 } from '../layout';
-import { DIE_HALF, DIE_SIZE } from './constants';
+import { DIE_HALF, DIE_SIZE, dieSlotPosition } from './constants';
 
 /** Gap between kept dice sitting on the near rail. */
 export const KEPT_DIE_GAP = 0.025;
@@ -80,4 +80,20 @@ export const KOOZIE_NEAR_DOCK_GUARD_POINT: [number, number, number] = [
 export function keptDieRailPosition(keepSlot: number, keepCount: number): [number, number, number] {
   const centerOffset = (keepCount - 1) / 2;
   return [(keepSlot - centerOffset) * KEPT_DIE_SPACING, KEPT_DIE_RAIL_Y, NEAR_RAIL_Z];
+}
+
+/** Pose used when restoring an unkept die onto the felt. */
+export type UnkeepPose = {
+  position: [number, number, number];
+  rotation: [number, number, number];
+};
+
+/**
+ * Where an unkept die should sit during selecting: restore the snapshotted
+ * this-roll felt pose when present; otherwise place at the deterministic
+ * center slots (dice kept on an earlier roll have no felt snapshot).
+ */
+export function resolveUnkeepPose(index: number, feltPose: UnkeepPose | null): UnkeepPose {
+  if (feltPose) return feltPose;
+  return { position: dieSlotPosition(index), rotation: [0, 0, 0] };
 }

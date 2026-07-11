@@ -11,8 +11,8 @@ The 3D koozie/dice physics (ADR [002](./002-rapier-physics-stack.md)/[003](./003
 
 **The roller's physics simulation decides the dice.** New protocol messages ([`protocol.ts`](../../shared/src/protocol.ts)):
 
-- `turn:throwStart { keepIndices }` — sent on koozie release. The engine (`beginThrow`) locks the keep set, flags the turn `throwing` (new `TurnState` field), and broadcasts `turn:throwStarted`.
-- `turn:throwResult { dice }` — sent when the sim settles. The engine (`commitThrow`) validates turn owner, throw in flight, 5 dice in [1, 6], and **kept positions unchanged**, then applies the values exactly like an RNG roll — same `rolled` event, same `turn:rolled` broadcast, same event-log entry.
+- `turn:throwStart { keepIndices }` — sent on koozie release. The engine (`beginThrow`) locks **this throw's** keep set (it may shrink relative to prior `keptIndices` — players can release earlier keeps), flags the turn `throwing` (new `TurnState` field), and broadcasts `turn:throwStarted`.
+- `turn:throwResult { dice }` — sent when the sim settles. The engine (`commitThrow`) validates turn owner, throw in flight, 5 dice in [1, 6], and **positions in this throw's keep set unchanged**, then applies the values exactly like an RNG roll — same `rolled` event, same `turn:rolled` broadcast, same event-log entry.
 - `dice:frames { frames }` — ~20 Hz koozie+dice poses, relayed verbatim to everyone else (`Room.broadcastExcept`), rate-limited per connection, silently dropped when invalid, never persisted. Spectators animate plain meshes from these; they run no physics.
 
 **Pending throws:** if a throw is in flight and the roller disconnects or is kicked,
@@ -20,7 +20,7 @@ The 3D koozie/dice physics (ADR [002](./002-rapier-physics-stack.md)/[003](./003
 
 **Trust model:** dice values are client-reported, so a tampered client could lie — accepted for friends-scale play. The kept-positions + range checks are the enforced invariants; the server stays authoritative over everything downstream (scoring, pot, turn order).
 
-**Replay is untouched:** the log stores final `rolled` values; `ReplayRng` feeds them back through `roll()`/`keepAndReroll`, which reproduces physics-sourced dice exactly *because* kept positions cannot change.
+**Replay is untouched:** the log stores final `rolled` values; `ReplayRng` feeds them back through `roll()`/`keepAndReroll`, which reproduces physics-sourced dice exactly *because* positions in each throw's keep set cannot change face mid-throw.
 
 ## Rejected alternatives
 

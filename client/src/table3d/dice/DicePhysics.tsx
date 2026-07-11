@@ -14,7 +14,12 @@ import {
   FELT_BOUND_Z,
 } from './constants';
 import DieBody, { type DieBodyHandle } from './DieBody';
-import { keepSlotForIndex, keptDieRailPosition, koozieRestPosition } from './diceLayout';
+import {
+  keepSlotForIndex,
+  keptDieRailPosition,
+  koozieRestPosition,
+  resolveUnkeepPose,
+} from './diceLayout';
 import {
   buildRuntime,
   cupLocalToWorld,
@@ -278,7 +283,6 @@ export default function DicePhysics({
   onRelease,
   onDragChange,
   canDrag = true,
-  lockedKeepIndices = [],
   onKeepToggle,
   onPoseFrame,
 }: TableDiceProps) {
@@ -289,7 +293,6 @@ export default function DicePhysics({
   const rollingRef = useRef(false);
   const settleCountRef = useRef(0);
   const keepRef = useRef(keepIndices);
-  const lockedKeepRef = useRef(lockedKeepIndices);
   const onKeepToggleRef = useRef(onKeepToggle);
   const feltPoseRef = useRef<(DiePose | null)[]>(Array(DICE_COUNT).fill(null));
   const onSettledRef = useRef(onSettled);
@@ -365,7 +368,6 @@ export default function DicePhysics({
   onPoseFrameRef.current = onPoseFrame;
   canDragRef.current = canDrag;
   keepRef.current = keepIndices;
-  lockedKeepRef.current = lockedKeepIndices;
   onKeepToggleRef.current = onKeepToggle;
   draggingRef.current = dragging;
   cupPhaseRef.current = cupPhase;
@@ -495,14 +497,15 @@ export default function DicePhysics({
             rotation,
           };
         } else {
-          const felt = feltPoseRef.current[i];
-          if (!felt) continue;
+          const felt = feltPoseRef.current[i] ?? null;
+          const pose = resolveUnkeepPose(i, felt);
+          if (!felt) feltPoseRef.current[i] = pose;
           next[i] = {
             ...rt,
             locked: true,
             inCup: false,
-            position: felt.position,
-            rotation: felt.rotation,
+            position: pose.position,
+            rotation: pose.rotation,
           };
         }
       }
@@ -773,9 +776,6 @@ export default function DicePhysics({
     (index: number) => {
       const phase = cupPhaseRef.current;
       if (phase !== 'selecting' || !canDragRef.current) return;
-      const locked = lockedKeepRef.current;
-      const kept = keepRef.current;
-      if (kept.includes(index) && locked.includes(index)) return;
       const next = onKeepToggleRef.current?.(index);
       if (next) {
         keepRef.current = next;
@@ -1173,12 +1173,7 @@ export default function DicePhysics({
       />
       {runtime.map((rt, i) => {
         if (!rt.visible) return null;
-        const isLockedKeep = lockedKeepIndices.includes(i);
-        const canToggleKeep =
-          cupPhase === 'selecting' &&
-          canDrag &&
-          !rt.inCup &&
-          (!keepIndices.includes(i) || !isLockedKeep);
+        const canToggleKeep = cupPhase === 'selecting' && canDrag && !rt.inCup;
         return (
           <DieBody
             key={rt.locked ? `die-${i}-locked-${layoutGen}` : `die-${i}-dynamic-${layoutGen}`}

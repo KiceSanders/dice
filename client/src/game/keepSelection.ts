@@ -43,11 +43,9 @@ export function pendingKeepForTurn(
 export function togglePendingKeep(
   index: number,
   pendingKeep: number[],
-  lockedKeep: number[],
   hasRolled: boolean,
 ): number[] | null {
   if (!hasRolled) return null;
-  if (lockedKeep.includes(index)) return null;
   const next = pendingKeep.includes(index)
     ? pendingKeep.filter((x) => x !== index)
     : [...pendingKeep, index];

@@ -38,9 +38,9 @@ const PIP_LAYOUTS: Record<DieValue, [number, number][]> = {
 interface Props {
   /** null renders a face-down (blank) die. */
   value: DieValue | null;
-  /** Locked by the server — cannot be released this turn. */
+  /** Currently marked kept (visual). */
   kept?: boolean;
-  /** Marked to be kept on the next roll (not yet locked). */
+  /** Marked to be kept on the next roll. */
   selected?: boolean;
   small?: boolean;
   onClick?: () => void;

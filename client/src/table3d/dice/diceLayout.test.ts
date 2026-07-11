@@ -17,6 +17,7 @@ import {
   keepSlotForIndex,
   keptDieRailPosition,
   koozieRestPosition,
+  resolveUnkeepPose,
 } from './diceLayout';
 
 function expectOnScreen(point: [number, number, number], label: string) {
@@ -198,5 +199,22 @@ describe('koozie near-dock grab guard (fixed SEAT_VIEW camera)', () => {
       const rimTopNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
       expect(rimTopNdcY, `seat ${seat} rim above apron`).toBeGreaterThan(railTopEdgeNdcY);
     }
+  });
+});
+
+describe('resolveUnkeepPose', () => {
+  it('restores a snapshotted felt pose when present', () => {
+    const felt = {
+      position: [0.1, 0.05, -0.2] as [number, number, number],
+      rotation: [0.1, 0, 0] as [number, number, number],
+    };
+    expect(resolveUnkeepPose(2, felt)).toEqual(felt);
+  });
+
+  it('falls back to center slot layout when there is no felt pose', () => {
+    expect(resolveUnkeepPose(3, null)).toEqual({
+      position: dieSlotPosition(3),
+      rotation: [0, 0, 0],
+    });
   });
 });

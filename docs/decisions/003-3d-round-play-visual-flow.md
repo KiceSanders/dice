@@ -19,7 +19,7 @@ After dice settle, enter a **`selecting`** phase instead of `resetToIdleInCup()`
 2. **Select** — unkept dice freeze where they landed; kept dice move to the near rail toward the roller; koozie parks outside the **active player's seat** so it never covers selectable felt dice.
 3. **Re-roll** — click parked koozie → same teleport into play bounds, unkept felt dice jump into the cup, drag → on release, the cup pours.
 
-Orchestration lives in [`DicePhysics.tsx`](../../client/src/table3d/dice/DicePhysics.tsx). Playground wires `onKeepToggle` and `lockedKeepIndices` via [`Playground.tsx`](../../client/src/dev/Playground.tsx); shared toggle logic in [`keepSelection.ts`](../../client/src/game/keepSelection.ts).
+Orchestration lives in [`DicePhysics.tsx`](../../client/src/table3d/dice/DicePhysics.tsx). Playground wires `onKeepToggle` via [`Playground.tsx`](../../client/src/dev/Playground.tsx); shared toggle logic in [`keepSelection.ts`](../../client/src/game/keepSelection.ts).
 
 ### Layout ([`diceLayout.ts`](../../client/src/table3d/dice/diceLayout.ts))
 
@@ -27,7 +27,7 @@ Orchestration lives in [`DicePhysics.tsx`](../../client/src/table3d/dice/DicePhy
 |---------|-----------|
 | **Parked / idle koozie** | Docked **outside the containment wall at the active player's display seat** (`koozieRestPosition(cup, displaySeat)`). Display seat 0 is the local viewer (+Z); seats 1/2 are the side docks. Sunken so only the rim peeks over the rail (seat-0 body may sit just under the near-camera fringe — framing tests require the rim band). Same spot for idle and park so the grab target stays stable; dice physically cannot reach it. Interactive for the roller (`DicePhysics`); spectators see a read-only [`ParkedKoozie`](../../client/src/table3d/dice/ParkedKoozie.tsx) at the same seat whenever no remote throw is live. |
 | **Kept dice** | On the **near rail** (+Z, toward the roller): row centered on X with gap `DIE_SIZE + 0.025`, Y on top of padded rail. Also framing-tested. |
-| **Unkept dice** | Stay on felt at settled physics pose; pose snapshotted in `feltPoseRef` for un-keep restore. |
+| **Unkept dice** | Stay on felt at settled physics pose; pose snapshotted in `feltPoseRef` for un-keep restore. Releasing a die kept on an earlier roll (no this-roll felt pose) places it at `dieSlotPosition` near the table center. |
 
 ### 3-player table orientation
 
@@ -39,7 +39,7 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 
 ### Interaction
 
-- **Click-to-keep** on 3D dice during `selecting`. Server-locked indices (`turn.keptIndices`) are not clickable.
+- **Click-to-keep** on 3D dice during `selecting`. Any die may be toggled — including dice kept on earlier rolls of the same turn (released dice without a this-roll felt pose go to the center slots).
 - **Clicking the parked koozie commits the keep set** — cup pull into koozie happens on **grab** (`pullUnkeptDiceIntoCup`, after the cup teleports onto the felt). A screen-space **grab guard** (`pointerBelowNearDockGuard`, anchored to `KOOZIE_NEAR_DOCK_GUARD_POINT` at the kept-rail die *bottoms*) gates both grab paths: cup grabs are honored only *below* that projection, so keep/unkeep clicks on the near rail always go to the die — this is what keeps the generous cup hit radii (`hitScreenPx`/`hitRadius`) safe next to the near dock, and it projects through the live camera so it holds at any canvas size.
 - **Cursors:** `grab` on koozie hover (idle/selecting), `pointer` on selectable dice hover, `grabbing` while dragging. Handled via pointer enter/leave on [`KoozieBody`](../../client/src/table3d/dice/KoozieBody.tsx) and [`DieBody`](../../client/src/table3d/dice/DieBody.tsx).
 - **Teleport on grab** from `idle` or `selecting` when the koozie is outside play bounds — instant snap to a table-bounded point at the cursor; no dragging while off-table.
@@ -74,7 +74,7 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 ## Verification
 
 - `npm run check` && `npm test`
-- Playground `/playground`: roll → koozie in front of you → click dice to rail → unkeep restores felt pose → click koozie → drag → release re-rolls unkept only; switch view to a spectator and confirm the parked cup sits at the active seat and is not clickable
+- Playground `/playground`: roll → koozie in front of you → click dice to rail → unkeep restores felt pose (or center slots for prior-roll keeps) → click koozie → drag → release re-rolls unkept only; switch view to a spectator and confirm the parked cup sits at the active seat and is not clickable
 
 ## See also
 

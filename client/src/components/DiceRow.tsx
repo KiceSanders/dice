@@ -4,11 +4,11 @@ import Die from './Die';
 
 interface Props {
   dice: DieValue[];
-  /** Indices locked by the server for the rest of the turn. */
+  /** Indices currently marked kept (visual state from last committed keep set). */
   kept?: number[];
-  /** Indices the player intends to keep on the next roll (superset of `kept`). */
+  /** Indices the player intends to keep on the next roll. */
   selected?: number[];
-  /** When provided, non-locked dice toggle keep on click. */
+  /** When provided, any die toggles keep on click. */
   onToggle?: (index: number) => void;
   small?: boolean;
 }
@@ -39,7 +39,7 @@ export default function DiceRow({
               kept={isKept}
               selected={selected.includes(i)}
               small={small}
-              onClick={onToggle && !isKept ? () => onToggle(i) : undefined}
+              onClick={onToggle ? () => onToggle(i) : undefined}
             />
           </span>
         );
