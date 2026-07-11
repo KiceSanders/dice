@@ -62,6 +62,7 @@ describe('straight payout (instant zero-sum side payment)', () => {
 
   it('payments clamp to what a player has — chips never go negative', () => {
     const players = makePlayers([100, 3, 100]); // p1 has 2 left after the 1-chip ante
+    const before = players.reduce((sum, p) => sum + p.chips, 0);
     const { engine, events } = makeEngine(players, {
       settings: payoutSettings({ amountPerPlayer: 10 }),
     });
@@ -69,13 +70,54 @@ describe('straight payout (instant zero-sum side payment)', () => {
     expect(roll(engine, 'p0', LOW_STRAIGHT)).toBeNull();
 
     expect(ofType(events, 'straightPaid')[0]).toMatchObject({
-      total: 12, // 2 (p1 all-in) + 10 (p2)
+      total: 12, // 2 (p1 short) + 10 (p2)
       payments: [
         { playerId: 'p1', amount: 2 },
         { playerId: 'p2', amount: 10 },
       ],
     });
     expect(players.map((p) => p.chips)).toEqual([111, 0, 89]);
+    expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.pot).toBe(before);
+  });
+
+  it('reciprocal clamp: rich and poor transfer the same max either way', () => {
+    // After ante: rich 99, poor 4. Nominal payout 5 → each direction capped at 4.
+    const richRolls = makePlayers([100, 5]);
+    const beforeRich = richRolls.reduce((sum, p) => sum + p.chips, 0);
+    const { engine: e1, events: ev1 } = makeEngine(richRolls, {
+      settings: payoutSettings({ amountPerPlayer: 5 }),
+    });
+    e1.start();
+    expect(richRolls.map((p) => p.chips)).toEqual([99, 4]);
+
+    expect(roll(e1, 'p0', LOW_STRAIGHT)).toBeNull(); // rich rolls
+    expect(ofType(ev1, 'straightPaid')[0]).toMatchObject({
+      total: 4,
+      payments: [{ playerId: 'p1', amount: 4 }],
+    });
+    expect(richRolls.map((p) => p.chips)).toEqual([103, 0]);
+    expect(richRolls.reduce((sum, p) => sum + p.chips, 0) + e1.pot).toBe(beforeRich);
+
+    const poorRolls = makePlayers([100, 5]);
+    const beforePoor = poorRolls.reduce((sum, p) => sum + p.chips, 0);
+    const { engine: e2, events: ev2 } = makeEngine(poorRolls, {
+      settings: payoutSettings({ amountPerPlayer: 5 }),
+    });
+    e2.start();
+    // Junk stand (not a straight) so only p1's later straight triggers a payout.
+    expect(roll(e2, 'p0', [2, 2, 3, 4, 5])).toBeNull();
+    e2.stand('p0');
+    expect(poorRolls.map((p) => p.chips)).toEqual([99, 4]);
+
+    expect(roll(e2, 'p1', HIGH_STRAIGHT)).toBeNull(); // poor rolls
+    expect(ofType(ev2, 'straightPaid')[0]).toMatchObject({
+      total: 4,
+      payments: [{ playerId: 'p0', amount: 4 }],
+    });
+    // Straight pays 4, then the round ends (p0's pair beats the straight's group)
+    // and p0 takes the 2-chip pot → 99 - 4 + 2 = 97.
+    expect(poorRolls.map((p) => p.chips)).toEqual([97, 8]);
+    expect(poorRolls.reduce((sum, p) => sum + p.chips, 0) + e2.pot).toBe(beforePoor);
   });
 
   it('fires at most once per turn, even if a reroll shows another straight', () => {

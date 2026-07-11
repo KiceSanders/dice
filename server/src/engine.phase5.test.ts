@@ -45,8 +45,10 @@ describe('sub-rounds: ties', () => {
     const end = ofType(events, 'roundEnded')[0]!;
     expect(end.winnerId).toBe('p1');
     expect(end.potWon).toBe(18);
+    // p1's winning first roll is four 6s → Classic Pot donation of 1.
     expect(players[0]!.chips).toBe(91);
-    expect(players[1]!.chips).toBe(109);
+    expect(players[1]!.chips).toBe(108);
+    expect(engine.classicPot).toBe(1);
   });
 
   it('sub-round excludes non-tied players and resets the roll cap', () => {
@@ -88,12 +90,15 @@ describe('sub-rounds: ties', () => {
     // Pot: 1+1 antes, 2+2 sub1, 4+4 sub2 = 14.
     const end = ofType(events, 'roundEnded')[0]!;
     expect(end.potWon).toBe(14);
-    expect(players[0]!.chips).toBe(107);
+    // p0's winning first roll is four 6s → Classic Pot donation of 1.
+    expect(players[0]!.chips).toBe(106);
     expect(players[1]!.chips).toBe(93);
+    expect(engine.classicPot).toBe(1);
   });
 
-  it('a short stack goes all-in on the doubled ante and can win the whole pot', () => {
-    const players = makePlayers([100, 4]); // p1 can ante round (3) but not sub-round (6)
+  it('a short stack floors the sub-round ante for everyone and can win the whole pot', () => {
+    const players = makePlayers([100, 4]); // p1 can ante round (3) but not full sub-round (6)
+    const before = players.reduce((sum, p) => sum + p.chips, 0);
     const { engine, events } = makeEngine(players, {
       settings: { ...DEFAULT_SETTINGS, chipsPerRound: 3 },
     });
@@ -101,16 +106,18 @@ describe('sub-rounds: ties', () => {
     turn(engine, 'p0', TIE);
     turn(engine, 'p1', TIE);
 
-    // p1 had 1 chip left after the round ante; goes all-in for 1 (not 6).
+    // p1 had 1 chip left after the round ante; both pay the equal floor of 1 (not 6).
     expect(players[1]!.chips).toBe(0);
-    // Pot: 3+3 antes + 6 (p0 sub) + 1 (p1 all-in) = 13.
-    expect(engine.pot).toBe(13);
+    expect(players[0]!.chips).toBe(96);
+    // Pot: 3+3 antes + 1 + 1 sub = 8.
+    expect(engine.pot).toBe(8);
 
     turn(engine, 'p1', [6, 6, 6, 6, 1]); // four 6s — goes first (CCW), wins
     turn(engine, 'p0', [2, 2, 1, 3, 4]);
     const end = ofType(events, 'roundEnded')[0]!;
     expect(end.winnerId).toBe('p1');
-    expect(players[1]!.chips).toBe(13); // takes the whole pot, no side pots
+    expect(players[1]!.chips).toBe(8); // takes the whole pot, no side pots
+    expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.classicPot).toBe(before);
   });
 
   it('beyond depth 10 antes stop and sudden-death single rolls decide it', () => {
@@ -136,7 +143,7 @@ describe('sub-rounds: ties', () => {
     // Sudden death is a single forced roll.
     const end = ofType(events, 'roundEnded')[0]!;
     expect(end.winnerId).toBe(first);
-    // Total chips conserved.
-    expect(players[0]!.chips + players[1]!.chips).toBe(20_000);
+    // Total chips conserved (Classic Pot may hold a first-roll four donation).
+    expect(players[0]!.chips + players[1]!.chips + engine.classicPot).toBe(20_000);
   });
 });

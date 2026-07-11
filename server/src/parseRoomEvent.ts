@@ -25,6 +25,8 @@ const knownTypes: Record<RoomEvent['type'], true> = {
   gameEnded: true,
   subRoundStarted: true,
   straightPaid: true,
+  classicDonated: true,
+  classicWon: true,
   roundEnded: true,
   chat: true,
 };

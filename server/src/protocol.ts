@@ -1,4 +1,9 @@
-import type { ClientMessage, RoomSettings, StraightPayoutConfig } from '@dice/shared';
+import type {
+  ClassicPotConfig,
+  ClientMessage,
+  RoomSettings,
+  StraightPayoutConfig,
+} from '@dice/shared';
 
 export type ParseResult = { ok: true; message: ClientMessage } | { ok: false; error: string };
 
@@ -18,6 +23,10 @@ function isStraightPayoutConfig(v: unknown): v is StraightPayoutConfig {
   return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.amountPerPlayer);
 }
 
+function isClassicPotConfig(v: unknown): v is ClassicPotConfig {
+  return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.donationAmount);
+}
+
 /** Structural check only; range clamping happens in the room layer (Phase 3.2). */
 function isRoomSettings(v: unknown): v is RoomSettings {
   return (
@@ -27,7 +36,8 @@ function isRoomSettings(v: unknown): v is RoomSettings {
     isFiniteNumber(v.maxPlayers) &&
     isFiniteNumber(v.minBuyIn) &&
     isFiniteNumber(v.maxBuyIn) &&
-    isStraightPayoutConfig(v.straightPayout)
+    isStraightPayoutConfig(v.straightPayout) &&
+    isClassicPotConfig(v.classicPot)
   );
 }
 

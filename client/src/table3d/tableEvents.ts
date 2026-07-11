@@ -26,6 +26,17 @@ export type TableEvent =
       type: 'chips-between-players';
       toPlayerId: PlayerId;
       payments: { playerId: PlayerId; amount: number }[];
+    }
+  | {
+      type: 'chips-to-classic-pot';
+      playerId: PlayerId;
+      amount: number;
+      classicPotBefore: number;
+    }
+  | {
+      type: 'classic-pot-to-winner';
+      winnerId: PlayerId;
+      amount: number;
     };
 
 type TableEventType = TableEvent['type'];

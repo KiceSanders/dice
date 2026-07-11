@@ -38,7 +38,13 @@ export default function Room() {
     connected,
     ws,
   );
-  useTableChipEvents(state.lastAnte, state.lastTransfer, state.roundEnd);
+  useTableChipEvents(
+    state.lastAnte,
+    state.lastTransfer,
+    state.roundEnd,
+    state.lastClassicDonate,
+    state.lastClassicWin,
+  );
 
   useEffect(() => {
     const receivedAt = state.roundEnd?.receivedAt ?? null;

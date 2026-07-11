@@ -63,6 +63,10 @@ const settings = {
     enabled: true,
     amountPerPlayer: 5,
   },
+  classicPot: {
+    enabled: true,
+    donationAmount: 1,
+  },
 };
 
 const host = client('host');
@@ -154,7 +158,9 @@ await playTurn(byId(second), second, [3, 3, 2, 4, 6], [3, 3, 6, 4, 2]);
 const ended = await host.next('round:ended');
 assert(ended.potWon === 4, `winner takes the pot (${ended.potWon})`);
 state = await host.stateWhere((s) => s.phase === 'roundEnd', 'roundEnd phase');
-const totalChips = state.snapshot.players.reduce((sum, p) => sum + p.chips, 0);
+const totalChips =
+  state.snapshot.players.reduce((sum, p) => sum + p.chips, 0) +
+  (state.snapshot.game?.classicPot ?? 0);
 assert(totalChips === 200, `chips conserved (${totalChips})`);
 
 // Next round auto-starts after ~5s.

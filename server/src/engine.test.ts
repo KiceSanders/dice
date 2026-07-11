@@ -158,8 +158,8 @@ describe('GameEngine: keep validation', () => {
 });
 
 describe('GameEngine: sit-outs and game end', () => {
-  it('broke players sit out the round but keep their seats', () => {
-    const players = makePlayers([100, 0, 100]); // p1 cannot ante
+  it('zero-chip players sit out the round but keep their seats', () => {
+    const players = makePlayers([100, 0, 100]); // p1 has nothing
     const { engine, events } = makeEngine(players);
     engine.start();
     expect(engine.pot).toBe(2);
@@ -175,7 +175,42 @@ describe('GameEngine: sit-outs and game end', () => {
     expect(players[1]!.chips).toBe(0); // untouched
   });
 
-  it('ends the game when fewer than 2 players can ante', () => {
+  it('short stack scales the ante for everyone; the round still plays', () => {
+    const players = makePlayers([100, 1, 100]);
+    const { engine, events } = makeEngine(players, {
+      settings: { ...DEFAULT_SETTINGS, chipsPerRound: 5 },
+    });
+    const before = players.reduce((sum, p) => sum + p.chips, 0);
+    engine.start();
+
+    // Everyone with chips antes 1 (lowest stack), not 5.
+    expect(engine.pot).toBe(3);
+    expect(players.map((p) => p.chips)).toEqual([99, 0, 99]);
+    expect(ofType(events, 'roundStarted')[0]).toMatchObject({
+      antes: [
+        { playerId: 'p0', amount: 1 },
+        { playerId: 'p1', amount: 1 },
+        { playerId: 'p2', amount: 1 },
+      ],
+    });
+    expect(engine.currentTurnPlayerId).toBe('p0'); // p1 is in the queue
+
+    roll(engine, 'p0', [6, 6, 6, 6, 6]);
+    engine.stand('p0');
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    roll(engine, 'p1', [5, 5, 5, 5, 2]);
+    engine.stand('p1');
+    roll(engine, 'p2', [4, 4, 4, 4, 2]);
+    engine.stand('p2');
+
+    const end = lastRoundEnd(events);
+    expect(end.winnerId).toBe('p0');
+    expect(end.potWon).toBe(3);
+    // Chip conservation: ante pot returned; Classic Pot may hold first-roll fours.
+    expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.classicPot).toBe(before);
+  });
+
+  it('ends the game when fewer than 2 players have chips', () => {
     const players = makePlayers([5, 0, 0]);
     const { engine, events } = makeEngine(players);
     engine.start();

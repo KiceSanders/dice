@@ -35,6 +35,7 @@ function snapshot(
       minBuyIn: 5,
       maxBuyIn: 50,
       straightPayout: { enabled: true, amountPerPlayer: 2 },
+      classicPot: { enabled: true, donationAmount: 1 },
     },
     players: partial.players,
     seatRequests: partial.seatRequests ?? [],
@@ -92,7 +93,7 @@ describe('ante announcements', () => {
     expect(state.lastAnte?.potBefore).toBe(3);
   });
 
-  it('retains actual all-in sub-round payments rather than only the nominal ante', () => {
+  it('retains actual short-stack floor sub-round payments rather than only the nominal ante', () => {
     vi.spyOn(Date, 'now').mockReturnValue(2_345);
     const state = receive({
       type: 'subround:started',
@@ -100,7 +101,7 @@ describe('ante announcements', () => {
       anteAmount: 4,
       depth: 2,
       antes: [
-        { playerId: 'p1', amount: 4 },
+        { playerId: 'p1', amount: 1 },
         { playerId: 'p2', amount: 1 },
       ],
     });
@@ -109,7 +110,7 @@ describe('ante announcements', () => {
       kind: 'subround',
       depth: 2,
       contributions: [
-        { playerId: 'p1', amount: 4 },
+        { playerId: 'p1', amount: 1 },
         { playerId: 'p2', amount: 1 },
       ],
       receivedAt: 2_345,
@@ -140,6 +141,42 @@ describe('instant transfers', () => {
       ],
       receivedAt: 3_456,
     });
+  });
+});
+
+describe('classic pot messages', () => {
+  it('retains a classic donation with pot-before for chip flight', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(4_567);
+    const state = receive({
+      type: 'classic:donated',
+      playerId: 'roller',
+      amount: 1,
+      classicPot: 4,
+    });
+
+    expect(state.lastClassicDonate).toEqual({
+      playerId: 'roller',
+      amount: 1,
+      classicPotBefore: 3,
+      receivedAt: 4_567,
+    });
+    expect(state.toasts.some((t) => t.text.includes('Classic Pot'))).toBe(true);
+  });
+
+  it('retains a classic win', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(5_678);
+    const state = receive({
+      type: 'classic:won',
+      playerId: 'roller',
+      amount: 4,
+    });
+
+    expect(state.lastClassicWin).toEqual({
+      playerId: 'roller',
+      amount: 4,
+      receivedAt: 5_678,
+    });
+    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('classic'))).toBe(true);
   });
 });
 

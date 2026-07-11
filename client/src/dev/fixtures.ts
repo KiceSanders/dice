@@ -86,6 +86,7 @@ function baseGame(overrides: Partial<GameStatePublic> = {}): GameStatePublic {
   return {
     roundNumber: 3,
     pot: 12,
+    classicPot: 0,
     turnQueue: [DEV_BOB, DEV_CAROL],
     currentTurn: turn(DEV_YOU),
     rollToBeat: null,

@@ -10,12 +10,15 @@ a rule seems wrong, flag it — do not silently change either side. Rule logic l
 turn rolling 5 dice — keeping and re-rolling to build the best hand — trying to beat the
 current roll-to-beat. Best stood hand wins the pot. Ties spawn sub-rounds with doubled antes.
 Rolling a straight triggers an instant side payment from every other seated player.
+A first-roll four-of-a-kind donates into a separate Classic Pot; three 6s while
+roll-to-beat is unset wins that pot.
 
 ## Turn structure
 
-1. A **round** begins: every seated player antes `settings.chipsPerRound` into the pot.
-   Players who cannot cover the ante sit the round out (they keep their seat). If fewer than
-   2 players can ante, the game ends.
+1. A **round** begins: every seated player with chips antes into the pot. The ante is
+   `min(settings.chipsPerRound, lowest positive stack)` — everyone who can play pays the
+   same short-stack floor. Players with 0 chips sit the round out (they keep their seat).
+   If fewer than 2 players have chips, the game ends.
 2. Players act **clockwise** in seat order. The **first roller** rotates
    **counter-clockwise** from the previous first roller each round and each
    sub-round (so the same seat never opens twice in a row, including after a
@@ -57,9 +60,33 @@ Scoring lives in `shared/src/game/score.ts`; ordering in `compare.ts`.
   a tradeoff for taking the payout.
 - **Straight payout** (`settings.straightPayout`, applied in `engine.applyStraightPayout`):
   the moment a roll settles showing a straight, every other seated player immediately pays
-  the roller `amountPerPlayer` chips from their own pile, clamped to what they have — chips
-  never go negative. Zero-sum, pot untouched, at most once per turn, and it fires on the
-  roll (the turn then continues normally). Replayed rolls re-apply it identically.
+  the roller from their own pile. Each transfer is
+  `min(amountPerPlayer, payer.chips, roller.chips)` — reciprocal, so a short stack caps
+  what either side can collect from the other. Chips never go negative. Zero-sum, pot
+  untouched, at most once per turn, and it fires on the roll (the turn then continues
+  normally). Replayed rolls re-apply it identically.
+
+## Classic Pot
+
+Side pool separate from the round-winner ante pot. Detection lives in
+`shared/src/game/classic.ts`; applied in `engine.applyClassicDonation` /
+`applyClassicPayout` on roll settlement (same moment as the straight payout).
+
+- **Donation** (`settings.classicPot`): on a player's **first roll of their turn**
+  (any seat), if the scored hand is exactly four of a kind (`count === 4`, wilds
+  OK — Yahtzee does not donate), the roller transfers
+  `min(donationAmount, roller.chips)` into `classicPot`. Zero transfers are
+  skipped. Fires at most once per first roll that qualifies.
+- **Payout**: when `rollToBeat` is still unset (nobody has stood yet this
+  round/sub-round) and a settled roll scores three 6s (`count === 3`, `face === 6`,
+  wilds OK), the roller takes the entire Classic Pot and the pool zeros. A zero
+  pot skips the emit. The turn continues normally either way.
+- The Classic Pot **persists across rounds and sub-rounds** within a game and
+  resets when a new game starts. It is zero-sum against player stacks (ante pot
+  untouched).
+- **Settings**: `settings.classicPot = { enabled, donationAmount }`. Takes effect
+  on the next roll settlement. Disabling freezes the pool (no donations, no
+  wins) until re-enabled — any balance stays until claimed after re-enable.
 
 ## Standing
 
@@ -77,8 +104,9 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 ## Ties and sub-rounds
 
 - Tied best hands start a **sub-round** among only the tied players, same pot.
-- Each tied player antes `chipsPerRound * 2^depth` (doubling each level); a short stack goes
-  **all-in** for what it has — no side pots, a winner takes the entire pot.
+- Each tied player antes the same amount: `min(chipsPerRound * 2^depth, lowest tied stack)`
+  (doubling each level, equal floor — no asymmetric all-in). A winner takes the entire pot;
+  no side pots.
 - Roll caps reset each sub-round. Sub-rounds nest; past depth 10 antes stop and
   **sudden death** begins: single forced rolls, repeat until the tie breaks.
 
@@ -88,8 +116,9 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 - The **host** (room creator) approves/denies seat requests, kicks (kicked → banned
   spectator), edits settings anytime (including mid-round), and starts the game (≥2 seated).
   Chip amounts take effect at the next natural point: `chipsPerRound` on the next round /
-  sub-round ante, `straightPayout` on the next straight settlement, buy-in bounds and
-  `maxPlayers` on the next seat request, `maxRolls` on the next turn that reads the ceiling.
+  sub-round ante, `straightPayout` / `classicPot` on the next roll settlement, buy-in
+  bounds and `maxPlayers` on the next seat request, `maxRolls` on the next turn that
+  reads the ceiling.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
@@ -104,6 +133,7 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 | `maxPlayers` | 3 | Clamped to 2–3 |
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
 | `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
+| `classicPot` | `{ enabled: true, donationAmount: 1 }` | See Classic Pot |
 
 Defaults: `DEFAULT_SETTINGS` in `shared/src/types.ts`. Server-side clamping:
 `clampSettings` in `server/src/room.ts`.

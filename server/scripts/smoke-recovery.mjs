@@ -89,6 +89,7 @@ const settings = {
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: { enabled: false, amountPerPlayer: 5 },
+  classicPot: { enabled: false, donationAmount: 1 },
 };
 
 // One physics roll (ADR 004): throwStart locks keeps, throwResult reports the faces.
@@ -204,7 +205,10 @@ try {
   assert(ended.potWon >= before.game.pot, `round resolved, pot paid out (${ended.potWon})`);
   const totals = (await host.stateWhere((s2) => s2.phase !== 'playing' || true, 'final state'))
     .snapshot;
-  const totalChips = totals.players.reduce((sum, p) => sum + p.chips, 0) + (totals.game?.pot ?? 0);
+  const totalChips =
+    totals.players.reduce((sum, p) => sum + p.chips, 0) +
+    (totals.game?.pot ?? 0) +
+    (totals.game?.classicPot ?? 0);
   assert(totalChips === 200, `chips conserved after recovery (${totalChips})`);
 
   host.close();

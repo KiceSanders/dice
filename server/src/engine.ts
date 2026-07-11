@@ -14,6 +14,8 @@ import {
   compareHands,
   detectStraight,
   HAND_SIZE,
+  isClassicDonation,
+  isClassicWin,
   orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
@@ -78,6 +80,19 @@ export type EngineEvent =
       total: number;
       payments: { playerId: PlayerId; amount: number }[];
     }
+  /** First-roll four-of-a-kind donation into the Classic Pot. */
+  | {
+      type: 'classicDonated';
+      playerId: PlayerId;
+      amount: number;
+      classicPot: number;
+    }
+  /** Classic (three 6s while roll-to-beat unset) wins the Classic Pot. */
+  | {
+      type: 'classicWon';
+      playerId: PlayerId;
+      amount: number;
+    }
   | { type: 'stateChanged' }
   | { type: 'gameEnded'; reason: string };
 
@@ -114,13 +129,15 @@ interface CurrentTurn {
 /**
  * Socket-free round/turn state machine (rules: docs/GAME_RULES.md). The room layer
  * owns membership; the engine owns rounds, sub-rounds, turns, dice, pot,
- * chips, and straight payouts. Dice values come exclusively from the roller's
+ * classic pot, chips, and side payouts. Dice values come exclusively from the roller's
  * physics sim (ADR 004) — the engine never rolls.
  */
 export class GameEngine {
   phase: 'playing' | 'roundEnd' | 'ended' = 'playing';
   roundNumber = 0;
   pot = 0;
+  /** Side pool for Classic Pot (docs/GAME_RULES.md); separate from `pot`. */
+  classicPot = 0;
 
   private participants: EnginePlayer[] = [];
   private queue: EnginePlayer[] = [];
@@ -173,15 +190,16 @@ export class GameEngine {
     const ante = this.settings.chipsPerRound;
     const seated = this.getSeated().filter((p) => p.seat !== null);
 
-    // Broke players sit the round out but keep their seats.
-    const able = seated.filter((p) => p.chips >= ante);
+    // Zero-chip players sit out; everyone else antes the same short-stack floor.
+    const able = seated.filter((p) => p.chips > 0);
     if (able.length < 2) {
       this.end('not enough players can cover the ante');
       return;
     }
 
-    for (const p of able) p.chips -= ante;
-    this.pot += able.length * ante;
+    const effectiveAnte = Math.min(ante, ...able.map((p) => p.chips));
+    for (const p of able) p.chips -= effectiveAnte;
+    this.pot += able.length * effectiveAnte;
     this.participants = able;
 
     this.roundNumber += 1;
@@ -195,7 +213,7 @@ export class GameEngine {
     this.emit({
       type: 'roundStarted',
       roundNumber: this.roundNumber,
-      antes: able.map((p) => ({ playerId: p.id, amount: ante })),
+      antes: able.map((p) => ({ playerId: p.id, amount: effectiveAnte })),
     });
     this.emit({ type: 'stateChanged' });
     this.nextTurn();
@@ -203,8 +221,9 @@ export class GameEngine {
 
   /**
    * Tie → sub-round among only the tied players, same pot, ante doubling each
-   * level (chipsPerRound * 2^depth, all-in if short). Past MAX_SUBROUND_DEPTH:
-   * sudden death — no ante, single roll each, repeat until broken.
+   * level (chipsPerRound * 2^depth, equal floor to the shortest tied stack).
+   * Past MAX_SUBROUND_DEPTH: sudden death — no ante, single roll each, repeat
+   * until broken.
    */
   private startSubRound(tiedIds: PlayerId[]): void {
     const depth = (this.subRound?.depth ?? 0) + 1;
@@ -215,11 +234,11 @@ export class GameEngine {
     const antes: { playerId: PlayerId; amount: number }[] = [];
     if (!suddenDeath) {
       anteAmount = this.settings.chipsPerRound * 2 ** depth;
+      const effectiveAnte = Math.min(anteAmount, ...tied.map((p) => p.chips));
       for (const p of tied) {
-        const paid = Math.min(anteAmount, p.chips); // all-in if short, no side pots
-        p.chips -= paid;
-        this.pot += paid;
-        antes.push({ playerId: p.id, amount: paid });
+        p.chips -= effectiveAnte;
+        this.pot += effectiveAnte;
+        antes.push({ playerId: p.id, amount: effectiveAnte });
       }
     }
 
@@ -417,6 +436,8 @@ export class GameEngine {
       restPose: turn.restPose,
     });
     this.applyStraightPayout(turn);
+    this.applyClassicDonation(turn);
+    this.applyClassicPayout(turn);
 
     if (turn.rollsUsed >= turn.rollCap) return this.stand(turn.playerId);
     this.emit({ type: 'stateChanged' });
@@ -487,8 +508,9 @@ export class GameEngine {
   /**
    * Instant straight side payment (docs/GAME_RULES.md "Straights"): the moment a roll
    * settles showing a straight, every other seated player pays the roller from
-   * their own pile, clamped to what they have — zero-sum, pot untouched, at
-   * most once per turn. The turn then continues as normal.
+   * their own pile — each transfer is min(amount, payer stack, roller stack) so
+   * the matchup stays reciprocal. Zero-sum, pot untouched, at most once per turn.
+   * The turn then continues as normal.
    */
   private applyStraightPayout(turn: CurrentTurn): void {
     if (turn.straightPaid || !turn.dice) return;
@@ -508,7 +530,8 @@ export class GameEngine {
     let total = 0;
     for (const p of this.getSeated()) {
       if (p.id === turn.playerId || p.seat === null) continue;
-      const paid = Math.min(perPlayer, p.chips); // chips never go negative
+      // Reciprocal: neither side pays more than the other could pay back.
+      const paid = Math.min(perPlayer, p.chips, roller.chips);
       p.chips -= paid;
       total += paid;
       payments.push({ playerId: p.id, amount: paid });
@@ -522,6 +545,60 @@ export class GameEngine {
       amountPerPlayer: perPlayer,
       total,
       payments,
+    });
+  }
+
+  /**
+   * First-roll four-of-a-kind donation into the Classic Pot
+   * (docs/GAME_RULES.md "Classic Pot"). Exact count === 4 (wilds OK).
+   */
+  private applyClassicDonation(turn: CurrentTurn): void {
+    if (!turn.dice || turn.rollsUsed !== 1) return;
+    const config = this.settings.classicPot;
+    if (!config.enabled || config.donationAmount <= 0) return;
+
+    const score = this.scoreFor(turn);
+    if (!isClassicDonation(score)) return;
+
+    const roller = this.participantById(turn.playerId);
+    if (!roller) return;
+
+    const amount = Math.min(config.donationAmount, roller.chips);
+    if (amount <= 0) return;
+
+    roller.chips -= amount;
+    this.classicPot += amount;
+    this.emit({
+      type: 'classicDonated',
+      playerId: turn.playerId,
+      amount,
+      classicPot: this.classicPot,
+    });
+  }
+
+  /**
+   * Classic win: three 6s while roll-to-beat is still unset
+   * (docs/GAME_RULES.md "Classic Pot").
+   */
+  private applyClassicPayout(turn: CurrentTurn): void {
+    if (!turn.dice || this.rollToBeat !== null) return;
+    const config = this.settings.classicPot;
+    if (!config.enabled) return;
+    if (this.classicPot <= 0) return;
+
+    const score = this.scoreFor(turn);
+    if (!isClassicWin(score)) return;
+
+    const roller = this.participantById(turn.playerId);
+    if (!roller) return;
+
+    const amount = this.classicPot;
+    this.classicPot = 0;
+    roller.chips += amount;
+    this.emit({
+      type: 'classicWon',
+      playerId: turn.playerId,
+      amount,
     });
   }
 
@@ -577,6 +654,7 @@ export class GameEngine {
     return {
       roundNumber: this.roundNumber,
       pot: this.pot,
+      classicPot: this.classicPot,
       turnQueue: this.queue.map((p) => p.id),
       currentTurn: turn,
       rollToBeat: this.rollToBeat
@@ -598,18 +676,30 @@ export class GameEngine {
   // -- persistence (PLAN.md Phase 6) -------------------------------------------------
 
   /** State that survives round-end compaction. Only meaningful in `roundEnd`. */
-  persistedState(): { roundNumber: number; pot: number; lastFirstRollerSeat: number | null } {
+  persistedState(): {
+    roundNumber: number;
+    pot: number;
+    classicPot: number;
+    lastFirstRollerSeat: number | null;
+  } {
     return {
       roundNumber: this.roundNumber,
       pot: this.pot,
+      classicPot: this.classicPot,
       lastFirstRollerSeat: this.lastFirstRollerSeat,
     };
   }
 
   /** Restore from a compaction snapshot (always taken at a round boundary). */
-  restore(state: { roundNumber: number; pot: number; lastFirstRollerSeat?: number | null }): void {
+  restore(state: {
+    roundNumber: number;
+    pot: number;
+    classicPot?: number;
+    lastFirstRollerSeat?: number | null;
+  }): void {
     this.roundNumber = state.roundNumber;
     this.pot = state.pot;
+    this.classicPot = state.classicPot ?? 0;
     this.lastFirstRollerSeat = state.lastFirstRollerSeat ?? null;
     this.phase = 'roundEnd';
   }

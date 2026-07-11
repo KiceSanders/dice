@@ -156,16 +156,36 @@ same override; switch **View as** to check the passive glow.
 
 ---
 
+## Classic Pot — 2 tabs
+
+1. Confirm Classic Pot is enabled in settings (default on; donation amount 1).
+2. On the first throw of a turn, force four of a kind (e.g.
+   `window.__forceSettleFaces = [3, 3, 3, 3, 2]`). On settle: roller loses 1 chip, Classic
+   Pot (top-band right of roll-to-beat) increments, toast/chat announce the donation, and a
+   chip flies seat → Classic Pot.
+3. Yahtzee on first roll (`[4,4,4,4,4]`) must **not** donate. A four-of-a-kind on the second
+   roll of a turn must **not** donate.
+4. With Classic Pot > 0 and nobody stood yet this round, force three 6s
+   (`[6,6,6,2,3]` or `[6,6,1,2,3]`). Roller collects the Classic Pot; pool zeros; chip flies
+   Classic Pot → seat.
+5. After someone stands (roll-to-beat set), three 6s on a later turn must **not** win the
+   Classic Pot.
+6. Disable Classic Pot in settings mid-game with a non-zero pool: no further donations or
+   wins; the frozen balance stays visible until re-enabled.
+
+---
+
 ## Animated chip pot — 2–3 tabs
 
 1. In the lobby, confirm the room code and “waiting to start” still render on the felt.
 2. Seat 2–3 players and start the game. On every tab, one gold coin per paid chip travels
    from each contributing player's name to a pyramid left of roll-to-beat. A pot of 3 must
    show two coins on the bottom and one above.
-3. During play, confirm no Pot/Round text remains on the felt. Roll-to-beat, Stand/hint,
-   player names, and the below-table HUD remain unchanged.
+3. During play, confirm no Pot/Round text remains on the felt. Roll-to-beat, Classic Pot,
+   Stand/hint, player names, and the below-table HUD remain unchanged.
 4. Force matching hands on every turn to start a sub-round. Confirm only tied players send
-   chips and a short stack sends its actual all-in amount, not the nominal sub-round ante.
+   chips and everyone sends the equal short-stack floor, not the nominal sub-round ante when
+   a tied player is short.
 5. Finish a round with a winner. The complete pot tower must leave the pot lane, slide to
    the winner's name on every tab, and disappear; the next round's ante then builds a fresh
    tower. If every player forfeits without a roll, confirm the tower stays put for the

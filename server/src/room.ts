@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  ClassicPotConfig,
   PlayerId,
   PlayerPublic,
   RoomId,
@@ -46,10 +47,11 @@ const clampInt = (v: number, min: number, max: number) =>
 /** Clamp incoming settings to the ranges documented in PLAN.md. */
 export function clampSettings(s: RoomSettings): RoomSettings {
   const minBuyIn = clampInt(s.minBuyIn, 1, 1_000_000);
-  // Lenient on straightPayout: settings replayed from logs written before the
-  // instant-payout rules lack the key entirely and must fall back to defaults.
+  // Lenient on nested configs: settings replayed from older logs may lack keys.
   const sp: Partial<StraightPayoutConfig> = s.straightPayout ?? {};
-  const d = DEFAULT_SETTINGS.straightPayout;
+  const cp: Partial<ClassicPotConfig> = s.classicPot ?? {};
+  const dSp = DEFAULT_SETTINGS.straightPayout;
+  const dCp = DEFAULT_SETTINGS.classicPot;
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
@@ -57,8 +59,12 @@ export function clampSettings(s: RoomSettings): RoomSettings {
     minBuyIn,
     maxBuyIn: clampInt(s.maxBuyIn, minBuyIn, 10_000_000),
     straightPayout: {
-      enabled: sp.enabled === undefined ? d.enabled : Boolean(sp.enabled),
-      amountPerPlayer: clampInt(sp.amountPerPlayer ?? d.amountPerPlayer, 0, 100_000),
+      enabled: sp.enabled === undefined ? dSp.enabled : Boolean(sp.enabled),
+      amountPerPlayer: clampInt(sp.amountPerPlayer ?? dSp.amountPerPlayer, 0, 100_000),
+    },
+    classicPot: {
+      enabled: cp.enabled === undefined ? dCp.enabled : Boolean(cp.enabled),
+      donationAmount: clampInt(cp.donationAmount ?? dCp.donationAmount, 0, 100_000),
     },
   };
 }
@@ -185,6 +191,8 @@ export class Room {
       case 'gameEnded':
       case 'subRoundStarted':
       case 'straightPaid':
+      case 'classicDonated':
+      case 'classicWon':
       case 'roundEnded':
         // Engine-driven and audit-only events are not applied here: replay
         // routes them through the engine (persistence.ts) or skips them.

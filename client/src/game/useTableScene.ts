@@ -1,7 +1,14 @@
 import type { ClientMessage, RoomSnapshot } from '@dice/shared';
 import { detectStraight } from '@dice/shared';
 import { useEffect, useMemo, useRef } from 'react';
-import type { AnteInfo, LastRoll, RoundEndInfo, TransferInfo } from '../state/store';
+import type {
+  AnteInfo,
+  ClassicDonateInfo,
+  ClassicWinInfo,
+  LastRoll,
+  RoundEndInfo,
+  TransferInfo,
+} from '../state/store';
 import { pickHeldRollInput, resolveTableRestPose } from '../table3d/dice/staticPose';
 import { tableEvents } from '../table3d/tableEvents';
 import type { WsClient } from '../ws/client';
@@ -73,17 +80,21 @@ export function useTableScene(
 }
 
 /**
- * Emit ante / transfer / pot-award table events from reducer-captured payloads.
+ * Emit ante / transfer / pot-award / classic-pot table events from reducer-captured payloads.
  * potBefore is stamped at message time in the store (TABLE_UI.md race note).
  */
 export function useTableChipEvents(
   lastAnte: AnteInfo | null,
   lastTransfer: TransferInfo | null,
   roundEnd: RoundEndInfo | null,
+  lastClassicDonate: ClassicDonateInfo | null = null,
+  lastClassicWin: ClassicWinInfo | null = null,
 ) {
   const emittedAnteAtRef = useRef<number | null>(null);
   const emittedAwardAtRef = useRef<number | null>(null);
   const emittedTransferAtRef = useRef<number | null>(null);
+  const emittedClassicDonateAtRef = useRef<number | null>(null);
+  const emittedClassicWinAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     const ante = lastAnte;
@@ -130,4 +141,35 @@ export function useTableChipEvents(
       roundEnd.receivedAt,
     );
   }, [roundEnd]);
+
+  useEffect(() => {
+    const donate = lastClassicDonate;
+    if (!donate || emittedClassicDonateAtRef.current === donate.receivedAt) return;
+    emittedClassicDonateAtRef.current = donate.receivedAt;
+    if (donate.amount <= 0) return;
+    tableEvents.emit(
+      {
+        type: 'chips-to-classic-pot',
+        playerId: donate.playerId,
+        amount: donate.amount,
+        classicPotBefore: donate.classicPotBefore,
+      },
+      donate.receivedAt,
+    );
+  }, [lastClassicDonate]);
+
+  useEffect(() => {
+    const win = lastClassicWin;
+    if (!win || emittedClassicWinAtRef.current === win.receivedAt) return;
+    emittedClassicWinAtRef.current = win.receivedAt;
+    if (win.amount <= 0) return;
+    tableEvents.emit(
+      {
+        type: 'classic-pot-to-winner',
+        winnerId: win.playerId,
+        amount: win.amount,
+      },
+      win.receivedAt,
+    );
+  }, [lastClassicWin]);
 }

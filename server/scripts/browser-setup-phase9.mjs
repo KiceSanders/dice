@@ -46,6 +46,7 @@ const settings = {
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: { enabled: true, amountPerPlayer: 5 },
+  classicPot: { enabled: true, donationAmount: 1 },
 };
 
 const alice = client('Alice');

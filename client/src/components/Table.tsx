@@ -1,5 +1,6 @@
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
 import { type RefObject, useEffect, useRef, useState } from 'react';
+import ClassicPotOverlay from '../table3d/ClassicPotOverlay';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
 import type { OverlayRect } from '../table3d/layout';
@@ -145,6 +146,14 @@ export default function Table({
         </div>
         <div className="table-top-band-slot table-top-band-slot--roll">
           {snapshot.game && <RollToBeatOverlay game={snapshot.game} players={snapshot.players} />}
+        </div>
+        <div className="table-top-band-slot table-top-band-slot--classic">
+          {snapshot.game && (
+            <ClassicPotOverlay
+              classicPot={snapshot.game.classicPot}
+              enabled={snapshot.settings.classicPot.enabled}
+            />
+          )}
         </div>
       </div>
       {connection && <ConnectionDot status={connection} />}

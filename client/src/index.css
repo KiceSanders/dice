@@ -358,13 +358,14 @@ code {
 .table-top-band {
   position: absolute;
   top: 0;
-  left: 50%;
+  /* Bias the band toward the right so Classic Pot sits nearer the frame corner. */
+  left: 58%;
   transform: translateX(-50%);
-  height: 4.25rem; /* top gutter grid track */
-  width: 50%;
-  max-width: 50%;
+  height: 4.75rem; /* room for coin pyramid + Classic Pot label */
+  width: 68%;
+  max-width: 68%;
   display: grid;
-  grid-template-columns: minmax(4.75rem, 0.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(4.75rem, 0.3fr) minmax(0, 1fr) minmax(5rem, 0.5fr);
   align-items: center;
   gap: 0.5rem;
   z-index: 2;
@@ -386,6 +387,11 @@ code {
   justify-content: flex-start;
 }
 
+.table-top-band-slot--classic {
+  justify-content: flex-end;
+  padding-right: 0.35rem;
+}
+
 .pot-chip-overlay {
   --pot-chip-face: #c98a1b;
   --pot-chip-highlight: #f8d66d;
@@ -394,6 +400,11 @@ code {
   width: 4.75rem;
   height: 3.55rem;
   display: block;
+}
+
+.classic-pot-overlay .classic-pot-chips {
+  /* Slightly shorter so the label fits under the pyramid in the band. */
+  height: 3.1rem;
 }
 
 .chip-flow-overlay {
@@ -462,6 +473,25 @@ code {
 .roll-to-beat-overlay .die-small {
   width: 1.15rem;
   height: 1.15rem;
+}
+
+.classic-pot-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.classic-pot-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  text-align: center;
 }
 
 .table-canvas {

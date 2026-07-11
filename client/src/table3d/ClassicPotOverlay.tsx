@@ -7,7 +7,6 @@ import {
   CHIP_ANTE_TRAVEL_MS,
   CHIP_AWARD_TRAVEL_MS,
   CHIP_EVENT_REPLAY_MS,
-  CHIP_TRANSFER_TRAVEL_MS,
   chipAnimationsEnabled,
   chipFlightPoint,
   lerpPoint,
@@ -15,8 +14,14 @@ import {
   staggerDelay,
 } from './chipFlow';
 import { drawCoin, drawPotPyramid, prepareCanvas, readChipColors } from './potChipDraw';
-import { layoutPotChips, MAX_COIN_RADIUS, type PotChipPoint } from './potChipLayout';
+import { layoutPotChips, type PotChipPoint } from './potChipLayout';
 import { useTableEvent } from './tableEvents';
+
+interface Props {
+  classicPot: number;
+  /** When false and pot is empty, hide the lane entirely. */
+  enabled: boolean;
+}
 
 function playerTarget(playerId: PlayerId): Point2 | null {
   const target = Array.from(document.querySelectorAll<HTMLElement>('[data-chip-player]')).find(
@@ -27,13 +32,11 @@ function playerTarget(playerId: PlayerId): Point2 | null {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-/** Independent coins in flight (antes into the pot, player-to-player transfers). */
 interface CoinFlight {
   kind: 'coins';
   startedAt: number;
   travelMs: number;
   doneAt: number;
-  /** Antes reveal the grown pyramid when they land; transfers leave the pot alone. */
   commitsPot: boolean;
   coins: { from: Point2; to: Point2; radius: number; delay: number }[];
 }
@@ -47,19 +50,18 @@ interface AwardFlight {
 
 type ActiveFlight = CoinFlight | AwardFlight;
 
-interface Props {
-  pot: number;
-}
-
-/** Exact, text-free chip pyramid in the reserved top-band pot lane. */
-export default function PotChipOverlay({ pot }: Props) {
+/**
+ * Classic Pot in the top-band right lane: same gold-coin pyramid as the ante pot,
+ * with a "Classic Pot" label underneath.
+ */
+export default function ClassicPotOverlay({ classicPot, enabled }: Props) {
   const potCanvasRef = useRef<HTMLCanvasElement>(null);
   const flowCanvasRef = useRef<HTMLCanvasElement>(null);
   const flightsRef = useRef<ActiveFlight[]>([]);
-  const potRef = useRef(pot);
+  const potRef = useRef(classicPot);
   const rafRef = useRef<number | null>(null);
   const frameRef = useRef<(now: number) => void>(() => {});
-  const [displayPot, setDisplayPot] = useState(pot);
+  const [displayPot, setDisplayPot] = useState(classicPot);
 
   const animationsEnabled = () =>
     chipAnimationsEnabled(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -126,37 +128,38 @@ export default function PotChipOverlay({ pot }: Props) {
   };
 
   useTableEvent(
-    'chips-to-pot',
+    'chips-to-classic-pot',
     (event, at) => {
-      if (!animationsEnabled()) return;
+      if (!animationsEnabled()) {
+        setDisplayPot(potRef.current);
+        return;
+      }
       const canvas = potCanvasRef.current;
-      if (!canvas) return;
-      const total = event.contributions.reduce((sum, entry) => sum + entry.amount, 0);
-      if (total <= 0) return;
+      if (!canvas || event.amount <= 0) {
+        setDisplayPot(potRef.current);
+        return;
+      }
 
       const rect = canvas.getBoundingClientRect();
-      const finalPot = event.potBefore + total;
+      const finalPot = event.classicPotBefore + event.amount;
       const finalLayout = layoutPotChips(finalPot, rect.width, rect.height - 2);
-      const incoming = finalLayout.points.slice(event.potBefore);
-      const fallback = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const incoming = finalLayout.points.slice(event.classicPotBefore);
+      const from = playerTarget(event.playerId) ?? {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
       const coins: CoinFlight['coins'] = [];
-      let index = 0;
-      for (const contribution of event.contributions) {
-        const from = playerTarget(contribution.playerId) ?? fallback;
-        for (let chip = 0; chip < contribution.amount; chip += 1) {
-          const target = incoming[index] ?? finalLayout.points.at(-1);
-          if (target) {
-            coins.push({
-              from,
-              to: { x: rect.left + target.x, y: rect.top + target.y },
-              radius: target.radius,
-              delay: staggerDelay(index, total),
-            });
-          }
-          index += 1;
-        }
+      for (let i = 0; i < event.amount; i += 1) {
+        const target = incoming[i] ?? finalLayout.points.at(-1);
+        if (!target) continue;
+        coins.push({
+          from,
+          to: { x: rect.left + target.x, y: rect.top + target.y },
+          radius: target.radius,
+          delay: staggerDelay(i, event.amount),
+        });
       }
-      setDisplayPot(event.potBefore);
+      setDisplayPot(event.classicPotBefore);
       flightsRef.current = [
         ...flightsRef.current,
         {
@@ -174,51 +177,18 @@ export default function PotChipOverlay({ pot }: Props) {
   );
 
   useTableEvent(
-    'chips-between-players',
+    'classic-pot-to-winner',
     (event, at) => {
-      if (!animationsEnabled()) return;
-      const to = playerTarget(event.toPlayerId);
-      if (!to) return;
-      const total = event.payments.reduce((sum, entry) => sum + entry.amount, 0);
-      if (total <= 0) return;
-
-      const coins: CoinFlight['coins'] = [];
-      let index = 0;
-      for (const payment of event.payments) {
-        const from = playerTarget(payment.playerId);
-        if (!from) {
-          index += payment.amount;
-          continue;
-        }
-        for (let chip = 0; chip < payment.amount; chip += 1) {
-          coins.push({ from, to, radius: MAX_COIN_RADIUS, delay: staggerDelay(index, total) });
-          index += 1;
-        }
+      if (!animationsEnabled()) {
+        setDisplayPot(potRef.current);
+        return;
       }
-      if (coins.length === 0) return;
-      flightsRef.current = [
-        ...flightsRef.current,
-        {
-          kind: 'coins',
-          startedAt: at,
-          travelMs: CHIP_TRANSFER_TRAVEL_MS,
-          doneAt: at + CHIP_TRANSFER_TRAVEL_MS + CHIP_ANTE_STAGGER_MS,
-          commitsPot: false,
-          coins,
-        },
-      ];
-      startLoop();
-    },
-    { replayLastMs: CHIP_EVENT_REPLAY_MS },
-  );
-
-  useTableEvent(
-    'pot-to-winner',
-    (event, at) => {
-      if (!animationsEnabled()) return;
       const canvas = potCanvasRef.current;
       const target = playerTarget(event.winnerId);
-      if (!canvas || !target || event.amount <= 0) return;
+      if (!canvas || !target || event.amount <= 0) {
+        setDisplayPot(potRef.current);
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       const layout = layoutPotChips(event.amount, rect.width, rect.height - 2);
       const from = layout.points.map((point) => ({
@@ -243,12 +213,12 @@ export default function PotChipOverlay({ pot }: Props) {
   );
 
   useEffect(() => {
-    potRef.current = pot;
+    potRef.current = classicPot;
     const potInFlight = flightsRef.current.some(
       (flight) => flight.kind === 'award' || (flight.kind === 'coins' && flight.commitsPot),
     );
-    if (!potInFlight) setDisplayPot(pot);
-  }, [pot]);
+    if (!potInFlight) setDisplayPot(classicPot);
+  }, [classicPot]);
 
   useEffect(() => {
     const canvas = potCanvasRef.current;
@@ -267,16 +237,19 @@ export default function PotChipOverlay({ pot }: Props) {
     [],
   );
 
+  if (!enabled && classicPot === 0) return null;
+
   return (
     <>
-      <canvas
-        ref={potCanvasRef}
-        className="pot-chip-overlay"
-        role="img"
-        aria-label={`Pot: ${pot} chip${pot === 1 ? '' : 's'}`}
-      />
-      {/* Flight canvas draws in viewport coordinates; the top band's transform would
-          re-root position:fixed onto the band, so it must portal out to <body>. */}
+      <div className="classic-pot-overlay" data-classic-pot>
+        <canvas
+          ref={potCanvasRef}
+          className="pot-chip-overlay classic-pot-chips"
+          role="img"
+          aria-label={`Classic Pot: ${classicPot} chip${classicPot === 1 ? '' : 's'}`}
+        />
+        <div className="classic-pot-label">Classic Pot</div>
+      </div>
       {createPortal(
         <canvas ref={flowCanvasRef} className="chip-flow-overlay" aria-hidden />,
         document.body,

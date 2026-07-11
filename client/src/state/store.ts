@@ -63,8 +63,24 @@ export interface AnteInfo {
  */
 export interface TransferInfo {
   toPlayerId: PlayerId;
-  /** Actual per-payer amounts (already clamped server-side for short stacks). */
+  /** Actual per-payer amounts (already floored server-side for short stacks). */
   payments: { playerId: PlayerId; amount: number }[];
+  receivedAt: number;
+}
+
+/** Last Classic Pot donation; drives seat → classic-pot chip flight. */
+export interface ClassicDonateInfo {
+  playerId: PlayerId;
+  amount: number;
+  /** Classic pot before this donation (captured at message time). */
+  classicPotBefore: number;
+  receivedAt: number;
+}
+
+/** Last Classic Pot win; drives classic-pot → seat chip flight. */
+export interface ClassicWinInfo {
+  playerId: PlayerId;
+  amount: number;
   receivedAt: number;
 }
 
@@ -77,6 +93,8 @@ export interface AppState {
   lastRoll: LastRoll | null;
   lastAnte: AnteInfo | null;
   lastTransfer: TransferInfo | null;
+  lastClassicDonate: ClassicDonateInfo | null;
+  lastClassicWin: ClassicWinInfo | null;
   roundEnd: RoundEndInfo | null;
   toasts: Toast[];
   /** Set when joining failed terminally (e.g. unknown room). */
@@ -92,6 +110,8 @@ export const initialState: AppState = {
   lastRoll: null,
   lastAnte: null,
   lastTransfer: null,
+  lastClassicDonate: null,
+  lastClassicWin: null,
   roundEnd: null,
   toasts: [],
   joinError: null,
@@ -174,6 +194,8 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         lastRoll: null,
         lastAnte: null,
         lastTransfer: null,
+        lastClassicDonate: null,
+        lastClassicWin: null,
         joinError: null,
       };
 
@@ -341,6 +363,35 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         lastTransfer: {
           toPlayerId: msg.playerId,
           payments: msg.payments,
+          receivedAt: Date.now(),
+        },
+        toasts: pushToast(state.toasts, 'info', text),
+        chat: pushChat(state.chat, [systemLine(text)]),
+      };
+    }
+
+    case 'classic:donated': {
+      const text = `${playerName(state, msg.playerId)} rolled four of a kind — donates ${msg.amount} to the Classic Pot`;
+      return {
+        ...state,
+        lastClassicDonate: {
+          playerId: msg.playerId,
+          amount: msg.amount,
+          classicPotBefore: msg.classicPot - msg.amount,
+          receivedAt: Date.now(),
+        },
+        toasts: pushToast(state.toasts, 'info', text),
+        chat: pushChat(state.chat, [systemLine(text)]),
+      };
+    }
+
+    case 'classic:won': {
+      const text = `${playerName(state, msg.playerId)} rolled a classic — wins the Classic Pot (${msg.amount} chip${msg.amount === 1 ? '' : 's'})`;
+      return {
+        ...state,
+        lastClassicWin: {
+          playerId: msg.playerId,
+          amount: msg.amount,
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),

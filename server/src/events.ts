@@ -33,6 +33,8 @@ export interface PersistedPlayer {
 export interface PersistedGame {
   roundNumber: number;
   pot: number;
+  /** Classic Pot side pool; optional so pre-classic logs still restore. */
+  classicPot?: number;
   /** Seat that opened the last round/sub-round; next opener is CCW from this. */
   lastFirstRollerSeat: number | null;
 }
@@ -113,6 +115,17 @@ export type RoomEvent =
       amountPerPlayer: number;
       total: number;
       payments: { playerId: PlayerId; amount: number }[];
+    }
+  | {
+      type: 'classicDonated';
+      playerId: PlayerId;
+      amount: number;
+      classicPot: number;
+    }
+  | {
+      type: 'classicWon';
+      playerId: PlayerId;
+      amount: number;
     }
   | { type: 'roundEnded'; winnerId: PlayerId | null; potWon: number }
   // -- chat (Phase 10) ---------------------------------------------------------

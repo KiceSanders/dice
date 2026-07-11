@@ -148,6 +148,8 @@ function applyReplayEvent(room: Room, event: RoomEvent): void {
     // Audit-only: outcomes are recomputed deterministically from rolls/stands.
     case 'subRoundStarted':
     case 'straightPaid':
+    case 'classicDonated':
+    case 'classicWon':
     case 'roundEnded':
       break;
 

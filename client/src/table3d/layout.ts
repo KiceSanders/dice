@@ -195,18 +195,23 @@ export function seatCardRect(
 
 /**
  * Reserved game-state band across the top of the frame (the 10 → 2 o'clock
- * arc no seat may enter). Widgets inside it are normal flow (two grid lanes), so they
+ * arc no seat may enter). Widgets inside it are normal flow (three grid lanes), so they
  * can never overlap each other; the layout test proves the band clears every
  * seat card at every seat count.
  *
- * Paired with `.table-top-band` in index.css — keep max-width (% of frame)
- * and height (top gutter track, 4.25rem) identical on both sides.
+ * Paired with `.table-top-band` in index.css — keep max-width (% of frame),
+ * horizontal bias (`left`), and height identical on both sides.
  */
-export const TOP_BAND_MAX_WIDTH_PCT = 50;
-export const TOP_BAND_HEIGHT_PX = 68; // 4.25rem @ 16px root
+export const TOP_BAND_MAX_WIDTH_PCT = 68;
+/** Horizontal center of the band as % of frame (50 = centered; >50 biases right). */
+export const TOP_BAND_CENTER_PCT = 58;
+export const TOP_BAND_HEIGHT_PX = 76; // 4.75rem @ 16px root
 export const TOP_BAND_GAP_PX = 8; // 0.5rem @ 16px root
 export const TOP_BAND_POT_MIN_WIDTH_PX = 76; // 4.75rem @ 16px root
-export const TOP_BAND_POT_FRACTION = 0.35;
+export const TOP_BAND_POT_FRACTION = 0.3;
+export const TOP_BAND_ROLL_FRACTION = 1;
+export const TOP_BAND_CLASSIC_MIN_WIDTH_PX = 80; // 5rem @ 16px root
+export const TOP_BAND_CLASSIC_FRACTION = 0.5;
 
 /** Top-band rect in frame % — pure mirror of `.table-top-band` for tests. */
 export function topBandRect(frame: OverlayRect): {
@@ -216,33 +221,59 @@ export function topBandRect(frame: OverlayRect): {
   height: number;
 } {
   return {
-    left: 50 - TOP_BAND_MAX_WIDTH_PCT / 2,
+    left: TOP_BAND_CENTER_PCT - TOP_BAND_MAX_WIDTH_PCT / 2,
     top: 0,
     width: TOP_BAND_MAX_WIDTH_PCT,
     height: (TOP_BAND_HEIGHT_PX / frame.height) * 100,
   };
 }
 
-/** Pot/roll lane rects in frame %, mirroring the top-band CSS grid. */
+/** Pot / roll-to-beat / classic lane rects in frame %, mirroring the top-band CSS grid. */
 export function topBandLaneRects(frame: OverlayRect): {
   pot: { left: number; top: number; width: number; height: number };
   roll: { left: number; top: number; width: number; height: number };
+  classic: { left: number; top: number; width: number; height: number };
 } {
   const band = topBandRect(frame);
   const bandWidthPx = (band.width / 100) * frame.width;
-  const availablePx = Math.max(0, bandWidthPx - TOP_BAND_GAP_PX);
-  const fractionalPotPx = availablePx * (TOP_BAND_POT_FRACTION / (TOP_BAND_POT_FRACTION + 1));
-  const potWidthPx = Math.min(availablePx, Math.max(TOP_BAND_POT_MIN_WIDTH_PX, fractionalPotPx));
-  const rollWidthPx = availablePx - potWidthPx;
+  const gapCount = 2;
+  const availablePx = Math.max(0, bandWidthPx - TOP_BAND_GAP_PX * gapCount);
+  const totalFr = TOP_BAND_POT_FRACTION + TOP_BAND_ROLL_FRACTION + TOP_BAND_CLASSIC_FRACTION;
+  let potWidthPx = Math.max(
+    TOP_BAND_POT_MIN_WIDTH_PX,
+    availablePx * (TOP_BAND_POT_FRACTION / totalFr),
+  );
+  let classicWidthPx = Math.max(
+    TOP_BAND_CLASSIC_MIN_WIDTH_PX,
+    availablePx * (TOP_BAND_CLASSIC_FRACTION / totalFr),
+  );
+  let rollWidthPx = availablePx - potWidthPx - classicWidthPx;
+  if (rollWidthPx < 0) {
+    const overflow = -rollWidthPx;
+    const shrinkable = potWidthPx + classicWidthPx;
+    potWidthPx -= (overflow * potWidthPx) / shrinkable;
+    classicWidthPx -= (overflow * classicWidthPx) / shrinkable;
+    rollWidthPx = 0;
+  }
   const toPct = (pixels: number) => (pixels / frame.width) * 100;
   const potWidth = toPct(potWidthPx);
+  const rollWidth = toPct(rollWidthPx);
+  const classicWidth = toPct(classicWidthPx);
   const gapWidth = toPct(TOP_BAND_GAP_PX);
+  const rollLeft = band.left + potWidth + gapWidth;
+  const classicLeft = rollLeft + rollWidth + gapWidth;
   return {
     pot: { left: band.left, top: band.top, width: potWidth, height: band.height },
     roll: {
-      left: band.left + potWidth + gapWidth,
+      left: rollLeft,
       top: band.top,
-      width: toPct(rollWidthPx),
+      width: rollWidth,
+      height: band.height,
+    },
+    classic: {
+      left: classicLeft,
+      top: band.top,
+      width: classicWidth,
       height: band.height,
     },
   };

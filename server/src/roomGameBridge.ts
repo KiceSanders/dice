@@ -111,6 +111,32 @@ export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext):
         payments: event.payments,
       });
       break;
+    case 'classicDonated':
+      ctx.recorder?.append({
+        type: 'classicDonated',
+        playerId: event.playerId,
+        amount: event.amount,
+        classicPot: event.classicPot,
+      });
+      ctx.broadcast({
+        type: 'classic:donated',
+        playerId: event.playerId,
+        amount: event.amount,
+        classicPot: event.classicPot,
+      });
+      break;
+    case 'classicWon':
+      ctx.recorder?.append({
+        type: 'classicWon',
+        playerId: event.playerId,
+        amount: event.amount,
+      });
+      ctx.broadcast({
+        type: 'classic:won',
+        playerId: event.playerId,
+        amount: event.amount,
+      });
+      break;
     case 'roundEnded':
       ctx.setPhaseRoundEnd();
       ctx.recorder?.append({

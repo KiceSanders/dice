@@ -101,7 +101,7 @@ export type ServerMessage =
       tiedPlayerIds: PlayerId[];
       anteAmount: number;
       depth: number;
-      /** Actual payments; may be below anteAmount for all-in players. */
+      /** Actual payments; equal floor may be below anteAmount for short stacks. */
       antes: { playerId: PlayerId; amount: number }[];
     }
   /** Instant straight side payment: each other seated player paid the roller. */
@@ -111,8 +111,23 @@ export type ServerMessage =
       kind: Exclude<StraightKind, 'none'>;
       amountPerPlayer: number;
       total: number;
-      /** Actual per-payer transfers; may be below amountPerPlayer for short stacks. */
+      /** Actual per-payer transfers; min(amount, payer, roller) for short stacks. */
       payments: { playerId: PlayerId; amount: number }[];
+    }
+  /** First-roll four-of-a-kind donation into the Classic Pot. */
+  | {
+      type: 'classic:donated';
+      playerId: PlayerId;
+      amount: number;
+      /** Classic pot total after the donation. */
+      classicPot: number;
+    }
+  /** Classic (three 6s while roll-to-beat unset) wins the Classic Pot. */
+  | {
+      type: 'classic:won';
+      playerId: PlayerId;
+      /** Chips taken from the Classic Pot (pot is zeroed). */
+      amount: number;
     }
   | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }
   | { type: 'error'; code: ErrorCode; message: string };

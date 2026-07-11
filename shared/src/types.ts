@@ -30,12 +30,24 @@ export type StraightKind = 'none' | 'straight';
 /**
  * Instant side payment when a roll settles showing a straight (once per turn):
  * every other seated player immediately pays the roller from their own pile,
- * clamped to what they have. Separate from the round-winner pot.
+ * each transfer min(amount, payer stack, roller stack). Separate from the
+ * round-winner pot.
  */
 export interface StraightPayoutConfig {
   enabled: boolean;
   /** Chips each other seated player pays the roller. */
   amountPerPlayer: number;
+}
+
+/**
+ * Side pool funded by first-roll four-of-a-kind donations; paid out on a
+ * "classic" (three 6s) while roll-to-beat is still unset. Separate from the
+ * round-winner ante pot. See docs/GAME_RULES.md "Classic Pot".
+ */
+export interface ClassicPotConfig {
+  enabled: boolean;
+  /** Chips the roller donates to the classic pot on a first-roll four-of-a-kind. */
+  donationAmount: number;
 }
 
 export interface RoomSettings {
@@ -47,6 +59,7 @@ export interface RoomSettings {
   minBuyIn: number;
   maxBuyIn: number;
   straightPayout: StraightPayoutConfig;
+  classicPot: ClassicPotConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -58,6 +71,10 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   straightPayout: {
     enabled: true,
     amountPerPlayer: 5,
+  },
+  classicPot: {
+    enabled: true,
+    donationAmount: 1,
   },
 };
 
@@ -117,6 +134,8 @@ export interface SubRoundState {
 export interface GameStatePublic {
   roundNumber: number;
   pot: number;
+  /** Side pool for Classic Pot (docs/GAME_RULES.md); separate from `pot`. */
+  classicPot: number;
   /** Seat-ordered player ids still to act this (sub-)round. */
   turnQueue: PlayerId[];
   currentTurn: TurnState | null;

@@ -41,9 +41,11 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:rolled` | `{ playerId, dice, rollNumber, kept, restPose }` | The settled roll; `restPose` is the server-validated rest layout (`BodyPose[] \| null`, ADR 005) every viewer renders between turns |
 | `turn:forfeited` | `{ playerId }` | Turn ended with no completed roll |
 | `straight:paid` | `{ playerId, kind, amountPerPlayer, total, payments }` | Instant side payment |
+| `classic:donated` | `{ playerId, amount, classicPot }` | First-roll four-of-a-kind → Classic Pot |
+| `classic:won` | `{ playerId, amount }` | Three 6s while roll-to-beat unset takes Classic Pot |
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
-| `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual all-in-clamped payments |
+| `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual equal-floor payments (may be below `anteAmount`) |
 | `chat:message` | `{ playerId, playerName, text, ts }` | |
 | `error` | `{ code, message }` | `ErrorCode` union in protocol.ts |
 
@@ -71,6 +73,8 @@ to any column, update this table.**
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
 | `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + toast |
 | `straightPaid` | `straightPaid` ✓ | `straight:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
+| `classicDonated` | `classicDonated` ✓ | `classic:donated` | `lastClassicDonate` (seat → classic pot chip animation) + toast + chat line |
+| `classicWon` | `classicWon` ✓ | `classic:won` | `lastClassicWin` (classic pot → seat chip animation) + toast + chat line |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |
 
@@ -78,7 +82,7 @@ Membership events (`playerJoined`, `seated`, `kicked`, `settingsUpdated`, `hostC
 `chat`, …) exist only as `RoomEvent`s for the persistence log; clients learn about them
 through `room:state` snapshots (plus `chat:message` for chat). Replay path:
 `server/src/persistence.ts` `applyReplayEvent` re-drives game events through the engine
-(`replayRolled` re-applies straight payouts) and everything else through `room.applyEvent`.
+(`replayRolled` re-applies straight payouts and Classic Pot transfers) and everything else through `room.applyEvent`.
 
 ## Ephemeral vs persisted
 

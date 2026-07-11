@@ -159,14 +159,18 @@ describe('top game-state band', () => {
       }
     });
 
-    it(`keeps the pot left of roll-to-beat inside the reserved band (${label})`, () => {
+    it(`keeps pot, roll-to-beat, and classic pot lanes ordered inside the band (${label})`, () => {
       const band = topBandRect(frame);
       const lanes = topBandLaneRects(frame);
       expect(lanes.pot.left).toBeGreaterThanOrEqual(band.left);
       expect(lanes.pot.left + lanes.pot.width).toBeLessThan(lanes.roll.left);
-      expect(lanes.roll.left + lanes.roll.width).toBeLessThanOrEqual(band.left + band.width + 1e-9);
+      expect(lanes.roll.left + lanes.roll.width).toBeLessThan(lanes.classic.left);
+      expect(lanes.classic.left + lanes.classic.width).toBeLessThanOrEqual(
+        band.left + band.width + 1e-9,
+      );
       expect(lanes.pot.height).toBe(band.height);
       expect(lanes.roll.height).toBe(band.height);
+      expect(lanes.classic.height).toBe(band.height);
     });
   }
 });

@@ -39,6 +39,7 @@ pointer release on the koozie
                            before the roll-cap auto-stand so rollToBeat inherits it)
       → emit 'rolled' → persisted + broadcast turn:rolled { …, restPose }
       → applyStraightPayout (instant zero-sum side payment)
+      → applyClassicDonation / applyClassicPayout (Classic Pot side pool)
       → auto-stand at rollCap
   → roomGameBridge.handleEngineEvent
                          (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
@@ -70,8 +71,8 @@ look there.
 `server/src/persistence.ts`: append-only JSON-Lines `RoomEvent` log per room, compacted to
 a single snapshot at every round end. Boot recovery replays the log through the same
 reducers the live path uses (`applyReplayEvent` → engine `replayRolled`/`stand`/
-`forceStand`, everything else → `room.applyEvent`). Replay re-applies straight payouts —
-chip movements are reproduced, not stored.
+`forceStand`, everything else → `room.applyEvent`). Replay re-applies straight payouts and
+Classic Pot donations/wins — chip movements are reproduced, not stored.
 
 ## Big files — extract, don't grow
 

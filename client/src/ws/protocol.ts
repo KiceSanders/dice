@@ -66,6 +66,12 @@ const validators: Record<ServerMessage['type'], Validator> = {
     Array.isArray(m.payments)
       ? null
       : 'straight:paid missing fields',
+  'classic:donated': (m) =>
+    isNonEmptyString(m.playerId) && isFiniteNumber(m.amount) && isFiniteNumber(m.classicPot)
+      ? null
+      : 'classic:donated missing fields',
+  'classic:won': (m) =>
+    isNonEmptyString(m.playerId) && isFiniteNumber(m.amount) ? null : 'classic:won missing fields',
   'chat:message': (m) =>
     isNonEmptyString(m.playerId) &&
     isNonEmptyString(m.playerName) &&

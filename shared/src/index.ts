@@ -1,4 +1,5 @@
 export * from './assert.js';
+export * from './game/classic.js';
 export * from './game/compare.js';
 export * from './game/dice.js';
 export * from './game/resolve.js';

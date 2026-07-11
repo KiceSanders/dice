@@ -27,6 +27,7 @@ function makeGame(overrides: Partial<GameStatePublic> = {}): GameStatePublic {
   return {
     roundNumber: 1,
     pot: 2,
+    classicPot: 0,
     turnQueue: [],
     currentTurn: null,
     rollToBeat: null,

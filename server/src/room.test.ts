@@ -286,7 +286,7 @@ describe('Room ante broadcasts', () => {
     ]);
   });
 
-  it('broadcasts actual all-in payments when a tie starts a sub-round', () => {
+  it('broadcasts equal short-stack floor payments when a tie starts a sub-round', () => {
     const { room, host } = makeRoom();
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const { player, link } = seatPlayer(room, 'Short stack', 10);
@@ -308,7 +308,7 @@ describe('Room ante broadcasts', () => {
         anteAmount: 2,
         depth: 1,
         antes: [
-          { playerId: host.id, amount: 2 },
+          { playerId: host.id, amount: 1 },
           { playerId: player.id, amount: 1 },
         ],
       },

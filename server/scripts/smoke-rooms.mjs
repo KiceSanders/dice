@@ -72,6 +72,10 @@ const settings = {
     enabled: true,
     amountPerPlayer: 5,
   },
+  classicPot: {
+    enabled: true,
+    donationAmount: 1,
+  },
 };
 
 const host = client('host');
