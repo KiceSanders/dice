@@ -15,7 +15,6 @@ export interface TableTheme {
     body: string;
     emissive: string;
     emissiveIntensity: number;
-    opacity: number;
     rim: string;
     rimOpacity: number;
   };
@@ -31,7 +30,6 @@ export const DEFAULT_TABLE_THEME: TableTheme = {
     body: '#b8d8ec',
     emissive: '#3a5a6e',
     emissiveIntensity: 0.15,
-    opacity: 0.52,
     rim: '#e8f4fa',
     rimOpacity: 0.55,
   },

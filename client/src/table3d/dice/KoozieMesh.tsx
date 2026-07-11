@@ -24,27 +24,35 @@ export default function KoozieMesh({
     [cup.radius, cup.height, cup.rimInset],
   );
   const rimGeometry = useMemo(() => createKoozieRimVisualGeometry(cup), [cup.radius, cup.rimInset]);
-  const mat = useMemo(
+  const bodyMaterial = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
         color: theme.body,
         emissive: theme.emissive,
         emissiveIntensity: theme.emissiveIntensity,
-        transparent: true,
-        opacity: theme.opacity,
         roughness: 0.55,
         metalness: 0.05,
-        depthWrite: false,
         side: THREE.DoubleSide,
       }),
     [theme],
   );
+  const invisibleTopMaterial = useMemo(() => new THREE.MeshBasicMaterial({ visible: false }), []);
+  const wallMaterials = useMemo(
+    () => [bodyMaterial, invisibleTopMaterial, bodyMaterial],
+    [bodyMaterial, invisibleTopMaterial],
+  );
 
   return (
-    // renderOrder below PipDie (2) so the transparent cup never paints over
-    // kept dice when their screen projections overlap near the dock.
+    // CylinderGeometry groups are side, top, bottom. Keep the side and bottom
+    // opaque while assigning no visible material to the top cap.
     <group renderOrder={-1}>
-      <mesh castShadow receiveShadow position={[0, centerY, 0]} material={mat} renderOrder={-1}>
+      <mesh
+        castShadow
+        receiveShadow
+        position={[0, centerY, 0]}
+        material={wallMaterials}
+        renderOrder={-1}
+      >
         <primitive object={wallGeometry} attach="geometry" />
       </mesh>
       <mesh
