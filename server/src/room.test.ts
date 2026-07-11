@@ -266,6 +266,56 @@ describe('Room roll broadcasts (ADR 005)', () => {
   });
 });
 
+describe('Room ante broadcasts', () => {
+  it('broadcasts exact normal-round contributions', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { player, link } = seatPlayer(room, 'P1', 100);
+
+    expect(room.startGame(host.id)).toBeNull();
+
+    expect(link.ofType('round:started')).toEqual([
+      {
+        type: 'round:started',
+        roundNumber: 1,
+        antes: [
+          { playerId: host.id, amount: 1 },
+          { playerId: player.id, amount: 1 },
+        ],
+      },
+    ]);
+  });
+
+  it('broadcasts actual all-in payments when a tie starts a sub-round', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { player, link } = seatPlayer(room, 'Short stack', 10);
+    player.chips = 2;
+    expect(room.startGame(host.id)).toBeNull();
+    const engine = room.engine!;
+
+    for (const [index, playerId] of [host.id, player.id].entries()) {
+      expect(engine.beginThrow(playerId, [])).toBeNull();
+      expect(engine.commitThrow(playerId, [6, 6, 6, 6, 6])).toBeNull();
+      // The second player auto-stands at the first player's one-roll cap.
+      if (index === 0) expect(engine.stand(playerId)).toBeNull();
+    }
+
+    expect(link.ofType('subround:started')).toEqual([
+      {
+        type: 'subround:started',
+        tiedPlayerIds: [host.id, player.id],
+        anteAmount: 2,
+        depth: 1,
+        antes: [
+          { playerId: host.id, amount: 2 },
+          { playerId: player.id, amount: 1 },
+        ],
+      },
+    ]);
+  });
+});
+
 describe('RoomManager', () => {
   it('generates 6-char unambiguous ids', () => {
     const mgr = new RoomManager();

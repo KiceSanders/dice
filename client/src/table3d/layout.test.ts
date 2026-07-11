@@ -10,6 +10,7 @@ import {
   seatOverlayPosition,
   seatStripOrder,
   TABLE_SEAT_COUNT,
+  topBandLaneRects,
   topBandRect,
 } from './layout';
 
@@ -156,6 +157,16 @@ describe('top game-state band', () => {
           expect(rectsOverlap(band, card), `seat ${slot}/${n} (${label})`).toBe(false);
         }
       }
+    });
+
+    it(`keeps the pot left of roll-to-beat inside the reserved band (${label})`, () => {
+      const band = topBandRect(frame);
+      const lanes = topBandLaneRects(frame);
+      expect(lanes.pot.left).toBeGreaterThanOrEqual(band.left);
+      expect(lanes.pot.left + lanes.pot.width).toBeLessThan(lanes.roll.left);
+      expect(lanes.roll.left + lanes.roll.width).toBeLessThanOrEqual(band.left + band.width + 1e-9);
+      expect(lanes.pot.height).toBe(band.height);
+      expect(lanes.roll.height).toBe(band.height);
     });
   }
 });

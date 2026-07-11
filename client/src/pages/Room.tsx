@@ -27,6 +27,8 @@ export default function Room() {
   const [nameConfirmed, setNameConfirmed] = useState(() => Boolean(loadName()));
   const [copied, setCopied] = useState(false);
   const [revealedRoundEndAt, setRevealedRoundEndAt] = useState<number | null>(null);
+  const emittedAnteAtRef = useRef<number | null>(null);
+  const emittedAwardAtRef = useRef<number | null>(null);
 
   const alreadyInRoom = state.roomId === roomId && state.me !== null;
   const joinSentRef = useRef(false);
@@ -53,6 +55,42 @@ export default function Room() {
     if (!roll || detectStraight(roll.dice) === 'none') return;
     tableEvents.emit({ type: 'straight', dice: roll.dice }, roll.receivedAt);
   }, [state.lastRoll]);
+
+  useEffect(() => {
+    const ante = state.lastAnte;
+    if (!ante || emittedAnteAtRef.current === ante.receivedAt) return;
+    emittedAnteAtRef.current = ante.receivedAt;
+    const contributions = ante.contributions.filter((entry) => entry.amount > 0);
+    if (contributions.length === 0) return;
+    tableEvents.emit(
+      {
+        type: 'chips-to-pot',
+        contributions,
+        potBefore: ante.potBefore,
+      },
+      ante.receivedAt,
+    );
+  }, [state.lastAnte]);
+
+  useEffect(() => {
+    const roundEnd = state.roundEnd;
+    if (
+      !roundEnd?.winnerId ||
+      roundEnd.potWon <= 0 ||
+      emittedAwardAtRef.current === roundEnd.receivedAt
+    ) {
+      return;
+    }
+    emittedAwardAtRef.current = roundEnd.receivedAt;
+    tableEvents.emit(
+      {
+        type: 'pot-to-winner',
+        winnerId: roundEnd.winnerId,
+        amount: roundEnd.potWon,
+      },
+      roundEnd.receivedAt,
+    );
+  }, [state.roundEnd]);
 
   useEffect(() => {
     const receivedAt = state.roundEnd?.receivedAt ?? null;

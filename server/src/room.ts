@@ -410,6 +410,11 @@ export class Room {
           roundNumber: event.roundNumber,
           antes: event.antes,
         });
+        this.broadcast({
+          type: 'round:started',
+          roundNumber: event.roundNumber,
+          antes: event.antes,
+        });
         break;
       case 'throwStarted':
         // Not recorded: replay only needs the final values (the 'rolled' event).
@@ -466,6 +471,7 @@ export class Room {
           tiedPlayerIds: event.tiedPlayerIds,
           anteAmount: event.anteAmount,
           depth: event.depth,
+          antes: event.antes,
         });
         break;
       case 'straightPaid':

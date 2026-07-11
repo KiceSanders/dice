@@ -1,4 +1,4 @@
-import type { Die } from '@dice/shared';
+import type { Die, PlayerId } from '@dice/shared';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -9,10 +9,15 @@ import { useEffect, useRef } from 'react';
  * prop through Table/TableCanvas into the three dice renderers. See
  * docs/TABLE_UI.md.
  */
-export type TableEvent = { type: 'straight'; dice: Die[] };
-// Future members join the union above, e.g.:
-//   | { type: 'chips-to-pot'; amount: number; fromSeat: number }
-//   | { type: 'turn-won'; playerId: string }
+export type TableEvent =
+  | { type: 'straight'; dice: Die[] }
+  | {
+      type: 'chips-to-pot';
+      contributions: { playerId: PlayerId; amount: number }[];
+      /** Pot count before these contributions, captured before the next snapshot. */
+      potBefore: number;
+    }
+  | { type: 'pot-to-winner'; winnerId: PlayerId; amount: number };
 
 type TableEventType = TableEvent['type'];
 type EventOf<T extends TableEventType> = Extract<TableEvent, { type: T }>;

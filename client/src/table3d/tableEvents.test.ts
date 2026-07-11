@@ -43,4 +43,23 @@ describe('tableEvents', () => {
     tableEvents.on('straight', handler);
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it('keeps ante and award replay slots independent', () => {
+    const ante: TableEvent = {
+      type: 'chips-to-pot',
+      potBefore: 2,
+      contributions: [{ playerId: 'p1', amount: 1 }],
+    };
+    const award: TableEvent = { type: 'pot-to-winner', winnerId: 'p1', amount: 3 };
+    tableEvents.emit(ante, 1_000);
+    tableEvents.emit(award, 1_100);
+
+    const anteHandler = vi.fn();
+    const awardHandler = vi.fn();
+    tableEvents.on('chips-to-pot', anteHandler, { replayLastMs: 500, now: 1_200 });
+    tableEvents.on('pot-to-winner', awardHandler, { replayLastMs: 500, now: 1_200 });
+
+    expect(anteHandler).toHaveBeenCalledExactlyOnceWith(ante, 1_000);
+    expect(awardHandler).toHaveBeenCalledExactlyOnceWith(award, 1_100);
+  });
 });

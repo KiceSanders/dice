@@ -195,7 +195,7 @@ export function seatCardRect(
 
 /**
  * Reserved game-state band across the top of the frame (the 10 → 2 o'clock
- * arc no seat may enter). Widgets inside it are normal flow (flex), so they
+ * arc no seat may enter). Widgets inside it are normal flow (two grid lanes), so they
  * can never overlap each other; the layout test proves the band clears every
  * seat card at every seat count.
  *
@@ -204,6 +204,9 @@ export function seatCardRect(
  */
 export const TOP_BAND_MAX_WIDTH_PCT = 50;
 export const TOP_BAND_HEIGHT_PX = 68; // 4.25rem @ 16px root
+export const TOP_BAND_GAP_PX = 8; // 0.5rem @ 16px root
+export const TOP_BAND_POT_MIN_WIDTH_PX = 76; // 4.75rem @ 16px root
+export const TOP_BAND_POT_FRACTION = 0.35;
 
 /** Top-band rect in frame % — pure mirror of `.table-top-band` for tests. */
 export function topBandRect(frame: OverlayRect): {
@@ -217,6 +220,31 @@ export function topBandRect(frame: OverlayRect): {
     top: 0,
     width: TOP_BAND_MAX_WIDTH_PCT,
     height: (TOP_BAND_HEIGHT_PX / frame.height) * 100,
+  };
+}
+
+/** Pot/roll lane rects in frame %, mirroring the top-band CSS grid. */
+export function topBandLaneRects(frame: OverlayRect): {
+  pot: { left: number; top: number; width: number; height: number };
+  roll: { left: number; top: number; width: number; height: number };
+} {
+  const band = topBandRect(frame);
+  const bandWidthPx = (band.width / 100) * frame.width;
+  const availablePx = Math.max(0, bandWidthPx - TOP_BAND_GAP_PX);
+  const fractionalPotPx = availablePx * (TOP_BAND_POT_FRACTION / (TOP_BAND_POT_FRACTION + 1));
+  const potWidthPx = Math.min(availablePx, Math.max(TOP_BAND_POT_MIN_WIDTH_PX, fractionalPotPx));
+  const rollWidthPx = availablePx - potWidthPx;
+  const toPct = (pixels: number) => (pixels / frame.width) * 100;
+  const potWidth = toPct(potWidthPx);
+  const gapWidth = toPct(TOP_BAND_GAP_PX);
+  return {
+    pot: { left: band.left, top: band.top, width: potWidth, height: band.height },
+    roll: {
+      left: band.left + potWidth + gapWidth,
+      top: band.top,
+      width: toPct(rollWidthPx),
+      height: band.height,
+    },
   };
 }
 

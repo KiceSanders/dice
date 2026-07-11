@@ -41,8 +41,9 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:rolled` | `{ playerId, dice, rollNumber, kept, restPose }` | The settled roll; `restPose` is the server-validated rest layout (`BodyPose[] \| null`, ADR 005) every viewer renders between turns |
 | `turn:forfeited` | `{ playerId }` | Turn ended with no completed roll |
 | `straight:paid` | `{ playerId, kind, amountPerPlayer, total, payments }` | Instant side payment |
+| `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
-| `subround:started` | `{ tiedPlayerIds, anteAmount, depth }` | |
+| `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual all-in-clamped payments |
 | `chat:message` | `{ playerId, playerName, text, ts }` | |
 | `error` | `{ code, message }` | `ErrorCode` union in protocol.ts |
 
@@ -60,13 +61,13 @@ update this table.**
 
 | `EngineEvent` (engine.ts) | `RoomEvent` (events.ts, persisted log) | `ServerMessage` (wire) | Client handling (store.ts) |
 |---|---|---|---|
-| `roundStarted` | `roundStarted` ✓ | — (snapshot only) | via `room:state` |
+| `roundStarted` | `roundStarted` ✓ | `round:started` | `lastAnte` (table chip animation) |
 | `throwStarted` | — (not recorded) | `turn:throwStarted` | ignored by reducer; 3D table consumes off the socket |
 | `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |
 | `stood` | `stood` ✓ | — (snapshot only) | via `room:state` |
 | `forfeited` | `forfeited` ✓ | `turn:forfeited` | system chat line |
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
-| `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | toast |
+| `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + toast |
 | `straightPaid` | `straightPaid` ✓ | `straight:paid` | toast + chat line |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |

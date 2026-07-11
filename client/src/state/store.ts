@@ -44,6 +44,18 @@ export interface RoundEndInfo {
   receivedAt: number;
 }
 
+/** Last live ante announcement; snapshots alone do not preserve who paid what. */
+export interface AnteInfo {
+  kind: 'round' | 'subround';
+  roundNumber?: number;
+  depth?: number;
+  contributions: { playerId: PlayerId; amount: number }[];
+  /** Pot as of the pre-ante snapshot — captured at message time, because the
+      post-ante room:state may render in the same React flush as this message. */
+  potBefore: number;
+  receivedAt: number;
+}
+
 export interface AppState {
   connection: ConnectionStatus;
   me: { playerId: PlayerId; rejoinToken: string } | null;
@@ -51,6 +63,7 @@ export interface AppState {
   snapshot: RoomSnapshot | null;
   chat: ChatEntry[];
   lastRoll: LastRoll | null;
+  lastAnte: AnteInfo | null;
   roundEnd: RoundEndInfo | null;
   toasts: Toast[];
   /** Set when joining failed terminally (e.g. unknown room). */
@@ -64,6 +77,7 @@ export const initialState: AppState = {
   snapshot: null,
   chat: [],
   lastRoll: null,
+  lastAnte: null,
   roundEnd: null,
   toasts: [],
   joinError: null,
@@ -143,6 +157,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         roomId: msg.snapshot.roomId,
         me: { playerId: msg.playerId, rejoinToken: msg.rejoinToken },
         snapshot: msg.snapshot,
+        lastAnte: null,
         joinError: null,
       };
 
@@ -239,9 +254,28 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'seat:denied':
       return { ...state, toasts: pushToast(state.toasts, 'info', 'Your seat request was denied') };
 
+    case 'round:started':
+      return {
+        ...state,
+        lastAnte: {
+          kind: 'round',
+          roundNumber: msg.roundNumber,
+          contributions: msg.antes,
+          potBefore: state.snapshot?.game?.pot ?? 0,
+          receivedAt: Date.now(),
+        },
+      };
+
     case 'subround:started':
       return {
         ...state,
+        lastAnte: {
+          kind: 'subround',
+          depth: msg.depth,
+          contributions: msg.antes,
+          potBefore: state.snapshot?.game?.pot ?? 0,
+          receivedAt: Date.now(),
+        },
         toasts: pushToast(
           state.toasts,
           'info',

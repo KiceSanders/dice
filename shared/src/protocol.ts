@@ -82,6 +82,12 @@ export type ServerMessage =
   | { type: 'dice:frames'; playerId: PlayerId; frames: PoseFrame[] }
   /** A turn ended with no completed roll (disconnect/kick): no hand. */
   | { type: 'turn:forfeited'; playerId: PlayerId }
+  /** Exact chips collected from each participant when a normal round begins. */
+  | {
+      type: 'round:started';
+      roundNumber: number;
+      antes: { playerId: PlayerId; amount: number }[];
+    }
   | {
       type: 'round:ended';
       /** null when every turn was forfeited — no hands, the pot carries over. */
@@ -89,7 +95,14 @@ export type ServerMessage =
       potWon: number;
       scores: { playerId: PlayerId; score: HandScore }[];
     }
-  | { type: 'subround:started'; tiedPlayerIds: PlayerId[]; anteAmount: number; depth: number }
+  | {
+      type: 'subround:started';
+      tiedPlayerIds: PlayerId[];
+      anteAmount: number;
+      depth: number;
+      /** Actual payments; may be below anteAmount for all-in players. */
+      antes: { playerId: PlayerId; amount: number }[];
+    }
   /** Instant straight side payment: each other seated player paid the roller. */
   | {
       type: 'straight:paid';

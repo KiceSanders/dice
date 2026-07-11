@@ -50,6 +50,18 @@ The straight celebration already flows through it — copy that pattern:
 **Never** thread a new effect prop through `Room → Table → TableCanvas → renderers`.
 That prop-drilling pattern was removed deliberately.
 
+The animated pot follows this path with `chips-to-pot` and `pot-to-winner` events. Its
+renderer is an independent, pointer-transparent DOM canvas in `PotChipOverlay`, so it is
+present for the active roller, spectators, and the static between-turn view without being
+owned by any dice renderer. Live ante messages carry exact per-player payments; snapshots
+remain the authority for the final pot total. The pre-ante pot count (`potBefore`) is
+captured in the store reducer at message time — reading it later in a React effect races
+the post-ante `room:state`, which can flush in the same render and make the pyramid show
+the final total before the chips arrive. The flight canvas draws in viewport
+coordinates and is portaled to `<body>`: `.table-top-band` is a transformed ancestor, and
+a transform re-roots `position: fixed` descendants onto itself — mounting the canvas
+inside the band squashes it into the band's box and lands chips beside roll-to-beat.
+
 ## Adding a 3D object → place it at an anchor
 
 `client/src/table3d/anchors.ts` defines named zones (`feltCenter`, `potZone`, `keptRail`,
@@ -117,9 +129,10 @@ Think of the table frame as a clock face:
   3-seat table this is identical to the historical layout (6, 10, 2 o'clock). Layout
   tests pin the arc bounds for counts 2–10, so the top of the frame is provably
   seat-free at any count.
-- **The top arc, 10 → 2, belongs to game-state widgets** (roll-to-beat today; pot and
-  other non-player-specific state later). They render inside `.table-top-band` — a
-  centered flex row over the top gutter. **To add one: append a child to the band in
+- **The top arc, 10 → 2, belongs to game-state widgets** (the chip pot and roll-to-beat
+  today; other non-player-specific state later). They render inside `.table-top-band` — a
+  centered two-lane grid over the top gutter: the text-free chip pot stays left of center
+  and roll-to-beat stays on its right. **To add one: append it to the appropriate lane in
   `Table.tsx`, done.** Normal flow spaces siblings, so widgets can never overlap each
   other, and the band-vs-seats layout test (`layout.test.ts`, paired constants
   `TOP_BAND_MAX_WIDTH_PCT`/`TOP_BAND_HEIGHT_PX` ↔ `.table-top-band` CSS) proves the
@@ -134,7 +147,7 @@ vertical space is play space). The room code / invite link / connection text liv
 `.room-info` card at the bottom of the page (visible on scroll); the always-visible
 connection signal is the `.conn-corner` red/green dot in the frame's top-right corner
 (Table's `connection` prop). At ≤640px (`SEAT_STACK_QUERY`) seat overlays unmount and
-the band overlays the canvas's top edge (pot/round stay clear).
+the band overlays the canvas's top edge (pot and roll-to-beat stay clear).
 
 ## DicePhysics.tsx — edit with care (and usually, don't)
 

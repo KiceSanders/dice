@@ -460,6 +460,26 @@ export default function Playground() {
     tableEvents.emit({ type: 'straight', dice: lastRoll.dice }, lastRoll.receivedAt);
   }, [lastRoll]);
 
+  const replayAnte = () => {
+    const game = snapshot.game;
+    if (!game) return;
+    const contributions = snapshot.players
+      .filter((player) => player.seat !== null)
+      .map((player) => ({ playerId: player.id, amount: 1 }));
+    tableEvents.emit({
+      type: 'chips-to-pot',
+      contributions,
+      potBefore: Math.max(0, game.pot - contributions.length),
+    });
+  };
+
+  const replayPotAward = () => {
+    const game = snapshot.game;
+    const winner = snapshot.players.find((player) => player.seat !== null);
+    if (!game || !winner) return;
+    tableEvents.emit({ type: 'pot-to-winner', winnerId: winner.id, amount: game.pot });
+  };
+
   const tableDice =
     turn && isMyTurn
       ? {
@@ -555,6 +575,14 @@ export default function Playground() {
             disabled={!lastRoll}
           >
             Replay koozie
+          </button>
+
+          <button type="button" className="secondary" onClick={replayAnte}>
+            Replay ante
+          </button>
+
+          <button type="button" className="secondary" onClick={replayPotAward}>
+            Replay pot award
           </button>
 
           <button

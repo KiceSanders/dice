@@ -152,6 +152,30 @@ same override; switch **View as** to check the passive glow.
 
 ---
 
+## Animated chip pot — 2–3 tabs
+
+1. In the lobby, confirm the room code and “waiting to start” still render on the felt.
+2. Seat 2–3 players and start the game. On every tab, one gold coin per paid chip travels
+   from each contributing player's name to a pyramid left of roll-to-beat. A pot of 3 must
+   show two coins on the bottom and one above.
+3. During play, confirm no Pot/Round text remains on the felt. Roll-to-beat, Stand/hint,
+   player names, and the below-table HUD remain unchanged.
+4. Force matching hands on every turn to start a sub-round. Confirm only tied players send
+   chips and a short stack sends its actual all-in amount, not the nominal sub-round ante.
+5. Finish a round with a winner. The complete pot tower must leave the pot lane, slide to
+   the winner's name on every tab, and disappear; the next round's ante then builds a fresh
+   tower. If every player forfeits without a roll, confirm the tower stays put for the
+   carryover because there is no winner.
+6. At ≤640px, repeat an ante and award with the stacked seat strip. Flights must start/end
+   at the visible names without horizontal scrolling.
+7. Refresh/rejoin a spectator mid-round: it should immediately see the authoritative static
+   pot and must not replay an old ante. Emulate `prefers-reduced-motion: reduce`: chip counts
+   update without travel.
+8. `/dev/play` offers **Replay ante** and **Replay pot award** for checking each fixture's pot
+   size and all three viewer orientations without advancing a server game.
+
+---
+
 ## Settled dice rest pose (ADR 005) — 2 tabs + throttling
 
 Verifies every viewer sees the dice **where they physically landed**, never the

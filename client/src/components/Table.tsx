@@ -3,6 +3,7 @@ import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
 import type { OverlayRect } from '../table3d/layout';
+import PotChipOverlay from '../table3d/PotChipOverlay';
 import RollToBeatOverlay from '../table3d/RollToBeatOverlay';
 import SeatOverlay, { SeatStrip } from '../table3d/SeatOverlay';
 import TableCanvas from '../table3d/TableCanvas';
@@ -139,7 +140,12 @@ export default function Table({
       {/* Game-state band on the reserved 10→2 o'clock arc — widgets are normal
           flow, so they can never overlap each other or the seat arc below. */}
       <div className="table-top-band">
-        {snapshot.game && <RollToBeatOverlay game={snapshot.game} players={snapshot.players} />}
+        <div className="table-top-band-slot table-top-band-slot--pot">
+          {snapshot.game && <PotChipOverlay pot={snapshot.game.pot} />}
+        </div>
+        <div className="table-top-band-slot table-top-band-slot--roll">
+          {snapshot.game && <RollToBeatOverlay game={snapshot.game} players={snapshot.players} />}
+        </div>
       </div>
       {connection && <ConnectionDot status={connection} />}
       {stand && <StandControlView stand={stand} />}

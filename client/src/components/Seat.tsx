@@ -57,7 +57,9 @@ export default function Seat({
           className={`conn-dot ${player.connected ? 'conn-on' : 'conn-off'}`}
           title={player.connected ? 'connected' : 'disconnected'}
         />
-        <span className="seat-name">{player.name}</span>
+        <span className="seat-name" data-chip-player={player.id}>
+          {player.name}
+        </span>
         {player.isHost && (
           <span className="badge badge-host" title="Host">
             ★

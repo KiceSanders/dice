@@ -6,9 +6,9 @@ interface Props {
   aspect: number;
 }
 
-/** Pot / round label at the center of the felt (2D overlay). */
+/** Lobby room label at the center of the felt; active play keeps the felt text-free. */
 export default function TableCenterOverlay({ snapshot, aspect }: Props) {
-  const game = snapshot.game;
+  if (snapshot.game) return null;
   const { leftPct, topPct } = projectTableCenter(aspect);
 
   return (
@@ -17,17 +17,8 @@ export default function TableCenterOverlay({ snapshot, aspect }: Props) {
       style={{ left: `${leftPct}%`, top: `${topPct}%`, transform: 'translate(-50%, -50%)' }}
     >
       <div className="table-center table-center-3d">
-        {game ? (
-          <>
-            <span className="table-pot">Pot {game.pot}</span>
-            <span className="table-phase">round {game.roundNumber}</span>
-          </>
-        ) : (
-          <>
-            <span className="table-room-id">{snapshot.roomId}</span>
-            <span className="table-phase">waiting to start</span>
-          </>
-        )}
+        <span className="table-room-id">{snapshot.roomId}</span>
+        <span className="table-phase">waiting to start</span>
       </div>
     </div>
   );

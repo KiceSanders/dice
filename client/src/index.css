@@ -352,23 +352,57 @@ code {
 }
 
 /* Game-state band on the reserved top arc (10→2 o'clock — no seat may enter,
-   layout.test.ts proves it). Widgets inside are normal flow, so they never
-   overlap each other. Paired with TOP_BAND_MAX_WIDTH_PCT / TOP_BAND_HEIGHT_PX
-   in table3d/layout.ts — keep max-width and height identical on both sides. */
+   layout.test.ts proves it). Widgets occupy normal-flow pot/roll lanes, so they
+   never overlap each other. Paired with the TOP_BAND_* constants in
+   table3d/layout.ts — keep width, height, gap, and pot lane sizing in sync. */
 .table-top-band {
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
   height: 4.25rem; /* top gutter grid track */
+  width: 50%;
   max-width: 50%;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(4.75rem, 0.35fr) minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
   z-index: 2;
   pointer-events: none;
   user-select: none;
+}
+
+.table-top-band-slot {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.table-top-band-slot--pot {
+  justify-content: flex-end;
+}
+
+.table-top-band-slot--roll {
+  justify-content: flex-start;
+}
+
+.pot-chip-overlay {
+  --pot-chip-face: #c98a1b;
+  --pot-chip-highlight: #f8d66d;
+  --pot-chip-edge: #8f5c0f;
+  --pot-chip-rim: rgba(255, 255, 255, 0.58);
+  width: 4.75rem;
+  height: 3.55rem;
+  display: block;
+}
+
+.chip-flow-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  pointer-events: none;
 }
 
 /* Compact roll-to-beat chip — a single horizontal row sized to the top
@@ -780,13 +814,6 @@ code {
 .game-area {
   max-width: 720px;
   margin: 0 auto 1rem;
-}
-
-.table-pot {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
 }
 
 .seat-active {
