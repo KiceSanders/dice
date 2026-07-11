@@ -316,6 +316,63 @@ describe('Room ante broadcasts', () => {
   });
 });
 
+describe('Room mid-game settings', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('allows host to update settings while a round is in progress', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    seatPlayer(room, 'P1', 100);
+    expect(room.startGame(host.id)).toBeNull();
+    expect(room.phase).toBe('playing');
+
+    expect(room.updateSettings({ ...DEFAULT_SETTINGS, chipsPerRound: 4 })).toBeNull();
+    expect(room.settings.chipsPerRound).toBe(4);
+    expect(room.engine).not.toBeNull();
+  });
+
+  it('applies a mid-round ante change on the next round only', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { player, link } = seatPlayer(room, 'P1', 100);
+    expect(room.startGame(host.id)).toBeNull();
+
+    const chipsBefore = host.chips + player.chips + room.engine!.pot;
+    expect(link.ofType('round:started')[0]?.antes).toEqual([
+      { playerId: host.id, amount: 1 },
+      { playerId: player.id, amount: 1 },
+    ]);
+
+    // Bump ante mid-round — current pot / stacks must not change yet.
+    expect(room.updateSettings({ ...DEFAULT_SETTINGS, chipsPerRound: 5 })).toBeNull();
+    expect(host.chips + player.chips + room.engine!.pot).toBe(chipsBefore);
+
+    const engine = room.engine!;
+    expect(engine.beginThrow(host.id, [])).toBeNull();
+    expect(engine.commitThrow(host.id, [6, 6, 6, 6, 6])).toBeNull();
+    expect(engine.stand(host.id)).toBeNull();
+    expect(engine.beginThrow(player.id, [])).toBeNull();
+    expect(engine.commitThrow(player.id, [1, 1, 2, 3, 4])).toBeNull();
+    // Second player auto-stands at the one-roll cap.
+
+    expect(room.phase).toBe('roundEnd');
+    vi.advanceTimersByTime(5_000);
+    expect(room.phase).toBe('playing');
+
+    const round2 = link.ofType('round:started').at(-1)!;
+    expect(round2.roundNumber).toBe(2);
+    expect(round2.antes).toEqual([
+      { playerId: host.id, amount: 5 },
+      { playerId: player.id, amount: 5 },
+    ]);
+    expect(host.chips + player.chips + room.engine!.pot).toBe(chipsBefore);
+  });
+});
+
 describe('RoomManager', () => {
   it('generates 6-char unambiguous ids', () => {
     const mgr = new RoomManager();

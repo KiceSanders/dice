@@ -119,6 +119,7 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 13. Tab B: **Room settings** → all fields disabled (read-only).
 14. Tab A: change **Chips per round** (e.g. 2) → **Save settings** → Tab B read-only panel shows updated value.
+14b. After the game has started (mid-round): Tab A host opens **Room settings**, changes **Chips per round** (e.g. 4) → **Save** → Tab B shows the new value immediately; the **current** pot is unchanged. On the **next** round, both players ante the new amount.
 
 ### Host transfer
 

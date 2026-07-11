@@ -482,9 +482,6 @@ export class Room {
   // -- settings --------------------------------------------------------------
 
   updateSettings(settings: RoomSettings): RoomError | null {
-    if (this.phase === 'playing') {
-      return err('BAD_REQUEST', 'settings can only change between rounds');
-    }
     this.commit({ type: 'settingsUpdated', settings: clampSettings(settings) });
     return null;
   }

@@ -15,7 +15,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `seat:request` | `{ buyIn }` | Spectator asks for a seat |
 | `seat:approve` / `seat:deny` | `{ playerId }` | Host only |
 | `player:kick` | `{ playerId }` | Host only |
-| `settings:update` | `{ settings }` | Host only, between rounds |
+| `settings:update` | `{ settings }` | Host only (anytime; chip amounts apply at next ante / payout) |
 | `game:start` | `{}` | Host only, ≥2 seated |
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |

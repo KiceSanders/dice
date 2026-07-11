@@ -4,8 +4,8 @@ import { useApp } from '../state/context';
 import SettingsFields from './SettingsFields';
 
 /**
- * Room settings: editable by the host between rounds (lobby / roundEnd),
- * read-only for everyone else.
+ * Room settings: editable by the host anytime (lobby / playing / roundEnd),
+ * read-only for everyone else. Chip amounts apply at the next ante / payout.
  */
 export default function SettingsPanel({
   snapshot,
@@ -16,7 +16,7 @@ export default function SettingsPanel({
 }) {
   const { send, state } = useApp();
   const connected = state.connection === 'open';
-  const canEdit = isHost && snapshot.phase !== 'playing';
+  const canEdit = isHost;
   const [draft, setDraft] = useState<RoomSettings>(snapshot.settings);
   const [dirty, setDirty] = useState(false);
 
@@ -38,7 +38,7 @@ export default function SettingsPanel({
     <details className="card settings-panel">
       <summary>
         Room settings
-        {!canEdit && <span className="muted"> (read-only{isHost ? ' during play' : ''})</span>}
+        {!canEdit && <span className="muted"> (read-only)</span>}
       </summary>
       <SettingsFields
         value={canEdit ? draft : snapshot.settings}

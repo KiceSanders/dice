@@ -86,7 +86,10 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 
 - **2–3 seats** (`TABLE_SEAT_COUNT = 3`); everyone else spectates and may chat.
 - The **host** (room creator) approves/denies seat requests, kicks (kicked → banned
-  spectator), edits settings between rounds, and starts the game (≥2 seated).
+  spectator), edits settings anytime (including mid-round), and starts the game (≥2 seated).
+  Chip amounts take effect at the next natural point: `chipsPerRound` on the next round /
+  sub-round ante, `straightPayout` on the next straight settlement, buy-in bounds and
+  `maxPlayers` on the next seat request, `maxRolls` on the next turn that reads the ceiling.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
