@@ -1,23 +1,30 @@
 import type { HandScore } from '@dice/shared';
 
 /** Compact roll-to-beat summary for the table overlay (digits, not spelled-out counts). */
-export interface RollToBeatSummary {
-  count: number;
-  face: HandScore['face'];
-  rollsUsed: number;
-}
+export type RollToBeatSummary =
+  | { kind: 'yahtzee'; rollsUsed: number }
+  | { kind: 'group'; count: number; face: HandScore['face']; rollsUsed: number };
 
 export function summarizeRollToBeat(score: HandScore): RollToBeatSummary {
+  if (score.count === 5) {
+    return { kind: 'yahtzee', rollsUsed: score.rollsUsed };
+  }
   return {
+    kind: 'group',
     count: score.count,
     face: score.face,
     rollsUsed: score.rollsUsed,
   };
 }
 
-/** Accessible / text fallback, e.g. "3 6s in 1 roll". */
+function rollsLabel(rollsUsed: number): string {
+  return rollsUsed === 1 ? '1 roll' : `${rollsUsed} rolls`;
+}
+
+/** Accessible / text fallback, e.g. "3 6s in 1 roll" or "Yahtzee in 2 rolls". */
 export function formatRollToBeatText(score: HandScore): string {
-  const rolls = score.rollsUsed === 1 ? '1 roll' : `${score.rollsUsed} rolls`;
+  const rolls = rollsLabel(score.rollsUsed);
+  if (score.count === 5) return `Yahtzee in ${rolls}`;
   const plural = score.count > 1 ? 's' : '';
   return `${score.count} ${score.face}${plural} in ${rolls}`;
 }

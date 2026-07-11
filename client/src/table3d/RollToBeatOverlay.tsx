@@ -22,8 +22,14 @@ export default function RollToBeatOverlay({ game, players }: Props) {
     <div className="roll-to-beat-overlay">
       <span className="roll-to-beat-label">Roll to beat</span>
       <div className="roll-to-beat-hand">
-        <span className="roll-to-beat-count">{summary.count}</span>
-        <Die value={summary.face} small />
+        {summary.kind === 'yahtzee' ? (
+          <span className="roll-to-beat-count">Yahtzee</span>
+        ) : (
+          <>
+            <span className="roll-to-beat-count">{summary.count}</span>
+            <Die value={summary.face} small />
+          </>
+        )}
         <span className="roll-to-beat-rolls">in {rollsLabel}</span>
       </div>
       <div className="roll-to-beat-names">{names}</div>

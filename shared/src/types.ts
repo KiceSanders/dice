@@ -63,12 +63,13 @@ export const DEFAULT_SETTINGS: RoomSettings = {
 
 /**
  * Final score of a stood hand. Comparison order: count > face > fewer rollsUsed.
+ * Face is skipped when both hands are Yahtzees (count === 5).
  * `straight` is metadata for the instant payout only — ignored by compareHands.
  */
 export interface HandScore {
   /** Size of the largest group of identical dice. */
   count: number;
-  /** Face value of that group (higher face wins count ties within a hand). */
+  /** Face value of that group (higher face wins count ties except Yahtzees). */
   face: Die;
   rollsUsed: number;
   /** Set when the dice form a straight; does not affect ranking. */

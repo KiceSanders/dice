@@ -13,10 +13,22 @@ describe('compareHands', () => {
     expect(compareHands(hand(2, 6), hand(5, 1))).toBe(-1);
   });
 
-  // Tiebreak level 2: face
-  it('equal counts: higher face wins', () => {
+  // Tiebreak level 2: face (non-Yahtzee)
+  it('equal counts below five: higher face wins', () => {
     expect(compareHands(hand(3, 6), hand(3, 5))).toBe(1);
     expect(compareHands(hand(2, 2), hand(2, 4))).toBe(-1);
+    expect(compareHands(hand(4, 6), hand(4, 2))).toBe(1);
+  });
+
+  // Yahtzee exception: face is ignored when both hands have count === 5
+  it('Yahtzees of different faces tie on equal rolls', () => {
+    expect(compareHands(hand(5, 2), hand(5, 5))).toBe(0);
+    expect(compareHands(hand(5, 6, 2), hand(5, 1, 2))).toBe(0);
+  });
+
+  it('Yahtzees: fewer rolls still wins regardless of face', () => {
+    expect(compareHands(hand(5, 2, 1), hand(5, 5, 3))).toBe(1);
+    expect(compareHands(hand(5, 6, 3), hand(5, 2, 1))).toBe(-1);
   });
 
   // Tiebreak level 3: rollsUsed

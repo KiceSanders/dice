@@ -41,9 +41,12 @@ Scoring lives in `shared/src/game/score.ts`; ordering in `compare.ts`.
 - **Ones are wild**: each 1 joins whatever group makes the strongest hand (`1,1,3,3,3` →
   five 3s; `1,1,1,1,1` → five 6s). Wilds never count toward straights.
 - Hand A beats hand B, in order:
-  1. larger `count`, then higher `face`,
+  1. larger `count`, then higher `face` (except Yahtzees — see below),
   2. fewer `rollsUsed`,
   3. otherwise a **full tie** → sub-round.
+- **Yahtzee** (five of a kind, including with wilds): face does not matter. Five 2s
+  ties five 5s when `rollsUsed` is equal; fewer rolls still wins. Face ranking
+  still applies for counts below five (four 6s beats four 2s).
 
 ## Straights
 

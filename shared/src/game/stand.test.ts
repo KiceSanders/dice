@@ -25,6 +25,13 @@ describe('canStandVoluntarily', () => {
     expect(canStandVoluntarily(hand(4, 4, 4, 2, 1), 2, toBeat)).toBe(true);
   });
 
+  it('allows standing on a Yahtzee that ties or beats another Yahtzee on rolls', () => {
+    const toBeat = scoreHand(hand(5, 5, 5, 5, 5), 2); // five 5s in 2 rolls
+    expect(canStandVoluntarily(hand(2, 2, 2, 2, 2), 2, toBeat)).toBe(true); // face-agnostic tie
+    expect(canStandVoluntarily(hand(2, 2, 2, 2, 2), 1, toBeat)).toBe(true); // fewer rolls
+    expect(canStandVoluntarily(hand(2, 2, 2, 2, 2), 3, toBeat)).toBe(false); // more rolls
+  });
+
   it('rejects standing while losing to the roll to beat', () => {
     const toBeat = scoreHand(hand(6, 6, 6, 1, 2), 1); // four 6s
     expect(canStandVoluntarily(hand(5, 5, 1, 2, 3), 1, toBeat)).toBe(false); // three 5s

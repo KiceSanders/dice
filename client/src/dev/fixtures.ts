@@ -12,6 +12,7 @@ export type PlaygroundSceneId =
   | 'myTurnLastRoll'
   | 'spectatorTurn'
   | 'rollToBeat'
+  | 'rollToBeatYahtzee'
   | 'subRound'
   | 'waitingForTurn';
 
@@ -160,6 +161,27 @@ export const PLAYGROUND_SCENES: PlaygroundScene[] = [
         currentTurn: turn(DEV_YOU, {
           dice: [2, 2, 4, 6, 1],
           keptIndices: [0, 1],
+          rollsUsed: 1,
+        }),
+      }),
+    ),
+  },
+  {
+    id: 'rollToBeatYahtzee',
+    label: 'Roll to beat Yahtzee',
+    defaultMyId: DEV_YOU,
+    snapshot: baseSnapshot(
+      baseGame({
+        pot: 24,
+        rollToBeat: {
+          playerIds: [DEV_BOB],
+          score: { count: 5, face: 2, rollsUsed: 2, straight: 'none' },
+          dice: [2, 2, 2, 2, 1],
+          restPose: null,
+        },
+        currentTurn: turn(DEV_YOU, {
+          dice: [5, 5, 5, 3, 1],
+          keptIndices: [0, 1, 2],
           rollsUsed: 1,
         }),
       }),

@@ -156,7 +156,7 @@ describe('GameEngine: sit-outs and game end', () => {
     roll(engine, 'p0', [6, 6, 6, 6, 6]);
     engine.stand('p0');
     expect(engine.currentTurnPlayerId).toBe('p2'); // p1 never gets a turn
-    roll(engine, 'p2', [5, 5, 5, 5, 5]);
+    roll(engine, 'p2', [5, 5, 5, 5, 2]); // four 5s — loses to Yahtzee
     engine.stand('p2');
 
     const end = lastRoundEnd(events);
