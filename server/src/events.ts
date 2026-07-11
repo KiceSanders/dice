@@ -87,7 +87,14 @@ export type RoomEvent =
       /** Validated rest pose (ADR 005); optional so pre-ADR-005 logs still parse. */
       restPose?: BodyPose[];
     }
-  | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
+  | {
+      type: 'stood';
+      playerId: PlayerId;
+      dice: Die[];
+      score: HandScore;
+      /** Final stand pose (ADR 005); optional so older logs still parse. */
+      restPose?: BodyPose[];
+    }
   /** Turn ended with no completed roll: replay must advance past the player. */
   | { type: 'forfeited'; playerId: PlayerId }
   | { type: 'gameEnded'; reason: string }

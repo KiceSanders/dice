@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
-import { pendingKeepForTurn, pendingKeepSelection, togglePendingKeep } from '../game/keepSelection';
+import { usePendingKeep } from '../game/usePendingKeep';
 import { resolveTableRestPose } from '../table3d/dice/staticPose';
 import {
   clearLiveTuning,
@@ -390,10 +390,18 @@ export default function Playground() {
   const [myId, setMyId] = useState(() => params.get('view') ?? initialScene.defaultMyId);
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [pendingSelection, setPendingSelection] = useState(() => pendingKeepSelection(null));
 
   const turn = snapshot.game?.currentTurn ?? null;
-  const pendingKeep = pendingKeepForTurn(pendingSelection, turn);
+  const {
+    pendingKeep,
+    setPendingKeep: setLocalPendingKeep,
+    toggleKeep,
+  } = usePendingKeep(turn, {
+    onReset: () => {
+      setDragging(false);
+      setPointerOnTable(false);
+    },
+  });
   const isMyTurn = turn !== null && turn.playerId === myId;
   const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
   const activeSeat =
@@ -402,15 +410,6 @@ export default function Playground() {
     snapshot.phase === 'playing' && activeSeat !== null && !isMyTurn
       ? displaySeatIndex(activeSeat, mySeat)
       : null;
-
-  useEffect(() => {
-    setPendingSelection(pendingKeepSelection(turn));
-  }, [turn?.playerId, turn?.rollsUsed]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    setDragging(false);
-    setPointerOnTable(false);
-  }, [turn?.playerId, turn?.rollsUsed]);
 
   useEffect(() => {
     setPendingKeep(pendingKeep);
@@ -433,7 +432,7 @@ export default function Playground() {
   const onSceneChange = (id: PlaygroundSceneId) => {
     const scene = sceneById(id);
     loadScene(scene);
-    setPendingSelection(pendingKeepSelection(scene.snapshot.game?.currentTurn ?? null));
+    setLocalPendingKeep(scene.snapshot.game?.currentTurn?.keptIndices ?? []);
     setMyId(scene.defaultMyId);
     setPointerOnTable(false);
     setDragging(false);
@@ -447,12 +446,9 @@ export default function Playground() {
   const onKeepToggle = useCallback(
     (index: number) => {
       if (!turn || !isMyTurn) return;
-      const next = togglePendingKeep(index, pendingKeep, turn.rollsUsed > 0);
-      if (!next) return;
-      setPendingSelection(pendingKeepSelection(turn, next));
-      return next;
+      return toggleKeep(index, turn.rollsUsed > 0) ?? undefined;
     },
-    [turn, isMyTurn, pendingKeep],
+    [turn, isMyTurn, toggleKeep],
   );
 
   // Straight celebration for the spectator static view (the roller's own
@@ -645,11 +641,8 @@ export default function Playground() {
       <GameArea
         snapshot={snapshot}
         myId={myId}
-        lastRoll={lastRoll}
-        hide2DDice
         mouseThrow
         pendingKeep={pendingKeep}
-        onPendingKeepChange={(indices) => setPendingSelection(pendingKeepSelection(turn, indices))}
         turnActions={{
           onStand: stand,
           disabled: rolling,

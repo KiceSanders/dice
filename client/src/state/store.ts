@@ -171,6 +171,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         roomId: msg.snapshot.roomId,
         me: { playerId: msg.playerId, rejoinToken: msg.rejoinToken },
         snapshot: msg.snapshot,
+        lastRoll: null,
         lastAnte: null,
         lastTransfer: null,
         joinError: null,
@@ -272,6 +273,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'round:started':
       return {
         ...state,
+        lastRoll: null,
         lastAnte: {
           kind: 'round',
           roundNumber: msg.roundNumber,
@@ -284,6 +286,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'subround:started':
       return {
         ...state,
+        lastRoll: null,
         lastAnte: {
           kind: 'subround',
           depth: msg.depth,

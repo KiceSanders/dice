@@ -1,6 +1,6 @@
 // biome-ignore-all lint/a11y/noAutofocus: the join form's name field is this page's single purpose
-import { detectStraight, type PlayerPublic, type RoomSnapshot } from '@dice/shared';
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ChatPanel from '../components/ChatPanel';
 import ConnectionBanner from '../components/ConnectionBanner';
@@ -11,12 +11,9 @@ import RoundEndModal from '../components/RoundEndModal';
 import SettingsPanel from '../components/SettingsPanel';
 import Table from '../components/Table';
 import Toasts from '../components/Toasts';
-import { useRemoteRoll } from '../game/useRemoteRoll';
-import { useTableRoll } from '../game/useTableRoll';
+import { useTableChipEvents, useTableScene } from '../game/useTableScene';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
-import { pickHeldRollInput, resolveTableRestPose } from '../table3d/dice/staticPose';
-import { tableEvents } from '../table3d/tableEvents';
 
 const ROUND_END_REVEAL_DELAY_MS = 3_000;
 
@@ -27,89 +24,21 @@ export default function Room() {
   const [nameConfirmed, setNameConfirmed] = useState(() => Boolean(loadName()));
   const [copied, setCopied] = useState(false);
   const [revealedRoundEndAt, setRevealedRoundEndAt] = useState<number | null>(null);
-  const emittedAnteAtRef = useRef<number | null>(null);
-  const emittedAwardAtRef = useRef<number | null>(null);
-  const emittedTransferAtRef = useRef<number | null>(null);
 
   const alreadyInRoom = state.roomId === roomId && state.me !== null;
   const joinSentRef = useRef(false);
   const connected = state.connection === 'open';
   const snapshot = state.snapshot;
 
-  // 3D physics roll for the active roller; streamed playback of everyone
-  // else's throws, with StaticDiceView for the last settled roll (ADR 004).
-  const roll3d = useTableRoll(state.snapshot, state.me?.playerId ?? null, send, connected);
-  const remoteRoll = useRemoteRoll(ws, state.snapshot, state.me?.playerId ?? null);
-  // Settled dice on the felt: one resolver for every viewer (ADR 005) — the
-  // server-validated rest pose from turn:rolled or the snapshot (rejoins),
-  // with the values-only slot layout as the observable last resort.
-  const mySeatForPose = snapshot?.players.find((p) => p.id === state.me?.playerId)?.seat ?? 0;
-  const heldPose = useMemo(() => {
-    const input = pickHeldRollInput(state.lastRoll, snapshot?.game ?? null);
-    return input ? resolveTableRestPose(input, mySeatForPose).frame : null;
-  }, [state.lastRoll, snapshot?.game, mySeatForPose]);
-  // Straight celebration for spectator views (the roller's own glow fires
-  // locally at settle): announced on the table event bus, stamped with the
-  // wire receive time so late-mounting views can judge freshness.
-  useEffect(() => {
-    const roll = state.lastRoll;
-    if (!roll || detectStraight(roll.dice) === 'none') return;
-    tableEvents.emit({ type: 'straight', dice: roll.dice }, roll.receivedAt);
-  }, [state.lastRoll]);
-
-  useEffect(() => {
-    const ante = state.lastAnte;
-    if (!ante || emittedAnteAtRef.current === ante.receivedAt) return;
-    emittedAnteAtRef.current = ante.receivedAt;
-    const contributions = ante.contributions.filter((entry) => entry.amount > 0);
-    if (contributions.length === 0) return;
-    tableEvents.emit(
-      {
-        type: 'chips-to-pot',
-        contributions,
-        potBefore: ante.potBefore,
-      },
-      ante.receivedAt,
-    );
-  }, [state.lastAnte]);
-
-  // Instant player-to-player transfers (straight payout today; any future
-  // instant bet that sets lastTransfer animates through here automatically).
-  useEffect(() => {
-    const transfer = state.lastTransfer;
-    if (!transfer || emittedTransferAtRef.current === transfer.receivedAt) return;
-    emittedTransferAtRef.current = transfer.receivedAt;
-    const payments = transfer.payments.filter((entry) => entry.amount > 0);
-    if (payments.length === 0) return;
-    tableEvents.emit(
-      {
-        type: 'chips-between-players',
-        toPlayerId: transfer.toPlayerId,
-        payments,
-      },
-      transfer.receivedAt,
-    );
-  }, [state.lastTransfer]);
-
-  useEffect(() => {
-    const roundEnd = state.roundEnd;
-    if (
-      !roundEnd?.winnerId ||
-      roundEnd.potWon <= 0 ||
-      emittedAwardAtRef.current === roundEnd.receivedAt
-    ) {
-      return;
-    }
-    emittedAwardAtRef.current = roundEnd.receivedAt;
-    tableEvents.emit(
-      {
-        type: 'pot-to-winner',
-        winnerId: roundEnd.winnerId,
-        amount: roundEnd.potWon,
-      },
-      roundEnd.receivedAt,
-    );
-  }, [state.roundEnd]);
+  const { roll3d, remoteRoll, heldPose, showHeldPose, standControl, inGame, turn } = useTableScene(
+    state.snapshot,
+    state.me?.playerId ?? null,
+    state.lastRoll,
+    send,
+    connected,
+    ws,
+  );
+  useTableChipEvents(state.lastAnte, state.lastTransfer, state.roundEnd);
 
   useEffect(() => {
     const receivedAt = state.roundEnd?.receivedAt ?? null;
@@ -211,38 +140,6 @@ export default function Room() {
   const spectators = snapshot.players.filter((p) => p.seat === null);
   const myRequest = snapshot.seatRequests.find((r) => r.playerId === myId) ?? null;
   const inviteUrl = `${window.location.origin}/room/${snapshot.roomId}`;
-  const turn = snapshot.game?.currentTurn ?? null;
-  const inGame = snapshot.phase !== 'lobby' && snapshot.game !== null;
-  const isMyTurn = turn !== null && turn.playerId === myId;
-  // Local DicePhysics already renders the active roller's settled dice — hide
-  // the static last-roll layer so dice are not doubled on the felt.
-  const localSimShowsLastRoll =
-    roll3d.tableDice !== undefined &&
-    isMyTurn &&
-    turn !== null &&
-    turn.rollsUsed > 0 &&
-    state.lastRoll?.playerId === myId &&
-    state.lastRoll.rollNumber === turn.rollsUsed;
-  const showHeldPose =
-    inGame &&
-    heldPose !== null &&
-    !remoteRoll.live &&
-    !turn?.throwing &&
-    !roll3d.dragging &&
-    !roll3d.rolling &&
-    !localSimShowsLastRoll;
-
-  // Stand button on the table frame: only for the active 3D roller after their
-  // first roll, hidden while aiming so it never fights the drag.
-  const standControl =
-    roll3d.turnActions && turn && turn.rollsUsed > 0 && !roll3d.dragging
-      ? {
-          onStand: roll3d.turnActions.onStand,
-          canStand: roll3d.turnActions.canStand ?? true,
-          hint: roll3d.turnActions.standHint,
-          disabled: roll3d.turnActions.disabled,
-        }
-      : undefined;
 
   async function copyInvite() {
     try {
@@ -277,10 +174,6 @@ export default function Room() {
         dice={roll3d.tableDice}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
         heldPose={showHeldPose ? heldPose : null}
-        // Hide the spectator dock as soon as the roller grabs (cupInPlay from
-        // streamed cupVisible:true) or the server marks throwing. Selecting-
-        // phase frames keep remoteRoll.live true with cupVisible:false — those
-        // must leave the parked dock up.
         parkedKoozieDisplaySeat={
           turn?.throwing || remoteRoll.cupInPlay ? null : roll3d.parkedKoozieDisplaySeat
         }
@@ -293,11 +186,8 @@ export default function Room() {
         <GameArea
           snapshot={snapshot}
           myId={myId}
-          lastRoll={state.lastRoll}
-          hide2DDice
           mouseThrow={roll3d.active}
           pendingKeep={roll3d.pendingKeep}
-          onPendingKeepChange={roll3d.setPendingKeep}
           turnActions={roll3d.turnActions}
         />
       )}

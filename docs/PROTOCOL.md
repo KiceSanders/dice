@@ -20,7 +20,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
 | `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
-| `turn:stand` | `{}` | Voluntary stand (gated by `canStandVoluntarily`) |
+| `turn:stand` | `{ restPose? }` | Voluntary stand (gated by `canStandVoluntarily`); optional final selecting layout (canonical space, 5 dice, ADR 005) so dice stay exactly where they were when Stand was clicked. Invalid `restPose` is dropped server-side; the stand itself never fails on it |
 | `chat:send` | `{ text }` | ≤500 chars, rate-limited |
 
 Ingress is structurally validated in `server/src/protocol.ts` (`parseClientMessage`). The
@@ -47,24 +47,26 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `chat:message` | `{ playerId, playerName, text, ts }` | |
 | `error` | `{ code, message }` | `ErrorCode` union in protocol.ts |
 
-Egress is **not** validated by the client — `client/src/ws/client.ts` casts
-`JSON.parse(...) as ServerMessage`. Safety relies on the reducer's exhaustiveness guard
-(`assertUnreachable` default in `client/src/state/store.ts`), which ignores unknown message
-types at runtime instead of crashing.
+Egress is lightly validated by the client in `client/src/ws/protocol.ts`
+(`parseServerMessage`) before it reaches app state. Its validator table is
+`Record<ServerMessage['type'], Validator>`, so adding a wire message without a parser case
+fails `npm run check:client`. Unknown runtime messages are dropped before the reducer; known
+messages still rely on the reducer's `assertUnreachable` default in
+`client/src/state/store.ts` for exhaustive state handling.
 
 ## The three event vocabularies
 
 One game event crosses three deliberately distinct unions. The mapping is hand-written in
-`Room.onEngineEvent` (`server/src/room.ts`) and guarded by an `assertNever` default — a new
-`EngineEvent` that is not mapped fails the typecheck. **When you add a row to any column,
-update this table.**
+`handleEngineEvent` (`server/src/roomGameBridge.ts`) and guarded by an `assertNever`
+default — a new `EngineEvent` that is not mapped fails the typecheck. **When you add a row
+to any column, update this table.**
 
 | `EngineEvent` (engine.ts) | `RoomEvent` (events.ts, persisted log) | `ServerMessage` (wire) | Client handling (store.ts) |
 |---|---|---|---|
 | `roundStarted` | `roundStarted` ✓ | `round:started` | `lastAnte` (table chip animation) |
 | `throwStarted` | — (not recorded) | `turn:throwStarted` | ignored by reducer; 3D table consumes off the socket |
 | `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |
-| `stood` | `stood` ✓ | — (snapshot only) | via `room:state` |
+| `stood` | `stood` ✓ (`restPose?` optional so old logs parse) | — (snapshot only) | via `room:state` |
 | `forfeited` | `forfeited` ✓ | `turn:forfeited` | system chat line |
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
 | `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + toast |
@@ -85,10 +87,11 @@ the reducer's state. Everything a recovered room needs lives in the `RoomEvent` 
 (`server/logs/<roomId>.log`, JSON Lines, compacted to a snapshot at each round end).
 
 The settled **rest pose** is the exception that proves the rule (ADR 005): unlike the
-frame stream, the final layout IS state. It rides `turn:rolled`, lives in the snapshot
+frame stream, the final layout IS state. It rides `turn:rolled`, can be refined by
+`turn:stand` after the roller has moved newly kept dice to the rail, lives in the snapshot
 (`currentTurn.restPose`, `rollToBeat.restPose` — canonical table space), and survives
-crash recovery via the persisted `rolled` event, so every viewer — including rejoiners —
-renders the dice where they physically landed.
+crash recovery via the persisted `rolled` / `stood` events, so every viewer — including
+rejoiners — renders the dice where they physically landed and where the hand was stood.
 
 `GameStatePublic.rollToBeat` carries `playerIds: PlayerId[]` (first stander first; later
 tiers who fully tie append). A strict beat replaces the list with the new leader alone.

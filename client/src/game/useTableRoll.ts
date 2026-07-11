@@ -1,21 +1,38 @@
 import type { ClientMessage, Die, PoseFrame, RoomSnapshot } from '@dice/shared';
-import { canStandVoluntarily, validateRestPose } from '@dice/shared';
+import { canStandVoluntarily } from '@dice/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { displaySeatIndex } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
-import { pendingKeepForTurn, pendingKeepSelection, togglePendingKeep } from './keepSelection';
+import {
+  FRAME_FLUSH_MS,
+  FrameBatch,
+  framesMessage,
+  isValidPoseFrame,
+  restPoseForThrowResult,
+  shouldFlushFrameBatch,
+  standMessage,
+  throwResultMessage,
+  throwStartMessage,
+} from './throwProtocol';
+import { usePendingKeep } from './usePendingKeep';
 
 const ZERO_VELOCITY: ThrowVelocity = { x: 0, y: 0, z: 0 };
 
-/** Batch pose frames so a 20 Hz sample rate costs ~10 messages/s on the wire. */
-const FRAMES_PER_MESSAGE = 2;
-const FRAME_FLUSH_MS = 200;
-
-function isValidPoseFrame(frame: PoseFrame): boolean {
-  return frame.bodies.every((b) => b.every((n) => Number.isFinite(n)));
+function standHintFor(
+  snapshot: RoomSnapshot,
+  turn: NonNullable<RoomSnapshot['game']>['currentTurn'],
+  canStand: boolean,
+): string | undefined {
+  const rollToBeat = snapshot.game?.rollToBeat ?? null;
+  if (!turn || canStand || turn.rollsUsed <= 0 || !rollToBeat) return undefined;
+  const names = rollToBeat.playerIds
+    .map((id) => snapshot.players.find((p) => p.id === id)?.name)
+    .filter((n): n is string => Boolean(n));
+  const who = names.length === 0 ? "the leader's" : `${names.join(' / ')}'s`;
+  return `Beat or tie ${who} ${describeScore(rollToBeat.score)} to stand`;
 }
 
 /**
@@ -35,124 +52,82 @@ export function useTableRoll(
   send: (msg: ClientMessage) => boolean,
   connected: boolean,
 ) {
-  const [pendingSelection, setPendingSelection] = useState(() => pendingKeepSelection(null));
   const [dragging, setDragging] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [releaseSignal, setReleaseSignal] = useState(0);
   const [releaseVelocity, setReleaseVelocity] = useState<ThrowVelocity>(ZERO_VELOCITY);
-  const pendingKeepRef = useRef<number[]>([]);
+  const [frameBatch] = useState(() => new FrameBatch());
+  const latestCanonicalFrameRef = useRef<PoseFrame | null>(null);
 
   const turn = snapshot?.game?.currentTurn ?? null;
-  // Effects run after render, so resolve ownership synchronously: on the first
-  // frame of a new turn, the outgoing player's local keeps must not reach the
-  // incoming roller's DicePhysics instance.
-  const pendingKeep = pendingKeepForTurn(pendingSelection, turn);
-  pendingKeepRef.current = pendingKeep;
+  const { pendingKeep, pendingKeepRef, toggleKeep } = usePendingKeep(turn, {
+    onReset: () => {
+      setDragging(false);
+      setRolling(false);
+    },
+  });
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
+  const turnRollsUsed = turn?.rollsUsed ?? 0;
   const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
   const activeSeat =
     turn !== null ? (snapshot?.players.find((p) => p.id === turn.playerId)?.seat ?? null) : null;
-  // Spectators see a parked cup at the active player's display seat. The
-  // roller mounts DicePhysics instead (always docks at display seat 0).
   const parkedKoozieDisplaySeat =
     snapshot?.phase === 'playing' && activeSeat !== null && !isMyTurn
       ? displaySeatIndex(activeSeat, mySeat)
       : null;
-
-  // New roll confirmed or turn changed: sync selection to the server's locked
-  // keeps and drop any stale interaction state.
-  useEffect(() => {
-    const next = pendingKeepSelection(turn);
-    pendingKeepRef.current = next.indices;
-    setPendingSelection(next);
-    setDragging(false);
-    setRolling(false);
-  }, [turn?.playerId, turn?.rollsUsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRelease = useCallback(
     (velocity: ThrowVelocity) => {
       setReleaseVelocity(velocity);
       setReleaseSignal((s) => s + 1);
       setRolling(true);
-      send({ type: 'turn:throwStart', keepIndices: pendingKeepRef.current });
+      send(throwStartMessage(pendingKeepRef.current));
     },
-    [send],
+    [send, pendingKeepRef],
   );
 
   const onSettled = useCallback(
     (dice: Die[], settleFrame: PoseFrame) => {
       setRolling(false);
-      // Report where the dice came to rest alongside the values (ADR 005):
-      // canonical space, dice only (frame bodies are cup-first). Validate with
-      // the same shared check the server runs — if it would be dropped there
-      // (e.g. dev face overrides), omit it rather than blocking the throw.
       const canonical = poseFrameToCanonical(settleFrame, mySeat);
-      const restPose = canonical.bodies.slice(1);
-      const valid = restPose.length === dice.length && validateRestPose(restPose, dice) === null;
-      send({ type: 'turn:throwResult', dice, ...(valid ? { restPose } : {}) });
+      send(throwResultMessage(dice, restPoseForThrowResult(canonical.bodies, dice)));
     },
     [send, mySeat],
   );
 
-  // Pose streaming out to spectators: batch samples, flush by count or timer.
-  const frameBufRef = useRef<PoseFrame[]>([]);
-  const flushTimerRef = useRef<number | null>(null);
   const flushFrames = useCallback(() => {
-    if (flushTimerRef.current !== null) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-    if (frameBufRef.current.length === 0) return;
-    send({ type: 'dice:frames', frames: frameBufRef.current });
-    frameBufRef.current = [];
-  }, [send]);
+    frameBatch.clearTimer();
+    const frames = frameBatch.take();
+    if (frames.length > 0) send(framesMessage(frames));
+  }, [send, frameBatch]);
 
   const onPoseFrame = useCallback(
     (frame: PoseFrame) => {
       if (!isValidPoseFrame(frame)) return;
       const canonical = poseFrameToCanonical(frame, mySeat);
-      frameBufRef.current.push(canonical);
-      if (!canonical.cupVisible || frameBufRef.current.length >= FRAMES_PER_MESSAGE) flushFrames();
-      else if (flushTimerRef.current === null) {
-        flushTimerRef.current = window.setTimeout(flushFrames, FRAME_FLUSH_MS);
-      }
+      latestCanonicalFrameRef.current = canonical;
+      const length = frameBatch.push(canonical);
+      if (shouldFlushFrameBatch(length, canonical.cupVisible)) flushFrames();
+      else frameBatch.scheduleFlush(flushFrames, FRAME_FLUSH_MS);
     },
-    [flushFrames, mySeat],
+    [flushFrames, mySeat, frameBatch],
   );
 
   useEffect(() => () => flushFrames(), [flushFrames]);
+  useEffect(() => {
+    latestCanonicalFrameRef.current = null;
+  }, [turn?.playerId, turn?.rollsUsed]);
 
   const onKeepToggle = useCallback(
     (index: number) => {
-      if (!turn || !isMyTurn) return;
-      const next = togglePendingKeep(index, pendingKeepRef.current, turn.rollsUsed > 0);
-      if (!next) return;
-      pendingKeepRef.current = next;
-      setPendingSelection(pendingKeepSelection(turn, next));
-      return next;
+      if (!isMyTurn) return;
+      return toggleKeep(index, turnRollsUsed > 0) ?? undefined;
     },
-    [turn, isMyTurn],
+    [isMyTurn, toggleKeep, turnRollsUsed],
   );
 
-  const updatePendingKeep = useCallback(
-    (indices: number[]) => {
-      const next = pendingKeepSelection(turn, indices);
-      pendingKeepRef.current = next.indices;
-      setPendingSelection(next);
-    },
-    [turn],
-  );
-
-  const onTablePointer = useCallback((inside: boolean) => {
-    setPointerOnTable(inside);
-  }, []);
-
-  // Stays true across the whole turn: DicePhysics guards grabs internally
-  // (rollingRef/draggingRef), and a transient false at settle time would be
-  // snapshotted into enterSelectingPhase's cup visibility (bug: hidden koozie).
   const canDrag = isMyTurn && connected && snapshot?.phase === 'playing';
-
   const tableDice: TableDiceProps | undefined =
     turn && isMyTurn
       ? {
@@ -171,46 +146,34 @@ export function useTableRoll(
         }
       : undefined;
 
-  // Voluntary-stand gate (shared rule, mirrored by the server): standing while
-  // losing to the roll-to-beat is not allowed — keep rolling instead.
   const rollToBeat = snapshot?.game?.rollToBeat ?? null;
   const canStand =
     turn !== null && canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null);
-  const standHint =
-    turn && !canStand && turn.rollsUsed > 0 && rollToBeat
-      ? (() => {
-          const names = rollToBeat.playerIds
-            .map((id) => snapshot?.players.find((p) => p.id === id)?.name)
-            .filter((n): n is string => Boolean(n));
-          const who = names.length === 0 ? "the leader's" : `${names.join(' / ')}'s`;
-          return `Beat or tie ${who} ${describeScore(rollToBeat.score)} to stand`;
-        })()
-      : undefined;
-
   const turnActions: TurnActions | undefined = tableDice
     ? {
-        onStand: () => send({ type: 'turn:stand' }),
+        onStand: () => {
+          const restPose =
+            turn && latestCanonicalFrameRef.current
+              ? restPoseForThrowResult(latestCanonicalFrameRef.current.bodies, turn.dice)
+              : null;
+          send(standMessage(restPose));
+        },
         canStand,
-        standHint,
+        standHint: snapshot ? standHintFor(snapshot, turn, canStand) : undefined,
         disabled: rolling || !connected,
         aiming: dragging,
       }
     : undefined;
 
   return {
-    /** Defined only for the active roller: full 3D roll wiring for `<Table dice>`. */
     tableDice,
-    /** Stand / keep-all controls routed over the socket; undefined off-turn. */
     turnActions,
     pendingKeep,
-    setPendingKeep: updatePendingKeep,
-    /** True while this client's 3D roll owns the dice display (hide 2D dice). */
     active: tableDice !== undefined,
     diceAiming: dragging || (pointerOnTable && isMyTurn && !rolling),
-    onTablePointer,
+    onTablePointer: setPointerOnTable,
     rolling,
     dragging,
-    /** Spectator parked-cup display seat; null for the roller or off-play. */
     parkedKoozieDisplaySeat,
   };
 }

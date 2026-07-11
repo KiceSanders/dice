@@ -12,11 +12,13 @@ skill/command walks it interactively — see [AGENTS.md § Skills and commands](
 2. Run `npm run check` — **the compiler now hands you the TODO list.** Expect errors in:
    - `server/src/protocol.ts` — the validator table is `Record<ClientMessage['type'], …>`;
    - `server/src/handlers.ts` — `HandlerMap` keys are required;
+   - `client/src/ws/protocol.ts` — the validator table is `Record<ServerMessage['type'], …>`;
    - `client/src/state/store.ts` — the reducer's `assertUnreachable` default.
    If you added a union member and see **no** errors, you edited the wrong union — stop.
 3. Game-flow events additionally ripple `server/src/engine.ts` (`EngineEvent`) →
    `server/src/events.ts` (`RoomEvent`, if it must survive a crash — also the replay path in
-   `persistence.ts`) → `room.ts onEngineEvent` (its `assertNever` forces this).
+   `persistence.ts`) → `server/src/roomGameBridge.ts handleEngineEvent` (its
+   `assertNever` forces this).
 4. Turn-flow messages: check the socket-direct consumers `client/src/game/useTableRoll.ts`
    and `useRemoteRoll.ts` (they bypass the reducer).
 5. Tests: `server/src/protocol.test.ts` plus the relevant `engine.*.test.ts`.
@@ -29,8 +31,9 @@ skill/command walks it interactively — see [AGENTS.md § Skills and commands](
   Server-side unions end with `default: assertNever(x, 'context')`; client-side handling of
   wire data ends with `default: { assertUnreachable(msg); return state; }` (unknown runtime
   messages from a newer server must be ignored, not crash).
-- Never widen `HandlerMap` back to optional keys, and never remove the `assertNever` in
-  `room.onEngineEvent` — they are what turns "forgot to wire it up" into a compile error.
+- Never widen `HandlerMap` back to optional keys, never bypass the client/server validator
+  records, and never remove the `assertNever` in `roomGameBridge.handleEngineEvent` — they
+  are what turns "forgot to wire it up" into a compile error.
 
 ## 3. File size
 

@@ -19,7 +19,8 @@ possible; where code stays complex for a reason, that reason is documented here.
 viewer until the next roller grabs/releases the koozie (or a streamed throw is in flight).
 Spectators and the incoming roller see it through `StaticDiceView`, fed by **one resolver**:
 `resolveTableRestPose` in `staticPose.ts` (ADR 005). Its priority is the server-validated
-`restPose` carried on `turn:rolled` and every snapshot (canonical space → rotated to the
+`restPose` carried on `turn:rolled`, optionally refined by `turn:stand`, and every snapshot
+(canonical space → rotated to the
 viewer's seat), with the values-only slot layout as a last resort that logs
 `[dice] slot-layout fallback` in dev and counts on `window.__diceDebug`. **Adding a new
 pose source means adding a tier inside that resolver — never a new per-client capture
@@ -166,8 +167,10 @@ behavior** (teleport-then-pull on cup grab, capture-phase pointer handling befor
 declarative-only placement of fixed bodies per ADR 003, `liveBody()` guards per ADR 002).
 Pure logic has been extracted where safe — layout math in `diceLayout.ts`, per-die
 runtime in `diceRuntime.ts`, cup motion in `koozieMotion.ts`, hit-testing in
-`pointerToFelt.ts` — **extend those modules, not the component**, and add unit tests
-next to them. Rules when you must touch it:
+`pointerToFelt.ts` / `dicePointer.ts`, phase edges in `cupPhaseMachine.ts`, settle
+handoff in `diceSettleHandoff.ts` — **extend those modules, not the component**, and
+add unit tests next to them. Geometry constants are also re-exported from
+`client/src/table3d/geometry.ts`. Rules when you must touch it:
 
 - Cup phases: `idle → held → pouring → settling → selecting → (idle | hidden)`. State
   transitions happen in exactly one place each; search `setCupPhase` before adding one.

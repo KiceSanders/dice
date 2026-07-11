@@ -10,8 +10,9 @@ import type {
   StraightPayoutConfig,
 } from '@dice/shared';
 import { assertNever, DEFAULT_SETTINGS } from '@dice/shared';
-import { type EngineEvent, type EngineOptions, GameEngine } from './engine.js';
+import { type EngineOptions, GameEngine } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
+import { handleEngineEvent } from './roomGameBridge.js';
 
 /** Anything that can receive server messages (Connection in prod, fakes in tests). */
 export interface ClientLink {
@@ -176,10 +177,20 @@ export class Room {
       case 'snapshot':
         this.restoreState(event.state);
         break;
-      default:
+      case 'created':
+      case 'roundStarted':
+      case 'rolled':
+      case 'stood':
+      case 'forfeited':
+      case 'gameEnded':
+      case 'subRoundStarted':
+      case 'straightPaid':
+      case 'roundEnded':
         // Engine-driven and audit-only events are not applied here: replay
         // routes them through the engine (persistence.ts) or skips them.
         break;
+      default:
+        assertNever(event, 'unhandled RoomEvent in applyEvent');
     }
   }
 
@@ -402,126 +413,23 @@ export class Room {
     this.phase = 'lobby';
   }
 
-  private onEngineEvent(event: EngineEvent): void {
-    switch (event.type) {
-      case 'roundStarted':
-        this.recorder?.append({
-          type: 'roundStarted',
-          roundNumber: event.roundNumber,
-          antes: event.antes,
-        });
-        this.broadcast({
-          type: 'round:started',
-          roundNumber: event.roundNumber,
-          antes: event.antes,
-        });
-        break;
-      case 'throwStarted':
-        // Not recorded: replay only needs the final values (the 'rolled' event).
-        this.broadcast({
-          type: 'turn:throwStarted',
-          playerId: event.playerId,
-          kept: event.kept,
-          rollNumber: event.rollNumber,
-        });
-        break;
-      case 'rolled':
-        this.recorder?.append({
-          type: 'rolled',
-          playerId: event.playerId,
-          dice: event.dice,
-          kept: event.kept,
-          rollNumber: event.rollNumber,
-          restPose: event.restPose ?? undefined,
-        });
-        this.broadcast({
-          type: 'turn:rolled',
-          playerId: event.playerId,
-          dice: event.dice,
-          rollNumber: event.rollNumber,
-          kept: event.kept,
-          restPose: event.restPose,
-        });
-        this.broadcastState();
-        break;
-      case 'stood':
-        this.recorder?.append({
-          type: 'stood',
-          playerId: event.playerId,
-          dice: event.dice,
-          score: event.score,
-        });
-        break;
-      case 'forfeited':
-        // Recorded and replayed: a forfeited turn leaves no rolled/stood
-        // events, so replay needs this to advance the queue past the player.
-        this.recorder?.append({ type: 'forfeited', playerId: event.playerId });
-        this.broadcast({ type: 'turn:forfeited', playerId: event.playerId });
-        break;
-      case 'subRoundStarted':
-        this.recorder?.append({
-          type: 'subRoundStarted',
-          depth: event.depth,
-          participantIds: event.tiedPlayerIds,
-          anteAmount: event.anteAmount,
-          antes: event.antes,
-        });
-        this.broadcast({
-          type: 'subround:started',
-          tiedPlayerIds: event.tiedPlayerIds,
-          anteAmount: event.anteAmount,
-          depth: event.depth,
-          antes: event.antes,
-        });
-        break;
-      case 'straightPaid':
-        this.recorder?.append({
-          type: 'straightPaid',
-          playerId: event.playerId,
-          kind: event.kind,
-          amountPerPlayer: event.amountPerPlayer,
-          total: event.total,
-          payments: event.payments,
-        });
-        this.broadcast({
-          type: 'straight:paid',
-          playerId: event.playerId,
-          kind: event.kind,
-          amountPerPlayer: event.amountPerPlayer,
-          total: event.total,
-          payments: event.payments,
-        });
-        break;
-      case 'roundEnded':
+  private onEngineEvent(event: Parameters<typeof handleEngineEvent>[0]): void {
+    handleEngineEvent(event, {
+      recorder: this.recorder,
+      broadcast: (msg) => this.broadcast(msg),
+      broadcastState: () => this.broadcastState(),
+      setPhasePlaying: () => {
+        this.phase = 'playing';
+      },
+      setPhaseRoundEnd: () => {
         this.phase = 'roundEnd';
-        this.recorder?.append({
-          type: 'roundEnded',
-          winnerId: event.winnerId,
-          potWon: event.potWon,
-        });
-        // Compact at the round boundary so the log never grows unbounded.
+      },
+      compactAtRoundEnd: () => {
         this.recorder?.compact(this.buildPersistedState());
-        this.broadcast({
-          type: 'round:ended',
-          winnerId: event.winnerId,
-          potWon: event.potWon,
-          scores: event.scores,
-        });
-        this.broadcastState();
-        break;
-      case 'stateChanged':
-        if (this.engine?.phase === 'playing') this.phase = 'playing';
-        this.broadcastState();
-        break;
-      case 'gameEnded':
-        this.recorder?.append({ type: 'gameEnded', reason: event.reason });
-        this.endGame();
-        this.broadcastState();
-        break;
-      default:
-        // Compile error here = a new EngineEvent is not persisted/broadcast above.
-        assertNever(event, 'unhandled EngineEvent');
-    }
+      },
+      endGame: () => this.endGame(),
+      isEnginePlaying: () => this.engine?.phase === 'playing',
+    });
   }
 
   // -- chat (Phase 10) ---------------------------------------------------------

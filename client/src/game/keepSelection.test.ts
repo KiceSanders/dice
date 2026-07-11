@@ -45,3 +45,15 @@ describe('togglePendingKeep', () => {
     expect(togglePendingKeep(0, [0], true)).toEqual([]);
   });
 });
+
+describe('usePendingKeep turn-version key', () => {
+  it('pendingKeepSelection + pendingKeepForTurn match the hook reset contract', () => {
+    // Mirrors usePendingKeep: on turn-version change, selection resets to
+    // authoritative keeps; stale local indices must not win.
+    const prev = pendingKeepSelection(turn('a', 1, [0]), [0, 2]);
+    const nextTurn = turn('a', 2, [0]);
+    const reset = pendingKeepSelection(nextTurn);
+    expect(pendingKeepForTurn(prev, nextTurn)).toEqual([0]);
+    expect(pendingKeepForTurn(reset, nextTurn)).toEqual([0]);
+  });
+});

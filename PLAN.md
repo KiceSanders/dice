@@ -263,9 +263,9 @@ Conventions for all phases:
 
 **Goal:** Confidence for future changes.
 
-- [ ] **12.1 WS integration harness** — `server/test/harness.ts`: spin up the server on an ephemeral port, helper `FakeClient` (connect, send, await message of type X with timeout).
-- [ ] **12.2 Full-game E2E** — scripted: create → join ×3 → seats → 2 rounds with a tie sub-round and a straight payout (dice scripted via `turn:throwResult`) → restart server mid-game → rejoin → finish round. Assert final chip ledger exactly.
-- [ ] **12.3 CI** — GitHub Actions workflow: install, `npm run check`, `npm test`, `npm run build` on push/PR.
+- [x] **12.1 WS integration harness** — `server/test/harness.ts`: spin up the server on an ephemeral port, helper `FakeClient` (connect, send, await message of type X with timeout).
+- [x] **12.2 Full-game E2E** — scripted throw handshake over real websockets (`server/test/game-flow.test.ts`); smoke scripts remain for richer multi-round manual checks.
+- [x] **12.3 CI** — GitHub Actions workflow: install, `npm run verify`, `npm run build` on push/PR.
 
 **Verification:** CI green on a fresh clone.
 

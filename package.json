@@ -16,7 +16,7 @@
     "check:client": "npm run check --workspace=client",
     "test": "vitest run",
     "test:shared": "vitest run shared/src",
-    "test:server": "vitest run server/src",
+    "test:server": "vitest run server/src server/test",
     "test:client": "vitest run client/src",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

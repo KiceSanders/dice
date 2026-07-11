@@ -6,7 +6,7 @@ import { DICE_COUNT } from './constants';
 import { quaternionForFace } from './faceValue';
 import {
   diceDebug,
-  type HeldRollInput,
+  type LiveRollInput,
   pickHeldRollInput,
   resolveTableRestPose,
   restPoseToFrame,
@@ -53,10 +53,25 @@ describe('staticPoseFromDice', () => {
 });
 
 describe('pickHeldRollInput', () => {
-  const lastRoll: HeldRollInput = { dice: DICE, kept: [0], restPose: makeRestPose(DICE) };
+  const lastRoll: LiveRollInput = {
+    playerId: 'p1',
+    rollNumber: 1,
+    dice: DICE,
+    kept: [0],
+    restPose: makeRestPose(DICE),
+  };
 
-  it('prefers the live lastRoll', () => {
+  it('prefers the live lastRoll while it belongs to the current turn', () => {
     const game = makeGame({
+      currentTurn: {
+        playerId: 'p1',
+        dice: DICE,
+        keptIndices: [],
+        rollsUsed: 1,
+        rollCap: 5,
+        throwing: false,
+        restPose: null,
+      },
       rollToBeat: {
         playerIds: ['px'],
         score: { count: 2, face: 2, rollsUsed: 1, straight: 'none' },
@@ -64,7 +79,30 @@ describe('pickHeldRollInput', () => {
         restPose: null,
       },
     });
-    expect(pickHeldRollInput(lastRoll, game)).toEqual(lastRoll);
+    expect(pickHeldRollInput(lastRoll, game)).toEqual({
+      dice: DICE,
+      kept: [0],
+      restPose: lastRoll.restPose,
+    });
+  });
+
+  it('uses lastRoll while the snapshot is one turn:rolled behind', () => {
+    const game = makeGame({
+      currentTurn: {
+        playerId: 'p1',
+        dice: [],
+        keptIndices: [],
+        rollsUsed: 0,
+        rollCap: 5,
+        throwing: false,
+        restPose: null,
+      },
+    });
+    expect(pickHeldRollInput(lastRoll, game)).toEqual({
+      dice: DICE,
+      kept: [0],
+      restPose: lastRoll.restPose,
+    });
   });
 
   it('falls back to the snapshot current turn after a rejoin mid-turn', () => {
@@ -106,6 +144,43 @@ describe('pickHeldRollInput', () => {
       dice: [2, 2, 1, 3, 4],
       kept: [],
       restPose,
+    });
+  });
+
+  it('ignores stale lastRoll after stand and uses rollToBeat stand pose', () => {
+    const settlePose = makeRestPose(DICE);
+    const standPose = makeRestPose(DICE).map(
+      (p, i): BodyPose => [p[0], p[1], p[2] + 0.08 * (i + 1), p[3], p[4], p[5], p[6]],
+    );
+    const staleLastRoll: LiveRollInput = {
+      playerId: 'p0',
+      rollNumber: 2,
+      dice: DICE,
+      kept: [0, 2],
+      restPose: settlePose,
+    };
+    const game = makeGame({
+      currentTurn: {
+        playerId: 'p1',
+        dice: [],
+        keptIndices: [],
+        rollsUsed: 0,
+        rollCap: 2,
+        throwing: false,
+        restPose: null,
+      },
+      rollToBeat: {
+        playerIds: ['p0'],
+        score: { count: 1, face: 6, rollsUsed: 2, straight: 'none' },
+        dice: DICE,
+        restPose: standPose,
+      },
+    });
+
+    expect(pickHeldRollInput(staleLastRoll, game)).toEqual({
+      dice: DICE,
+      kept: [],
+      restPose: standPose,
     });
   });
 

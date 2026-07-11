@@ -42,7 +42,8 @@ export type ClientMessage =
   | { type: 'turn:throwResult'; dice: Die[]; restPose?: BodyPose[] }
   /** Live throw poses; relayed to everyone else in the room, never persisted. */
   | { type: 'dice:frames'; frames: PoseFrame[] }
-  | { type: 'turn:stand' }
+  /** Voluntary stand; optional final selecting layout for the settled hand (ADR 005). */
+  | { type: 'turn:stand'; restPose?: BodyPose[] }
   | { type: 'chat:send'; text: string };
 
 // ---------------------------------------------------------------------------

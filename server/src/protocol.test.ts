@@ -140,6 +140,16 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'turn:stand' })).toMatchObject({ ok: true });
   });
 
+  it('validates optional turn:stand restPose shape (ADR 005)', () => {
+    const pose = [0, 0.06, 0, 0, 0, 0, 1];
+    const restPose = [pose, pose, pose, pose, pose];
+    expect(parse({ type: 'turn:stand', restPose })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:stand', restPose: restPose.slice(0, 4) })).toMatchObject({
+      ok: false,
+    });
+    expect(parse({ type: 'turn:stand', restPose: 'nope' })).toMatchObject({ ok: false });
+  });
+
   it('validates chat:send length bounds', () => {
     expect(parse({ type: 'chat:send', text: 'hi' })).toMatchObject({ ok: true });
     expect(parse({ type: 'chat:send', text: '' })).toMatchObject({ ok: false });

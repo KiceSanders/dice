@@ -46,7 +46,8 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 
 ### UI
 
-2D `DiceRow` hidden in Playground (`hide2DDice`); 3D is the sole keep UI. Instruction copy updated in [`GameArea.tsx`](../../client/src/components/GameArea.tsx) and Playground hint bar.
+The old 2D `DiceRow` path was removed; 3D dice are the sole keep UI. Instruction copy lives
+in [`GameArea.tsx`](../../client/src/components/GameArea.tsx) and the Playground hint bar.
 
 ## Rejected alternatives
 
@@ -54,7 +55,7 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 |-------------|---------|
 | **Viewport left-gutter tray** | Kept dice and parked koozie floated in screen space off the felt; did not read as “on the table.” |
 | **Pull dice into cup on grab** | Prevented hover/click-to-keep while dragging the koozie over felt dice. |
-| **2D + 3D keep UI in parallel** | Redundant; Playground uses 3D only when `hide2DDice`. |
+| **2D + 3D keep UI in parallel** | Redundant; the table uses the 3D keep UI only. |
 | **Wire to production Room in same pass** | Playground is the only 3D dice consumer; props are shaped for later Room adoption. |
 
 ## Consequences

@@ -30,6 +30,10 @@ of them, and did, repeatedly.
 - The validated pose rides the `rolled` event → persisted log entry (optional field, old
   logs parse), the `turn:rolled` broadcast, and the snapshot (`currentTurn.restPose`,
   `rollToBeat.restPose`; `stand()` copies the turn pose into `rollToBeat`).
+- `turn:stand` may carry a final `restPose` sampled from the selecting layout. This covers
+  dice the roller moved to the rail after the last settle; the server soft-gates it the
+  same way, updates `currentTurn.restPose` before `stand()` copies it into `rollToBeat`,
+  and persists it on the `stood` event (optional so old logs parse).
 - Clients render settled dice through **one resolver** — `resolveTableRestPose`
   ([`staticPose.ts`](../../client/src/table3d/dice/staticPose.ts)): authoritative pose
   (rotated per viewer seat) → slot layout as an observable last resort (dev
@@ -57,8 +61,9 @@ odd but legal arrangement."
 
 ## Consequences
 
-- Every viewer (including rejoiners and late joiners) sees the dice **where they landed**;
-  the slot layout remains only for turns with no roll yet or an intentionally dropped pose.
+- Every viewer (including rejoiners and late joiners) sees the dice **where they landed**
+  and, after a voluntary stand, where the hand was stood; the slot layout remains only for
+  turns with no roll yet or an intentionally dropped pose.
 - Kept dice render at the *roller's* rail for every viewer (matching live streaming); the
   old fallback railed them viewer-locally.
 - ~600 B per `turn:rolled` / ~1.2 KB per snapshot — negligible next to the frame stream.

@@ -171,14 +171,14 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       });
     },
 
-    'turn:stand': (conn) => {
+    'turn:stand': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;
       if (!c.room.engine) {
         conn.sendError('BAD_REQUEST', 'no game in progress');
         return;
       }
-      const error = c.room.engine.standVoluntarily(c.playerId);
+      const error = c.room.engine.standVoluntarily(c.playerId, msg.restPose);
       if (error) conn.sendError(error.code, error.message);
     },
 

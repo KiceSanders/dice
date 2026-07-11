@@ -3,6 +3,7 @@ import { appendFile, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { RoomId, RoomSettings } from '@dice/shared';
 import type { PersistedRoomState, RoomEvent } from './events.js';
+import { parseRoomEventLine } from './parseRoomEvent.js';
 import { Room } from './room.js';
 import type { RoomManager } from './roomManager.js';
 
@@ -61,11 +62,9 @@ export class RoomLogStore {
       for (const line of raw.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed) continue;
-        try {
-          events.push(JSON.parse(trimmed) as RoomEvent);
-        } catch {
-          // Torn line from a crash mid-write; drop it.
-        }
+        const parsed = parseRoomEventLine(trimmed);
+        if (parsed.ok) events.push(parsed.event);
+        // Invalid / torn lines are skipped (crash mid-write or corrupt log).
       }
       if (events.length > 0) logs.set(roomId, events);
     }
@@ -121,7 +120,7 @@ function applyReplayEvent(room: Room, event: RoomEvent): void {
       const engine = requireEngine(room, event.type);
       // Skip if the roll replay already auto-stood (cap reached / all dice kept).
       if (engine.currentTurnPlayerId !== event.playerId) break;
-      const error = engine.stand(event.playerId);
+      const error = engine.stand(event.playerId, event.restPose);
       if (error) throw new Error(`replay stand rejected: ${error.message}`);
       break;
     }

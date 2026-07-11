@@ -13,7 +13,15 @@ import {
   FELT_BOUND_X,
   FELT_BOUND_Z,
 } from './constants';
+import {
+  type CupPhase,
+  cupStreamingVisible,
+  initialCupPhase,
+  isAllowedCupTransition,
+  poseSampleIntervalMs,
+} from './cupPhaseMachine';
 import DieBody, { type DieBodyHandle } from './DieBody';
+import { poseFrameFromRuntime } from './diceDisplayPose';
 import {
   keepSlotForIndex,
   keptDieRailPosition,
@@ -21,12 +29,24 @@ import {
   resolveUnkeepPose,
 } from './diceLayout';
 import {
+  blendReleaseVelocity,
+  canvasLayoutElement,
+  clampPivotToTable,
+  hitCup,
+  type MoveSample,
+  pointerBelowNearDockGuard,
+  pointerOnPlane,
+  pointerTarget,
+  recordPivotSample,
+} from './dicePointer';
+import {
   buildRuntime,
   cupLocalToWorld,
   type DieRuntime,
   eulerToQuat,
   quatToEuler,
 } from './diceRuntime';
+import { buildSelectingRuntime, type DiePose } from './diceSettleHandoff';
 import { quaternionForFace, readTopFace } from './faceValue';
 import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
 import { spawnDiceInCupLocal } from './koozieColliders';
@@ -39,16 +59,10 @@ import {
   pouringPoseAt,
   stepHeldPose,
 } from './koozieMotion';
-import {
-  canvasLayoutElement,
-  hitCup,
-  pointerBelowNearDockGuard,
-  pointerOnPlane,
-} from './pointerToFelt';
 import { STRAIGHT_GLOW } from './straightGlow';
 import TableColliders from './TableColliders';
 import { type DicePhysicsTuning, getDicePhysicsTuning, useDicePhysicsTuning } from './tuning';
-import type { TableDiceProps, ThrowVelocity } from './types';
+import type { TableDiceProps } from './types';
 import { useStraightGlow } from './useStraightGlow';
 
 declare global {
@@ -66,14 +80,7 @@ declare global {
 
 const _quat = new THREE.Quaternion();
 
-type CupPhase = 'idle' | 'held' | 'pouring' | 'settling' | 'selecting' | 'hidden';
-
-type DiePose = {
-  position: [number, number, number];
-  rotation: [number, number, number];
-};
-
-type Sample = { x: number; y: number; z: number; t: number };
+type Sample = MoveSample;
 
 function homePosition(tuning: DicePhysicsTuning): [number, number, number] {
   return koozieRestPosition(tuning.cup);
@@ -144,39 +151,6 @@ function clampBodyVelocity(
   }
 }
 
-function sampleVelocity(samples: Sample[]): ThrowVelocity {
-  if (samples.length < 2) return { x: 0, y: 0, z: 0 };
-  const now = samples[samples.length - 1]!;
-  const windowMs = 120;
-  let oldest = samples[0]!;
-  for (const s of samples) {
-    if (now.t - s.t <= windowMs) {
-      oldest = s;
-      break;
-    }
-  }
-  const dt = Math.max((now.t - oldest.t) / 1000, 0.016);
-  return {
-    x: (now.x - oldest.x) / dt,
-    y: (now.y - oldest.y) / dt,
-    z: (now.z - oldest.z) / dt,
-  };
-}
-
-function blendReleaseVelocity(
-  samples: Sample[],
-  heldVelocity: THREE.Vector3 | undefined,
-  tuning: DicePhysicsTuning,
-): ThrowVelocity {
-  const sampled = sampleVelocity(samples);
-  const blend = tuning.release.velocityBlend;
-  return {
-    x: sampled.x + (heldVelocity?.x ?? 0) * blend,
-    y: sampled.y + (heldVelocity?.y ?? 0) * blend,
-    z: sampled.z + (heldVelocity?.z ?? 0) * blend,
-  };
-}
-
 function cupCenterNow(
   cup: KoozieBodyHandle['body'],
   tuning: DicePhysicsTuning,
@@ -185,10 +159,6 @@ function cupCenterNow(
   if (!body) return homePosition(tuning);
   const t = body.translation();
   return [t.x, t.y, t.z];
-}
-
-function pointerTarget(canvas: HTMLCanvasElement): HTMLElement {
-  return canvasLayoutElement(canvas);
 }
 
 function setCupPose(
@@ -202,20 +172,6 @@ function setCupPose(
     z: pose.quaternion.z,
     w: pose.quaternion.w,
   });
-}
-
-function clampPivotToTable(point: THREE.Vector3, tuning: DicePhysicsTuning): THREE.Vector3 {
-  const margin = tuning.cup.radius + 0.16;
-  const a = Math.max(FELT_BOUND_X - margin, 0.1);
-  const b = Math.max(FELT_BOUND_Z - margin, 0.1);
-  const nx = point.x / a;
-  const nz = point.z / b;
-  const dist = Math.hypot(nx, nz);
-  if (dist > 1) {
-    point.x = (nx / dist) * a;
-    point.z = (nz / dist) * b;
-  }
-  return point;
 }
 
 function outsideTable(point: { x: number; z: number }): boolean {
@@ -335,7 +291,7 @@ export default function DicePhysics({
     }),
   );
 
-  const [cupPhase, setCupPhase] = useState<CupPhase>(active && canDrag ? 'idle' : 'hidden');
+  const [cupPhase, setCupPhase] = useState<CupPhase>(() => initialCupPhase(active, canDrag));
   const [cupPosition, setCupPosition] = useState<[number, number, number]>(() =>
     homePosition(tuning),
   );
@@ -361,6 +317,15 @@ export default function DicePhysics({
   const reducedMotion =
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  const transitionCupPhase = useCallback((next: CupPhase) => {
+    const from = cupPhaseRef.current;
+    if (import.meta.env.DEV && !isAllowedCupTransition(from, next)) {
+      console.warn(`[dice] unexpected cup phase transition: ${from} -> ${next}`);
+    }
+    cupPhaseRef.current = next;
+    setCupPhase(next);
+  }, []);
+
   onSettledRef.current = onSettled;
   onRollingChangeRef.current = onRollingChange;
   onReleaseRef.current = onRelease;
@@ -385,7 +350,7 @@ export default function DicePhysics({
       setLayoutGen(layoutGenRef.current);
       setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
       setCupPosition(homePosition(latestTuning));
-      setCupPhase(cupMode ? 'idle' : 'hidden');
+      transitionCupPhase(cupMode ? 'idle' : 'hidden');
       setCupVisible(cupMode);
       rollingRef.current = false;
       rollElapsedMsRef.current = 0;
@@ -395,70 +360,39 @@ export default function DicePhysics({
       pourStateRef.current = null;
       feltPoseRef.current = Array(DICE_COUNT).fill(null);
     },
-    [clearStraightGlow],
+    [clearStraightGlow, transitionCupPhase],
   );
 
   const enterSelectingPhase = useCallback(
     (values: Die[]) => {
       const latestTuning = getDicePhysicsTuning();
       const kept = keepRef.current;
-      const keptSorted = [...kept].sort((a, b) => a - b);
 
-      const nextRuntime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
-        visible: false,
-        locked: true,
-        inCup: false,
-        position: dieSlotPosition(i),
-      }));
-
-      // All placement is declarative: unkept dice flip dynamic → locked (key
-      // change remounts them at their settled pose), kept dice move via the
-      // position prop, and the cup remounts at the parked spot when it turns
-      // visible again below.
-      for (let i = 0; i < DICE_COUNT; i++) {
-        const value = values[i] ?? diceRef.current[i];
-        if (value === undefined && !kept.includes(i)) continue;
-
-        if (kept.includes(i)) {
-          const slot = keepSlotForIndex(i, keptSorted);
-          nextRuntime[i] = {
-            visible: true,
-            locked: true,
-            inCup: false,
-            position: keptDieRailPosition(slot, keptSorted.length),
-            rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
-          };
-          continue;
-        }
-
+      const livePoses: (DiePose | null)[] = Array.from({ length: DICE_COUNT }, (_, i) => {
+        if (kept.includes(i)) return null;
         const body = liveBody(dieRefs.current[i]?.body);
-        let pose: DiePose;
-        if (body) {
-          const t = body.translation();
-          const r = body.rotation();
-          _quat.set(r.x, r.y, r.z, r.w);
-          pose = {
-            position: [t.x, t.y, t.z],
-            rotation: quatToEuler(_quat),
-          };
-        } else {
-          const slot = dieSlotPosition(i);
-          pose = { position: slot, rotation: [0, 0, 0] };
-        }
-        feltPoseRef.current[i] = pose;
-        nextRuntime[i] = {
-          visible: true,
-          locked: true,
-          inCup: false,
-          position: pose.position,
-          rotation: pose.rotation,
+        if (!body) return null;
+        const t = body.translation();
+        const r = body.rotation();
+        _quat.set(r.x, r.y, r.z, r.w);
+        return {
+          position: [t.x, t.y, t.z],
+          rotation: quatToEuler(_quat),
         };
-      }
+      });
+
+      const { runtime: nextRuntime, feltPoses } = buildSelectingRuntime(
+        values,
+        kept,
+        livePoses,
+        diceRef.current,
+        feltPoseRef.current,
+      );
+      feltPoseRef.current = feltPoses;
 
       setRuntime(nextRuntime);
       setCupPosition(homePosition(latestTuning));
-      setCupPhase('selecting');
-      cupPhaseRef.current = 'selecting';
+      transitionCupPhase('selecting');
       setCupVisible(canDragRef.current);
       rollingRef.current = false;
       rollElapsedMsRef.current = 0;
@@ -469,7 +403,7 @@ export default function DicePhysics({
       // Straight celebration: the dice are frozen for selecting — light them up.
       startStraightGlow(values);
     },
-    [startStraightGlow],
+    [startStraightGlow, transitionCupPhase],
   );
 
   const applyKeepLayout = useCallback((kept: number[]) => {
@@ -479,38 +413,48 @@ export default function DicePhysics({
 
     // Declarative-only: DieBody position/rotation props move both the mesh and
     // (via rapier's prop effect) the fixed body.
-    setRuntime((prev) => {
-      const next = [...prev];
-      for (let i = 0; i < DICE_COUNT; i++) {
-        const rt = next[i];
-        if (!rt?.visible) continue;
+    const next = [...runtimeRef.current];
+    for (let i = 0; i < DICE_COUNT; i++) {
+      const rt = next[i];
+      if (!rt?.visible) continue;
 
-        if (kept.includes(i)) {
-          const slot = keepSlotForIndex(i, keptSorted);
-          const value = diceRef.current[i];
-          const rotation = value ? quatToEuler(quaternionForFace(value)) : rt.rotation;
-          next[i] = {
-            ...rt,
-            locked: true,
-            inCup: false,
-            position: keptDieRailPosition(slot, keptSorted.length),
-            rotation,
-          };
-        } else {
-          const felt = feltPoseRef.current[i] ?? null;
-          const pose = resolveUnkeepPose(i, felt);
-          if (!felt) feltPoseRef.current[i] = pose;
-          next[i] = {
-            ...rt,
-            locked: true,
-            inCup: false,
-            position: pose.position,
-            rotation: pose.rotation,
-          };
-        }
+      if (kept.includes(i)) {
+        const slot = keepSlotForIndex(i, keptSorted);
+        const value = diceRef.current[i];
+        const rotation = value ? quatToEuler(quaternionForFace(value)) : rt.rotation;
+        next[i] = {
+          ...rt,
+          locked: true,
+          inCup: false,
+          position: keptDieRailPosition(slot, keptSorted.length),
+          rotation,
+        };
+      } else {
+        const felt = feltPoseRef.current[i] ?? null;
+        const pose = resolveUnkeepPose(i, felt);
+        if (!felt) feltPoseRef.current[i] = pose;
+        next[i] = {
+          ...rt,
+          locked: true,
+          inCup: false,
+          position: pose.position,
+          rotation: pose.rotation,
+        };
       }
-      return next;
-    });
+    }
+    runtimeRef.current = next;
+    setRuntime(next);
+    const now = performance.now();
+    const frame = poseFrameFromRuntime(
+      next,
+      lastCupPoseRef.current,
+      Math.round(now - (streamStartRef.current ?? now)),
+      cupStreamingVisible(phase),
+    );
+    if (frame) {
+      lastDiePosesRef.current = frame.bodies.slice(1) as BodyPose[];
+      onPoseFrameRef.current?.(frame);
+    }
   }, []);
 
   const wakeUnkeptDice = useCallback(() => {
@@ -620,7 +564,7 @@ export default function DicePhysics({
       t: Math.round(now - (streamStartRef.current ?? now)),
       bodies,
       // Parked/hidden cup is roller-only UX; spectators see it while carried.
-      cupVisible: phase === 'held' || phase === 'pouring',
+      cupVisible: cupStreamingVisible(phase),
     };
   }, []);
 
@@ -646,17 +590,14 @@ export default function DicePhysics({
 
   const recordSample = useCallback(
     (clientX: number, clientY: number) => {
-      const canvas = gl.domElement;
-      const center = pointerOnPlane(
+      recordPivotSample(
+        moveSamples.current,
         clientX,
         clientY,
-        canvas,
+        gl.domElement,
         camera,
-        tuningRef.current.cup.floatCenterY,
+        tuningRef.current,
       );
-      clampPivotToTable(center, tuningRef.current);
-      moveSamples.current.push({ x: center.x, y: center.y, z: center.z, t: performance.now() });
-      if (moveSamples.current.length > 24) moveSamples.current.shift();
     },
     [camera, gl],
   );
@@ -683,15 +624,14 @@ export default function DicePhysics({
       rollingRef.current = true;
       rollElapsedMsRef.current = 0;
       draggingRef.current = false;
-      cupPhaseRef.current = 'pouring';
       setDragging(false);
-      setCupPhase('pouring');
+      transitionCupPhase('pouring');
       setSimRolling(true);
       onDragChangeRef.current?.(false);
       onRollingChangeRef.current?.(true);
       onReleaseRef.current(velocity);
     },
-    [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup],
+    [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup, transitionCupPhase],
   );
 
   const beginDrag = useCallback(
@@ -763,13 +703,12 @@ export default function DicePhysics({
       if (!fromRest) pullUnkeptDiceIntoCup();
       if (!fromRest) wakeUnkeptDice();
       draggingRef.current = true;
-      cupPhaseRef.current = 'held';
       setDragging(true);
-      setCupPhase('held');
+      transitionCupPhase('held');
       setHoveringKoozie(false);
       onDragChangeRef.current?.(true);
     },
-    [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup, gl, camera],
+    [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup, gl, camera, transitionCupPhase],
   );
 
   const handleDieClick = useCallback(
@@ -862,7 +801,7 @@ export default function DicePhysics({
       draggingRef.current = false;
       setDragging(false);
       setSimRolling(false);
-      setCupPhase('hidden');
+      transitionCupPhase('hidden');
       setCupVisible(false);
       clearStraightGlow();
       setRuntime(
@@ -881,7 +820,7 @@ export default function DicePhysics({
         resetToIdleInCup();
       }
     }
-  }, [active, resetToIdleInCup, clearStraightGlow]);
+  }, [active, resetToIdleInCup, clearStraightGlow, transitionCupPhase]);
 
   useEffect(() => {
     if (
@@ -1026,7 +965,10 @@ export default function DicePhysics({
           streamStartRef.current = now;
           lastPoseSampleRef.current = 0;
         }
-        if (now - lastPoseSampleRef.current >= (fast ? POSE_SAMPLE_FAST_MS : POSE_SAMPLE_SLOW_MS)) {
+        if (
+          now - lastPoseSampleRef.current >=
+          poseSampleIntervalMs(phase, POSE_SAMPLE_FAST_MS, POSE_SAMPLE_SLOW_MS)
+        ) {
           lastPoseSampleRef.current = now;
           onPoseFrameRef.current(samplePoseFrame(now));
         }
@@ -1085,7 +1027,7 @@ export default function DicePhysics({
         cup.setLinvel({ x: 0, y: 0, z: 0 }, true);
         cup.setAngvel({ x: 0, y: 0, z: 0 }, true);
         setCupVisible(false);
-        setCupPhase('settling');
+        transitionCupPhase('settling');
       }
     }
 

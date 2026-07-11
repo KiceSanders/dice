@@ -1,4 +1,5 @@
 import type { ClientMessage, ServerMessage } from '@dice/shared';
+import { parseServerMessage } from './protocol';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -90,14 +91,12 @@ export class WsClient {
     };
 
     socket.onmessage = (event) => {
-      let msg: ServerMessage;
-      try {
-        msg = JSON.parse(String(event.data)) as ServerMessage;
-      } catch {
-        console.warn('[ws] dropping unparseable message', event.data);
+      const parsed = parseServerMessage(String(event.data));
+      if (!parsed.ok) {
+        console.warn('[ws] dropping invalid server message', parsed.error, event.data);
         return;
       }
-      for (const listener of this.messageListeners) listener(msg);
+      for (const listener of this.messageListeners) listener(parsed.message);
     };
 
     socket.onclose = () => {

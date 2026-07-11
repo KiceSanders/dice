@@ -1,13 +1,14 @@
 import { CuboidCollider, RigidBody, TrimeshCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
-import { TABLE } from '../layout';
 import {
   createFeltColliderGeometry,
   createRailColliderGeometry,
   createWallColliderGeometry,
+  FELT_HALF_X,
+  FELT_HALF_Z,
+  TABLE,
   trimeshArgsFromGeometry,
-} from '../tableGeometry';
-import { FELT_HALF_X, FELT_HALF_Z } from './constants';
+} from '../geometry';
 import { useDicePhysicsTuning } from './tuning';
 
 /** Static colliders: felt surface + continuous oval rail and containment wall. */

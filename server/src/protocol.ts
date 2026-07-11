@@ -121,7 +121,14 @@ const validators: Record<ClientMessage['type'], Validator> = {
     m.frames.every(isPoseFrame)
       ? null
       : `frames must be 1-${MAX_FRAMES_PER_MESSAGE} pose frames`,
-  'turn:stand': () => null,
+  'turn:stand': (m) => {
+    if (m.restPose !== undefined) {
+      if (!Array.isArray(m.restPose) || m.restPose.length !== 5 || !m.restPose.every(isBodyPose)) {
+        return 'restPose must be exactly 5 body poses when present';
+      }
+    }
+    return null;
+  },
   'chat:send': (m) => (isNonEmptyString(m.text, 500) ? null : 'text must be a 1-500 char string'),
 };
 

@@ -918,21 +918,6 @@ code {
 
 /* -- Dice -- */
 
-.dice-row {
-  display: flex;
-  gap: 0.6rem;
-  justify-content: center;
-}
-
-.dice-row-small {
-  gap: 0.25rem;
-  justify-content: flex-start;
-}
-
-.die-wrap {
-  display: inline-block;
-}
-
 .die {
   display: inline-block;
   width: 56px;
@@ -993,141 +978,8 @@ button.die:hover {
   stroke: #1d242c;
 }
 
-/* -- Koozie animation -- */
-
-.koozie-stage {
-  position: relative;
-  min-height: 110px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-top: 30px;
-}
-
-.koozie-dice {
-  position: relative;
-  z-index: 1;
-}
-
 .dice-placeholder {
   margin: 1rem 0;
-}
-
-.koozie-cup {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  bottom: 4px;
-  width: 120px;
-  height: 110px;
-  margin-left: -60px;
-  pointer-events: none;
-  opacity: 0;
-  transform-origin: 50% 80%;
-}
-
-.koozie-cup-body {
-  position: absolute;
-  inset: 0 8px 0 8px;
-  background: linear-gradient(180deg, #b8412f, #7e2417);
-  border-radius: 14px 14px 40% 40%;
-  clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%);
-}
-
-.koozie-cup-rim {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -4px;
-  height: 12px;
-  background: #5e1a10;
-  border-radius: 50%;
-}
-
-.koozie-shaking .koozie-cup {
-  opacity: 1;
-  animation: koozie-shake 0.9s ease-in-out;
-}
-
-.koozie-shaking .die-unkept-wrap {
-  visibility: hidden;
-}
-
-.koozie-revealing .koozie-cup {
-  opacity: 0;
-  animation: koozie-lift 0.5s ease-in both;
-}
-
-.koozie-revealing .die-unkept-wrap .die {
-  animation: die-pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
-  animation-delay: calc(var(--die-i) * 90ms);
-}
-
-@keyframes koozie-shake {
-  0% {
-    transform: translateY(-30px) rotate(0deg);
-  }
-  10% {
-    transform: translateY(-26px) rotate(-14deg);
-  }
-  25% {
-    transform: translateY(-30px) rotate(12deg);
-  }
-  40% {
-    transform: translateY(-24px) rotate(-12deg);
-  }
-  55% {
-    transform: translateY(-28px) rotate(10deg);
-  }
-  70% {
-    transform: translateY(-22px) rotate(-8deg);
-  }
-  82% {
-    transform: translateY(-26px) rotate(6deg);
-  }
-  92%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  } /* slam */
-}
-
-@keyframes koozie-lift {
-  0% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-130px) rotate(-10deg);
-    opacity: 0;
-  }
-}
-
-@keyframes die-pop {
-  0% {
-    transform: scale(0.2) rotate(-30deg);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1) rotate(0);
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .koozie-cup,
-  .koozie-shaking .koozie-cup,
-  .koozie-revealing .koozie-cup {
-    animation: none;
-    opacity: 0;
-  }
-
-  .koozie-shaking .die-unkept-wrap {
-    visibility: visible;
-  }
-
-  .koozie-revealing .die-unkept-wrap .die {
-    animation: none;
-  }
 }
 
 /* -- Turn area & controls -- */
@@ -1523,21 +1375,6 @@ button.die:hover {
     width: 40px;
     height: 40px;
     border-radius: 9px;
-  }
-
-  .dice-row {
-    gap: 0.4rem;
-  }
-
-  .koozie-stage {
-    min-height: 90px;
-    padding-top: 22px;
-  }
-
-  .koozie-cup {
-    width: 96px;
-    height: 88px;
-    margin-left: -48px;
   }
 
   .hud-row {

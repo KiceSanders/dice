@@ -161,6 +161,26 @@ describe('GameEngine: authoritative rest pose (ADR 005)', () => {
     expect(state.currentTurn?.restPose).toBeNull();
   });
 
+  it('prefers the final stand pose over the earlier settle pose', () => {
+    const { engine, events } = makeEngine(makePlayers());
+    engine.start();
+    const settlePose = restPoseFor(DICE);
+    const standPose = settlePose.map((p, i): typeof p => [
+      p[0]!,
+      p[1]!,
+      p[2]! + 0.03 * (i + 1),
+      p[3]!,
+      p[4]!,
+      p[5]!,
+      p[6]!,
+    ]);
+    expect(roll(engine, 'p0', DICE, [], settlePose)).toBeNull();
+    expect(engine.stand('p0', standPose)).toBeNull();
+
+    expect(engine.publicState().rollToBeat?.restPose).toEqual(standPose);
+    expect(ofType(events, 'stood')[0]?.restPose).toEqual(standPose);
+  });
+
   it('carries the capping roll pose into rollToBeat on the roll-cap auto-stand', () => {
     const players = makePlayers();
     const { engine } = makeEngine(players);

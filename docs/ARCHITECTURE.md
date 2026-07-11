@@ -40,13 +40,19 @@ pointer release on the koozie
       → emit 'rolled' → persisted + broadcast turn:rolled { …, restPose }
       → applyStraightPayout (instant zero-sum side payment)
       → auto-stand at rollCap
-  → room.onEngineEvent    (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
+  → roomGameBridge.handleEngineEvent
+                         (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
   → room.broadcastState   (authoritative RoomSnapshot → every client; snapshot carries
                            currentTurn.restPose / rollToBeat.restPose for rejoiners)
   → client/src/state/store.ts reducer folds room:state / turn:rolled into AppState
   → pages/Room.tsx → resolveTableRestPose (single settled-layout resolver, ADR 005)
   → Table → TableCanvas → 3D scene re-renders
 ```
+
+When the roller clicks **Stand**, the client sends `turn:stand { restPose? }` with the
+current selecting layout (including dice newly moved to the rail after the last settle).
+The server soft-gates it with the same rest-pose validator and, if valid, replaces
+`currentTurn.restPose` before copying it into `rollToBeat.restPose`.
 
 Round-end delay: 5s (`ROUND_END_DELAY_MS`) → next round auto-starts. Disconnect/kick
 during a turn calls `forceStand` (stand on settled dice, or forfeit if none).
@@ -71,18 +77,22 @@ chip movements are reproduced, not stored.
 
 | File | Lines | Role |
 |---|---|---|
-| `client/src/table3d/dice/DicePhysics.tsx` | ~1200 | Imperative rapier cup/dice state machine (`CupPhase`) |
-| `server/src/room.ts` | ~680 | Membership + engine fan-out + persistence wiring |
-| `server/src/engine.ts` | ~640 | Round/turn state machine (socket-free) |
+| `client/src/table3d/dice/DicePhysics.tsx` | ~1100 | Imperative rapier cup/dice state machine (`CupPhase`) |
+| `server/src/room.ts` | ~590 | Membership + persistence wiring (engine fan-out → `roomGameBridge`) |
+| `server/src/engine.ts` | ~630 | Round/turn state machine (socket-free; throw validation → `throwLifecycle`) |
 | `client/src/dev/Playground.tsx` | ~590 | Dev-only scene sandbox (`/dev/play`) |
 
 These four are at their complexity budget. New behavior near them goes in a new module they
-call, not in more lines inside them (CODING_GUIDELINES §3).
+call, not in more lines inside them (CODING_GUIDELINES §3). Related extractions:
+`cupPhaseMachine`, `dicePointer`, `diceSettleHandoff`, `usePendingKeep`, `throwProtocol`,
+`useTableScene`, `roomGameBridge`, `throwLifecycle`. Cross-cutting table geometry constants
+and builders are re-exported from `client/src/table3d/geometry.ts`.
 
 ## Test layout
 
-Vitest, colocated `*.test.ts`, one root `npm test` discovers all workspaces. Engine tests
-script dice through `server/src/engine.testkit.ts` (`roll()` = beginThrow + commitThrow with
-explicit faces). WebSocket/multi-tab behavior is not unit-tested — use the smoke scripts
-(`server/scripts/smoke-*.mjs`) and the browser flows in
-[browser-testing.md](./browser-testing.md); the `verify-game-flow` skill wraps both.
+Vitest, colocated `*.test.ts` plus server integration specs in `server/test/`; one root
+`npm test` discovers all workspaces. Engine tests script dice through
+`server/src/engine.testkit.ts` (`roll()` = beginThrow + commitThrow with explicit faces).
+Browser multi-tab behavior is not unit-tested — use the smoke scripts
+(`server/scripts/smoke-*.mjs`) and the browser flows in [browser-testing.md](./browser-testing.md);
+the `verify-game-flow` skill wraps both.

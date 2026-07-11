@@ -1,4 +1,4 @@
-import type { BodyPose, Die, GameStatePublic, PoseFrame } from '@dice/shared';
+import type { BodyPose, Die, GameStatePublic, PlayerId, PoseFrame } from '@dice/shared';
 import { viewRotationY } from '../layout';
 import { rotateBodyPoseY } from '../seatTransform';
 import { DICE_COUNT, dieSlotPosition } from './constants';
@@ -48,6 +48,22 @@ export interface HeldRollInput {
   restPose: BodyPose[] | null;
 }
 
+export interface LiveRollInput extends HeldRollInput {
+  playerId: PlayerId;
+  rollNumber: number;
+}
+
+function isLiveTurnRoll(
+  lastRoll: LiveRollInput,
+  turn: NonNullable<GameStatePublic['currentTurn']> | null | undefined,
+): boolean {
+  if (!turn || turn.playerId !== lastRoll.playerId) return false;
+  // `turn:rolled` can arrive one snapshot before `currentTurn.rollsUsed`
+  // catches up. Once the turn advances, the snapshot's rollToBeat/currentTurn
+  // pose is authoritative and the local cache must not win.
+  return lastRoll.rollNumber === turn.rollsUsed || lastRoll.rollNumber === turn.rollsUsed + 1;
+}
+
 /**
  * Which roll the felt should show between throws, in priority order: the live
  * `turn:rolled` state, else the current turn from a snapshot (rejoin mid-turn),
@@ -55,11 +71,13 @@ export interface HeldRollInput {
  * rolled yet.
  */
 export function pickHeldRollInput(
-  lastRoll: HeldRollInput | null,
+  lastRoll: LiveRollInput | null,
   game: GameStatePublic | null,
 ): HeldRollInput | null {
-  if (lastRoll) return { dice: lastRoll.dice, kept: lastRoll.kept, restPose: lastRoll.restPose };
   const turn = game?.currentTurn;
+  if (lastRoll && isLiveTurnRoll(lastRoll, turn)) {
+    return { dice: lastRoll.dice, kept: lastRoll.kept, restPose: lastRoll.restPose };
+  }
   if (turn && turn.dice.length >= DICE_COUNT) {
     return { dice: turn.dice, kept: turn.keptIndices, restPose: turn.restPose };
   }

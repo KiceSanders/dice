@@ -17,9 +17,6 @@ const _hit = new THREE.Vector3();
 const _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -DICE_FELT_Y);
 const _guard = new THREE.Vector3();
 
-/** @deprecated Use DICE_FELT_Y */
-export const DICE_PLANE_Y = DICE_FELT_Y;
-
 function clientToNdc(
   clientX: number,
   clientY: number,
@@ -41,13 +38,14 @@ function raycastPlane(ndcX: number, ndcY: number, camera: Camera, planeY: number
   return _hit;
 }
 
-function clampToFeltEllipse(
+export function clampToFeltEllipse(
   point: THREE.Vector3,
   inset = FELT_CLAMP_MARGIN,
   extraInset = 0,
+  minSemiAxis = 0.05,
 ): THREE.Vector3 {
-  const a = Math.max(FELT_BOUND_X - inset - extraInset, 0.05);
-  const b = Math.max(FELT_BOUND_Z - inset - extraInset, 0.05);
+  const a = Math.max(FELT_BOUND_X - inset - extraInset, minSemiAxis);
+  const b = Math.max(FELT_BOUND_Z - inset - extraInset, minSemiAxis);
   const nx = point.x / a;
   const nz = point.z / b;
   const dist = Math.hypot(nx, nz);
@@ -189,14 +187,4 @@ export function hitCup(
     hitCupScreen(clientX, clientY, canvas, camera, cupCenter, radiusPx) ||
     hitCupWorld(clientX, clientY, canvas, camera, cupCenter, radiusWorld)
   );
-}
-
-/** @deprecated Use pointerCenterPosition or pointerDiePosition. */
-export function pointerToFelt(
-  clientX: number,
-  clientY: number,
-  canvas: HTMLCanvasElement,
-  camera: Camera,
-): THREE.Vector3 {
-  return pointerCenterPosition(clientX, clientY, canvas, camera, DICE_FELT_Y).clone();
 }

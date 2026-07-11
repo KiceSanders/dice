@@ -1,18 +1,16 @@
 import { useMemo } from 'react';
 import {
+  createExtrudedOvalRingGeometry,
+  createFeltGeometry,
+  createRailHighlightGeometry,
+  createRailRingGeometry,
   FELT_SCALE,
   RAIL_HIGHLIGHT_SCALE,
   RAIL_INNER_WORLD,
   RAIL_MESH_SCALE,
   RAIL_OUTER_WORLD,
   TABLE,
-} from './layout';
-import {
-  createExtrudedOvalRingGeometry,
-  createFeltGeometry,
-  createRailHighlightGeometry,
-  createRailRingGeometry,
-} from './tableGeometry';
+} from './geometry';
 import { DEFAULT_TABLE_THEME, type TableTheme } from './theme';
 
 /** How far the solid rail apron drops below the surface (world units). */

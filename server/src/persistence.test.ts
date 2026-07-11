@@ -124,12 +124,21 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(room.startGame(host.id)).toBeNull();
 
     const engine = room.engine!;
-    const standPose = restPoseFor([3, 3, 2, 2, 1]);
+    const settlePose = restPoseFor([3, 3, 2, 2, 1]);
+    const standPose = settlePose.map((p, i): typeof p => [
+      p[0]!,
+      p[1]!,
+      p[2]! + 0.02 * (i + 1),
+      p[3]!,
+      p[4]!,
+      p[5]!,
+      p[6]!,
+    ]);
     expect(engine.beginThrow(host.id, [])).toBeNull();
     expect(engine.commitThrow(host.id, [3, 3, 4, 5, 6])).toBeNull();
     expect(engine.beginThrow(host.id, [0, 1])).toBeNull();
-    expect(engine.commitThrow(host.id, [3, 3, 2, 2, 1], standPose)).toBeNull();
-    expect(engine.stand(host.id)).toBeNull();
+    expect(engine.commitThrow(host.id, [3, 3, 2, 2, 1], settlePose)).toBeNull();
+    expect(engine.stand(host.id, standPose)).toBeNull();
 
     // p1's roll reports no pose (e.g. pre-ADR-005 client) — must replay as null.
     expect(engine.beginThrow(p1.id, [])).toBeNull();

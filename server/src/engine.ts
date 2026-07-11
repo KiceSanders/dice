@@ -17,8 +17,13 @@ import {
   orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
-  validateRestPose,
 } from '@dice/shared';
+import {
+  softGateRestPose,
+  validateCommitDice,
+  validateKeepIndices,
+  validateKeptUnchanged,
+} from './throwLifecycle.js';
 
 /** Live view of a seated player. The engine mutates `chips` directly. */
 export interface EnginePlayer {
@@ -40,7 +45,14 @@ export type EngineEvent =
       /** Validated rest pose (canonical space, ADR 005) or null when unavailable. */
       restPose: BodyPose[] | null;
     }
-  | { type: 'stood'; playerId: PlayerId; dice: Die[]; score: HandScore }
+  | {
+      type: 'stood';
+      playerId: PlayerId;
+      dice: Die[];
+      score: HandScore;
+      /** Final display pose at stand time, if available (ADR 005). */
+      restPose: BodyPose[] | null;
+    }
   /** Turn ended with no completed roll (disconnect/kick): no hand. */
   | { type: 'forfeited'; playerId: PlayerId }
   | {
@@ -74,6 +86,10 @@ export type EngineError = {
   message: string;
 };
 const err = (code: EngineError['code'], message: string): EngineError => ({ code, message });
+
+function cloneRestPose(restPose: BodyPose[] | null): BodyPose[] | null {
+  return restPose ? restPose.map((p): BodyPose => [...p]) : null;
+}
 
 export interface EngineOptions {
   roundEndDelayMs?: number;
@@ -316,8 +332,8 @@ export class GameEngine {
     if (turn.dice === null) {
       if (keepIndices.length > 0) return err('BAD_REQUEST', 'nothing to keep on the first roll');
     } else {
-      const valid = this.validateKeep(keepIndices);
-      if (valid) return valid;
+      const valid = validateKeepIndices(keepIndices);
+      if (valid) return err(valid.code, valid.message);
       if (keepIndices.length === HAND_SIZE) {
         return err('BAD_REQUEST', 'all dice kept — stand instead');
       }
@@ -346,25 +362,19 @@ export class GameEngine {
     if (!pending || pending.playerId !== playerId) {
       return err('BAD_REQUEST', 'no throw in flight');
     }
-    if (dice.length !== HAND_SIZE) return err('BAD_REQUEST', `expected ${HAND_SIZE} dice`);
-    if (!dice.every((d) => Number.isInteger(d) && d >= 1 && d <= 6)) {
-      return err('BAD_REQUEST', 'dice must be integers in [1, 6]');
-    }
+    const diceErr = validateCommitDice(dice);
+    if (diceErr) return err(diceErr.code, diceErr.message);
     if (turn.dice !== null) {
-      for (const i of pending.keepIndices) {
-        if (dice[i] !== turn.dice[i]) return err('BAD_REQUEST', 'kept dice cannot change value');
-      }
+      const keptErr = validateKeptUnchanged(turn.dice, dice, pending.keepIndices);
+      if (keptErr) return err(keptErr.code, keptErr.message);
     }
 
     // Soft gate (ADR 005): a bad pose is dropped, never the throw — the dice
     // values stay authoritative (this also covers dev face overrides, whose
     // reported values intentionally disagree with the physics pose).
-    let pose: BodyPose[] | null = null;
-    if (restPose) {
-      const reason = validateRestPose(restPose, dice);
-      if (reason === null) pose = restPose;
-      else console.warn(`rest pose dropped for ${playerId}: ${reason}`);
-    }
+    const pose = softGateRestPose(restPose, dice, (reason) => {
+      console.warn(`rest pose dropped for ${playerId}: ${reason}`);
+    });
 
     this.clearPendingThrow();
     return this.settleRoll(turn, dice, pending.keepIndices, pose);
@@ -397,7 +407,7 @@ export class GameEngine {
     turn.dice = [...dice];
     turn.rollsUsed += 1;
     turn.keptIndices = [...kept];
-    turn.restPose = restPose ? restPose.map((p): BodyPose => [...p]) : null;
+    turn.restPose = cloneRestPose(restPose);
     this.emit({
       type: 'rolled',
       playerId: turn.playerId,
@@ -422,7 +432,7 @@ export class GameEngine {
    * roll-to-beat (shared `canStandVoluntarily` — ties are allowed). Forced
    * stands (roll cap, keep-all, disconnect/kick) call `stand` directly.
    */
-  standVoluntarily(playerId: PlayerId): EngineError | null {
+  standVoluntarily(playerId: PlayerId, restPose?: BodyPose[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
@@ -430,25 +440,38 @@ export class GameEngine {
     if (!canStandVoluntarily(turn.dice, turn.rollsUsed, this.rollToBeat?.score ?? null)) {
       return err('STAND_NOT_ALLOWED', 'beat or tie the roll to beat, or keep rolling');
     }
-    return this.stand(playerId);
+    return this.stand(playerId, restPose);
   }
 
-  stand(playerId: PlayerId): EngineError | null {
+  stand(playerId: PlayerId, restPose?: BodyPose[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
     if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
 
+    if (restPose !== undefined) {
+      const pose = softGateRestPose(restPose, turn.dice, (reason) => {
+        console.warn(`stand rest pose dropped for ${playerId}: ${reason}`);
+      });
+      if (pose) turn.restPose = cloneRestPose(pose);
+    }
+
     const score = this.scoreFor(turn);
     this.hands.set(playerId, { score, dice: [...turn.dice] });
-    this.emit({ type: 'stood', playerId, dice: [...turn.dice], score: { ...score } });
+    this.emit({
+      type: 'stood',
+      playerId,
+      dice: [...turn.dice],
+      score: { ...score },
+      restPose: cloneRestPose(turn.restPose),
+    });
 
     if (this.rollToBeat === null || compareHands(score, this.rollToBeat.score) > 0) {
       this.rollToBeat = {
         playerIds: [playerId],
         score,
         dice: [...turn.dice],
-        restPose: turn.restPose,
+        restPose: cloneRestPose(turn.restPose),
       };
     } else if (compareHands(score, this.rollToBeat.score) === 0) {
       if (!this.rollToBeat.playerIds.includes(playerId)) {
@@ -529,17 +552,6 @@ export class GameEngine {
     return this.currentTurn;
   }
 
-  private validateKeep(keepIndices: number[]): EngineError | null {
-    const unique = new Set(keepIndices);
-    if (unique.size !== keepIndices.length) return err('BAD_REQUEST', 'duplicate keep indices');
-    for (const i of keepIndices) {
-      if (!Number.isInteger(i) || i < 0 || i >= HAND_SIZE) {
-        return err('BAD_REQUEST', `invalid keep index: ${i}`);
-      }
-    }
-    return null;
-  }
-
   private scoreFor(turn: CurrentTurn): HandScore {
     if (!turn.dice) throw new Error('scoring a turn with no dice');
     return scoreHand(turn.dice, turn.rollsUsed);
@@ -595,13 +607,7 @@ export class GameEngine {
   }
 
   /** Restore from a compaction snapshot (always taken at a round boundary). */
-  restore(state: {
-    roundNumber: number;
-    pot: number;
-    lastFirstRollerSeat?: number | null;
-    /** @deprecated pre-turn-order-rule snapshots; ignored. */
-    lastWinnerId?: PlayerId | null;
-  }): void {
+  restore(state: { roundNumber: number; pot: number; lastFirstRollerSeat?: number | null }): void {
     this.roundNumber = state.roundNumber;
     this.pot = state.pot;
     this.lastFirstRollerSeat = state.lastFirstRollerSeat ?? null;

@@ -1,9 +1,45 @@
-import type { ServerMessage } from '@dice/shared';
+import type { Die, RoomSnapshot, ServerMessage } from '@dice/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { initialState, reducer } from './store';
+import { type AppState, initialState, reducer } from './store';
 
-function receive(message: ServerMessage) {
-  return reducer(initialState, { type: 'server-message', message });
+function receive(message: ServerMessage, state: AppState = initialState) {
+  return reducer(state, { type: 'server-message', message });
+}
+
+function player(
+  id: string,
+  opts: { name?: string; seat?: number | null; banned?: boolean; isHost?: boolean } = {},
+) {
+  return {
+    id,
+    name: opts.name ?? id,
+    seat: opts.seat === undefined ? null : opts.seat,
+    chips: 10,
+    connected: true,
+    banned: opts.banned ?? false,
+    isHost: opts.isHost ?? false,
+  };
+}
+
+function snapshot(
+  partial: Partial<RoomSnapshot> & { players: RoomSnapshot['players'] },
+): RoomSnapshot {
+  return {
+    roomId: 'ROOM1',
+    hostId: partial.hostId ?? partial.players[0]?.id ?? 'host',
+    phase: partial.phase ?? 'lobby',
+    settings: partial.settings ?? {
+      chipsPerRound: 1,
+      maxRolls: 3,
+      maxPlayers: 3,
+      minBuyIn: 5,
+      maxBuyIn: 50,
+      straightPayout: { enabled: true, amountPerPlayer: 2 },
+    },
+    players: partial.players,
+    seatRequests: partial.seatRequests ?? [],
+    game: partial.game ?? null,
+  };
 }
 
 afterEach(() => {
@@ -35,24 +71,22 @@ describe('ante announcements', () => {
   });
 
   it('captures the pre-ante pot at message time, before the post-ante snapshot lands', () => {
-    const snapshot = { game: { pot: 3 } } as unknown as NonNullable<
-      (typeof initialState)['snapshot']
-    >;
-    const state = reducer(
-      { ...initialState, snapshot },
+    const snap = snapshot({
+      players: [player('p1', { seat: 0 })],
+      game: { pot: 3 } as RoomSnapshot['game'],
+    });
+    const state = receive(
       {
-        type: 'server-message',
-        message: {
-          type: 'subround:started',
-          tiedPlayerIds: ['p1', 'p2'],
-          anteAmount: 2,
-          depth: 1,
-          antes: [
-            { playerId: 'p1', amount: 2 },
-            { playerId: 'p2', amount: 2 },
-          ],
-        },
+        type: 'subround:started',
+        tiedPlayerIds: ['p1', 'p2'],
+        anteAmount: 2,
+        depth: 1,
+        antes: [
+          { playerId: 'p1', amount: 2 },
+          { playerId: 'p2', amount: 2 },
+        ],
       },
+      { ...initialState, snapshot: snap },
     );
 
     expect(state.lastAnte?.potBefore).toBe(3);
@@ -106,5 +140,234 @@ describe('instant transfers', () => {
       ],
       receivedAt: 3_456,
     });
+  });
+});
+
+describe('room:state diffs', () => {
+  it('toasts when the local player is kicked', () => {
+    const prev = snapshot({
+      hostId: 'host',
+      players: [player('host', { seat: 0, name: 'Host' }), player('me', { seat: 1, name: 'Me' })],
+    });
+    const next = snapshot({
+      hostId: 'host',
+      players: [
+        player('host', { seat: 0, name: 'Host' }),
+        player('me', { seat: null, name: 'Me', banned: true }),
+      ],
+    });
+    const state = receive(
+      { type: 'room:state', snapshot: next },
+      { ...initialState, me: { playerId: 'me', rejoinToken: 't' }, snapshot: prev },
+    );
+    expect(state.toasts.some((t) => t.text.includes('kicked'))).toBe(true);
+    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('was kicked'))).toBe(true);
+  });
+
+  it('toasts on host transfer', () => {
+    const prev = snapshot({
+      hostId: 'old',
+      players: [player('old', { seat: 0, name: 'Old' }), player('me', { seat: 1, name: 'Me' })],
+    });
+    const next = snapshot({
+      hostId: 'me',
+      players: [player('old', { seat: 0, name: 'Old' }), player('me', { seat: 1, name: 'Me' })],
+    });
+    const state = receive(
+      { type: 'room:state', snapshot: next },
+      { ...initialState, me: { playerId: 'me', rejoinToken: 't' }, snapshot: prev },
+    );
+    expect(state.toasts.some((t) => t.text === 'You are now the host')).toBe(true);
+  });
+
+  it('adds a system line when a player joins', () => {
+    const prev = snapshot({ players: [player('host', { seat: 0, name: 'Host' })] });
+    const next = snapshot({
+      players: [player('host', { seat: 0, name: 'Host' }), player('new', { name: 'New' })],
+    });
+    const state = receive(
+      { type: 'room:state', snapshot: next },
+      { ...initialState, me: { playerId: 'host', rejoinToken: 't' }, snapshot: prev },
+    );
+    expect(state.chat.some((c) => c.kind === 'system' && c.text === 'New joined')).toBe(true);
+  });
+});
+
+describe('turn and round messages', () => {
+  it('records turn:rolled into lastRoll', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(9_999);
+    const dice = [1, 2, 3, 4, 5] as Die[];
+    const state = receive({
+      type: 'turn:rolled',
+      playerId: 'p1',
+      dice,
+      rollNumber: 2,
+      kept: [0, 1],
+      restPose: null,
+    });
+    expect(state.lastRoll).toEqual({
+      playerId: 'p1',
+      dice,
+      rollNumber: 2,
+      kept: [0, 1],
+      restPose: null,
+      receivedAt: 9_999,
+    });
+  });
+
+  it('clears cached lastRoll on room join and new round boundaries', () => {
+    const stale = {
+      playerId: 'p1',
+      dice: [1, 2, 3, 4, 5] as Die[],
+      rollNumber: 1,
+      kept: [],
+      restPose: null,
+      receivedAt: 1,
+    };
+    const withStaleRoll: AppState = { ...initialState, lastRoll: stale };
+
+    expect(
+      receive(
+        {
+          type: 'room:joined',
+          playerId: 'p1',
+          rejoinToken: 'token',
+          snapshot: snapshot({ players: [player('p1')] }),
+        },
+        withStaleRoll,
+      ).lastRoll,
+    ).toBeNull();
+    expect(
+      receive({ type: 'round:started', roundNumber: 2, antes: [] }, withStaleRoll).lastRoll,
+    ).toBeNull();
+    expect(
+      receive(
+        {
+          type: 'subround:started',
+          tiedPlayerIds: ['p1'],
+          anteAmount: 2,
+          depth: 1,
+          antes: [],
+        },
+        withStaleRoll,
+      ).lastRoll,
+    ).toBeNull();
+  });
+
+  it('leaves state unchanged for streaming messages', () => {
+    const before = { ...initialState, roomId: 'X' };
+    expect(
+      receive({ type: 'turn:throwStarted', playerId: 'p1', kept: [], rollNumber: 1 }, before),
+    ).toBe(before);
+    expect(receive({ type: 'dice:frames', playerId: 'p1', frames: [] }, before)).toBe(before);
+  });
+
+  it('records round:ended and a system chat line', () => {
+    const snap = snapshot({
+      players: [player('winner', { seat: 0, name: 'Winner' })],
+    });
+    const state = receive(
+      {
+        type: 'round:ended',
+        winnerId: 'winner',
+        potWon: 4,
+        scores: [],
+      },
+      { ...initialState, snapshot: snap },
+    );
+    expect(state.roundEnd?.winnerId).toBe('winner');
+    expect(state.roundEnd?.potWon).toBe(4);
+    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('wins the round'))).toBe(
+      true,
+    );
+  });
+
+  it('records a forfeit system line', () => {
+    const snap = snapshot({ players: [player('p1', { name: 'Pat' })] });
+    const state = receive(
+      { type: 'turn:forfeited', playerId: 'p1' },
+      { ...initialState, snapshot: snap },
+    );
+    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('forfeited'))).toBe(true);
+  });
+});
+
+describe('errors and chat', () => {
+  it('sets joinError for ROOM_NOT_FOUND', () => {
+    const state = receive({
+      type: 'error',
+      code: 'ROOM_NOT_FOUND',
+      message: 'gone',
+    });
+    expect(state.joinError).toEqual({ code: 'ROOM_NOT_FOUND', message: 'gone' });
+    expect(state.toasts).toHaveLength(0);
+  });
+
+  it('toasts other errors', () => {
+    const state = receive({ type: 'error', code: 'BAD_REQUEST', message: 'bad' });
+    expect(state.toasts.some((t) => t.kind === 'error' && t.text === 'bad')).toBe(true);
+  });
+
+  it('deduplicates chat messages on rejoin replay', () => {
+    const msg: ServerMessage = {
+      type: 'chat:message',
+      playerId: 'p1',
+      playerName: 'Pat',
+      text: 'hi',
+      ts: 100,
+    };
+    const once = receive(msg);
+    const twice = receive(msg, once);
+    expect(twice.chat.filter((c) => c.kind === 'chat')).toHaveLength(1);
+  });
+
+  it('toasts seat request and denial', () => {
+    const requested = receive({
+      type: 'seat:requested',
+      playerId: 'p2',
+      playerName: 'Bob',
+      buyIn: 10,
+    });
+    expect(requested.toasts.some((t) => t.text.includes('Bob'))).toBe(true);
+    const denied = receive({ type: 'seat:denied' });
+    expect(denied.toasts.some((t) => t.text.includes('denied'))).toBe(true);
+  });
+});
+
+describe('local actions', () => {
+  it('leave-room preserves connection status', () => {
+    const state = reducer(
+      {
+        ...initialState,
+        connection: 'open',
+        roomId: 'R',
+        me: { playerId: 'p', rejoinToken: 't' },
+      },
+      { type: 'leave-room' },
+    );
+    expect(state.roomId).toBeNull();
+    expect(state.me).toBeNull();
+    expect(state.connection).toBe('open');
+  });
+
+  it('sets room identity on room:created and room:joined', () => {
+    const created = receive({
+      type: 'room:created',
+      roomId: 'ABC',
+      playerId: 'p1',
+      rejoinToken: 'tok',
+    });
+    expect(created.roomId).toBe('ABC');
+    expect(created.me).toEqual({ playerId: 'p1', rejoinToken: 'tok' });
+
+    const snap = snapshot({ players: [player('p1', { seat: 0 })] });
+    const joined = receive({
+      type: 'room:joined',
+      playerId: 'p1',
+      rejoinToken: 'tok',
+      snapshot: snap,
+    });
+    expect(joined.snapshot).toBe(snap);
+    expect(joined.lastAnte).toBeNull();
   });
 });
