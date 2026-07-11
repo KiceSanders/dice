@@ -68,7 +68,7 @@ update this table.**
 | `forfeited` | `forfeited` ✓ | `turn:forfeited` | system chat line |
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
 | `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + toast |
-| `straightPaid` | `straightPaid` ✓ | `straight:paid` | toast + chat line |
+| `straightPaid` | `straightPaid` ✓ | `straight:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |
 

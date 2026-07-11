@@ -1,6 +1,7 @@
 export const CHIP_ANTE_TRAVEL_MS = 650;
 export const CHIP_ANTE_STAGGER_MS = 320;
 export const CHIP_AWARD_TRAVEL_MS = 900;
+export const CHIP_TRANSFER_TRAVEL_MS = 700;
 export const CHIP_EVENT_REPLAY_MS = 1_500;
 
 export interface Point2 {

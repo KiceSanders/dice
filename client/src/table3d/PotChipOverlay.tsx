@@ -7,13 +7,14 @@ import {
   CHIP_ANTE_TRAVEL_MS,
   CHIP_AWARD_TRAVEL_MS,
   CHIP_EVENT_REPLAY_MS,
+  CHIP_TRANSFER_TRAVEL_MS,
   chipAnimationsEnabled,
   chipFlightPoint,
   lerpPoint,
   type Point2,
   staggerDelay,
 } from './chipFlow';
-import { layoutPotChips, type PotChipPoint } from './potChipLayout';
+import { layoutPotChips, MAX_COIN_RADIUS, type PotChipPoint } from './potChipLayout';
 import { useTableEvent } from './tableEvents';
 
 interface ChipColors {
@@ -98,9 +99,14 @@ function playerTarget(playerId: PlayerId): Point2 | null {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-interface AnteFlight {
-  kind: 'ante';
+/** Independent coins in flight (antes into the pot, player-to-player transfers). */
+interface CoinFlight {
+  kind: 'coins';
   startedAt: number;
+  travelMs: number;
+  doneAt: number;
+  /** Antes reveal the grown pyramid when they land; transfers leave the pot alone. */
+  commitsPot: boolean;
   coins: { from: Point2; to: Point2; radius: number; delay: number }[];
 }
 
@@ -111,7 +117,7 @@ interface AwardFlight {
   offset: Point2;
 }
 
-type ActiveFlight = AnteFlight | AwardFlight;
+type ActiveFlight = CoinFlight | AwardFlight;
 
 interface Props {
   pot: number;
@@ -121,7 +127,7 @@ interface Props {
 export default function PotChipOverlay({ pot }: Props) {
   const potCanvasRef = useRef<HTMLCanvasElement>(null);
   const flowCanvasRef = useRef<HTMLCanvasElement>(null);
-  const activeRef = useRef<ActiveFlight | null>(null);
+  const flightsRef = useRef<ActiveFlight[]>([]);
   const potRef = useRef(pot);
   const rafRef = useRef<number | null>(null);
   const frameRef = useRef<(now: number) => void>(() => {});
@@ -144,47 +150,49 @@ export default function PotChipOverlay({ pot }: Props) {
 
   frameRef.current = () => {
     const now = Date.now();
-    const active = activeRef.current;
     const flowCanvas = flowCanvasRef.current;
     const potCanvas = potCanvasRef.current;
-    if (!active || !flowCanvas || !potCanvas) return;
+    if (flightsRef.current.length === 0 || !flowCanvas || !potCanvas) return;
     const context = prepareCanvas(flowCanvas, window.innerWidth, window.innerHeight);
     if (!context) return;
     const colors = readColors(potCanvas);
 
-    if (active.kind === 'ante') {
-      for (const coin of active.coins) {
-        const progress = animationProgress(now, active.startedAt, CHIP_ANTE_TRAVEL_MS, coin.delay);
-        const point = chipFlightPoint(coin.from, coin.to, progress);
-        drawCoin(context, { ...point, radius: coin.radius }, colors);
+    const remaining: ActiveFlight[] = [];
+    for (const flight of flightsRef.current) {
+      if (flight.kind === 'coins') {
+        for (const coin of flight.coins) {
+          const progress = animationProgress(now, flight.startedAt, flight.travelMs, coin.delay);
+          const point = chipFlightPoint(coin.from, coin.to, progress);
+          drawCoin(context, { ...point, radius: coin.radius }, colors);
+        }
+        if (now >= flight.doneAt) {
+          if (flight.commitsPot) setDisplayPot(potRef.current);
+          continue;
+        }
+      } else {
+        const progress = animationProgress(now, flight.startedAt, CHIP_AWARD_TRAVEL_MS);
+        const offset = lerpPoint({ x: 0, y: 0 }, flight.offset, progress);
+        context.globalAlpha = progress > 0.75 ? 1 - (progress - 0.75) / 0.25 : 1;
+        for (const point of flight.from) {
+          drawCoin(
+            context,
+            { x: point.x + offset.x, y: point.y + offset.y, radius: point.radius },
+            colors,
+          );
+        }
+        context.globalAlpha = 1;
+        if (progress >= 1) {
+          setDisplayPot(potRef.current);
+          continue;
+        }
       }
-      const doneAt = active.startedAt + CHIP_ANTE_TRAVEL_MS + CHIP_ANTE_STAGGER_MS;
-      if (now >= doneAt) {
-        activeRef.current = null;
-        setDisplayPot(potRef.current);
-        clearFlowCanvas();
-        rafRef.current = null;
-        return;
-      }
-    } else {
-      const progress = animationProgress(now, active.startedAt, CHIP_AWARD_TRAVEL_MS);
-      const offset = lerpPoint({ x: 0, y: 0 }, active.offset, progress);
-      context.globalAlpha = progress > 0.75 ? 1 - (progress - 0.75) / 0.25 : 1;
-      for (const point of active.from) {
-        drawCoin(
-          context,
-          { x: point.x + offset.x, y: point.y + offset.y, radius: point.radius },
-          colors,
-        );
-      }
-      context.globalAlpha = 1;
-      if (progress >= 1) {
-        activeRef.current = null;
-        setDisplayPot(potRef.current);
-        clearFlowCanvas();
-        rafRef.current = null;
-        return;
-      }
+      remaining.push(flight);
+    }
+    flightsRef.current = remaining;
+    if (remaining.length === 0) {
+      clearFlowCanvas();
+      rafRef.current = null;
+      return;
     }
     rafRef.current = requestAnimationFrame(frameRef.current);
   };
@@ -203,7 +211,7 @@ export default function PotChipOverlay({ pot }: Props) {
       const finalLayout = layoutPotChips(finalPot, rect.width, rect.height - 2);
       const incoming = finalLayout.points.slice(event.potBefore);
       const fallback = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      const coins: AnteFlight['coins'] = [];
+      const coins: CoinFlight['coins'] = [];
       let index = 0;
       for (const contribution of event.contributions) {
         const from = playerTarget(contribution.playerId) ?? fallback;
@@ -221,7 +229,56 @@ export default function PotChipOverlay({ pot }: Props) {
         }
       }
       setDisplayPot(event.potBefore);
-      activeRef.current = { kind: 'ante', startedAt: at, coins };
+      flightsRef.current = [
+        ...flightsRef.current,
+        {
+          kind: 'coins',
+          startedAt: at,
+          travelMs: CHIP_ANTE_TRAVEL_MS,
+          doneAt: at + CHIP_ANTE_TRAVEL_MS + CHIP_ANTE_STAGGER_MS,
+          commitsPot: true,
+          coins,
+        },
+      ];
+      startLoop();
+    },
+    { replayLastMs: CHIP_EVENT_REPLAY_MS },
+  );
+
+  useTableEvent(
+    'chips-between-players',
+    (event, at) => {
+      if (!animationsEnabled()) return;
+      const to = playerTarget(event.toPlayerId);
+      if (!to) return;
+      const total = event.payments.reduce((sum, entry) => sum + entry.amount, 0);
+      if (total <= 0) return;
+
+      const coins: CoinFlight['coins'] = [];
+      let index = 0;
+      for (const payment of event.payments) {
+        const from = playerTarget(payment.playerId);
+        if (!from) {
+          index += payment.amount;
+          continue;
+        }
+        for (let chip = 0; chip < payment.amount; chip += 1) {
+          coins.push({ from, to, radius: MAX_COIN_RADIUS, delay: staggerDelay(index, total) });
+          index += 1;
+        }
+      }
+      if (coins.length === 0) return;
+      flightsRef.current = [
+        ...flightsRef.current,
+        {
+          kind: 'coins',
+          startedAt: at,
+          travelMs: CHIP_TRANSFER_TRAVEL_MS,
+          doneAt: at + CHIP_TRANSFER_TRAVEL_MS + CHIP_ANTE_STAGGER_MS,
+          commitsPot: false,
+          coins,
+        },
+      ];
       startLoop();
     },
     { replayLastMs: CHIP_EVENT_REPLAY_MS },
@@ -243,12 +300,15 @@ export default function PotChipOverlay({ pot }: Props) {
       }));
       const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
       setDisplayPot(0);
-      activeRef.current = {
-        kind: 'award',
-        startedAt: at,
-        from,
-        offset: { x: target.x - center.x, y: target.y - center.y },
-      };
+      flightsRef.current = [
+        ...flightsRef.current,
+        {
+          kind: 'award',
+          startedAt: at,
+          from,
+          offset: { x: target.x - center.x, y: target.y - center.y },
+        },
+      ];
       startLoop();
     },
     { replayLastMs: CHIP_EVENT_REPLAY_MS },
@@ -256,7 +316,10 @@ export default function PotChipOverlay({ pot }: Props) {
 
   useEffect(() => {
     potRef.current = pot;
-    if (!activeRef.current) setDisplayPot(pot);
+    const potInFlight = flightsRef.current.some(
+      (flight) => flight.kind === 'award' || (flight.kind === 'coins' && flight.commitsPot),
+    );
+    if (!potInFlight) setDisplayPot(pot);
   }, [pot]);
 
   useEffect(() => {

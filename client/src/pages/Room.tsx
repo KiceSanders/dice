@@ -29,6 +29,7 @@ export default function Room() {
   const [revealedRoundEndAt, setRevealedRoundEndAt] = useState<number | null>(null);
   const emittedAnteAtRef = useRef<number | null>(null);
   const emittedAwardAtRef = useRef<number | null>(null);
+  const emittedTransferAtRef = useRef<number | null>(null);
 
   const alreadyInRoom = state.roomId === roomId && state.me !== null;
   const joinSentRef = useRef(false);
@@ -71,6 +72,24 @@ export default function Room() {
       ante.receivedAt,
     );
   }, [state.lastAnte]);
+
+  // Instant player-to-player transfers (straight payout today; any future
+  // instant bet that sets lastTransfer animates through here automatically).
+  useEffect(() => {
+    const transfer = state.lastTransfer;
+    if (!transfer || emittedTransferAtRef.current === transfer.receivedAt) return;
+    emittedTransferAtRef.current = transfer.receivedAt;
+    const payments = transfer.payments.filter((entry) => entry.amount > 0);
+    if (payments.length === 0) return;
+    tableEvents.emit(
+      {
+        type: 'chips-between-players',
+        toPlayerId: transfer.toPlayerId,
+        payments,
+      },
+      transfer.receivedAt,
+    );
+  }, [state.lastTransfer]);
 
   useEffect(() => {
     const roundEnd = state.roundEnd;

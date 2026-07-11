@@ -10,7 +10,8 @@ export interface PotChipLayout {
   points: PotChipPoint[];
 }
 
-const MAX_COIN_RADIUS = 9;
+/** Full-size coin radius; also the size of chips flying between seats. */
+export const MAX_COIN_RADIUS = 9;
 const HORIZONTAL_STEP_RADIUS = 1.7;
 const VERTICAL_STEP_RADIUS = 1.25;
 

@@ -110,6 +110,7 @@ export type ServerMessage =
       kind: Exclude<StraightKind, 'none'>;
       amountPerPlayer: number;
       total: number;
+      /** Actual per-payer transfers; may be below amountPerPlayer for short stacks. */
       payments: { playerId: PlayerId; amount: number }[];
     }
   | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }

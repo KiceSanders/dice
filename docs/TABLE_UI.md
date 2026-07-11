@@ -50,7 +50,10 @@ The straight celebration already flows through it — copy that pattern:
 **Never** thread a new effect prop through `Room → Table → TableCanvas → renderers`.
 That prop-drilling pattern was removed deliberately.
 
-The animated pot follows this path with `chips-to-pot` and `pot-to-winner` events. Its
+The animated pot follows this path with `chips-to-pot` and `pot-to-winner` events, and
+instant player-to-player payouts (straight payments today) with `chips-between-players` —
+a new instant side bet animates for free by setting `lastTransfer` in the store reducer;
+Room.tsx emits the event and the overlay flies chips seat-to-seat, pot untouched. Its
 renderer is an independent, pointer-transparent DOM canvas in `PotChipOverlay`, so it is
 present for the active roller, spectators, and the static between-turn view without being
 owned by any dice renderer. Live ante messages carry exact per-player payments; snapshots

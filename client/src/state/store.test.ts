@@ -82,3 +82,29 @@ describe('ante announcements', () => {
     });
   });
 });
+
+describe('instant transfers', () => {
+  it('retains straight payments as a player-to-player transfer', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(3_456);
+    const state = receive({
+      type: 'straight:paid',
+      playerId: 'roller',
+      kind: 'straight',
+      amountPerPlayer: 2,
+      total: 3,
+      payments: [
+        { playerId: 'p2', amount: 2 },
+        { playerId: 'p3', amount: 1 },
+      ],
+    });
+
+    expect(state.lastTransfer).toEqual({
+      toPlayerId: 'roller',
+      payments: [
+        { playerId: 'p2', amount: 2 },
+        { playerId: 'p3', amount: 1 },
+      ],
+      receivedAt: 3_456,
+    });
+  });
+});

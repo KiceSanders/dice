@@ -56,6 +56,18 @@ export interface AnteInfo {
   receivedAt: number;
 }
 
+/**
+ * Last instant player-to-player transfer (straight payout today; any future
+ * instant side bet sets this too). The seat-to-seat chip flight feeds off it —
+ * a new instant-transfer message only needs a reducer case that fills this in.
+ */
+export interface TransferInfo {
+  toPlayerId: PlayerId;
+  /** Actual per-payer amounts (already clamped server-side for short stacks). */
+  payments: { playerId: PlayerId; amount: number }[];
+  receivedAt: number;
+}
+
 export interface AppState {
   connection: ConnectionStatus;
   me: { playerId: PlayerId; rejoinToken: string } | null;
@@ -64,6 +76,7 @@ export interface AppState {
   chat: ChatEntry[];
   lastRoll: LastRoll | null;
   lastAnte: AnteInfo | null;
+  lastTransfer: TransferInfo | null;
   roundEnd: RoundEndInfo | null;
   toasts: Toast[];
   /** Set when joining failed terminally (e.g. unknown room). */
@@ -78,6 +91,7 @@ export const initialState: AppState = {
   chat: [],
   lastRoll: null,
   lastAnte: null,
+  lastTransfer: null,
   roundEnd: null,
   toasts: [],
   joinError: null,
@@ -158,6 +172,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         me: { playerId: msg.playerId, rejoinToken: msg.rejoinToken },
         snapshot: msg.snapshot,
         lastAnte: null,
+        lastTransfer: null,
         joinError: null,
       };
 
@@ -315,10 +330,16 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       };
 
     case 'straight:paid': {
-      // Chip totals arrive via the next room:state snapshot; this is announce-only.
+      // Chip totals arrive via the next room:state snapshot; lastTransfer
+      // drives the seat-to-seat chip flight, the rest is announce-only.
       const text = `${playerName(state, msg.playerId)} rolled a straight — collects ${msg.total} chips (${msg.amountPerPlayer} each)`;
       return {
         ...state,
+        lastTransfer: {
+          toPlayerId: msg.playerId,
+          payments: msg.payments,
+          receivedAt: Date.now(),
+        },
         toasts: pushToast(state.toasts, 'info', text),
         chat: pushChat(state.chat, [systemLine(text)]),
       };

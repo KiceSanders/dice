@@ -17,7 +17,16 @@ export type TableEvent =
       /** Pot count before these contributions, captured before the next snapshot. */
       potBefore: number;
     }
-  | { type: 'pot-to-winner'; winnerId: PlayerId; amount: number };
+  | { type: 'pot-to-winner'; winnerId: PlayerId; amount: number }
+  /**
+   * Instant player-to-player transfer, pot untouched (straight payout today).
+   * Any future instant side bet animates for free by emitting this.
+   */
+  | {
+      type: 'chips-between-players';
+      toPlayerId: PlayerId;
+      payments: { playerId: PlayerId; amount: number }[];
+    };
 
 type TableEventType = TableEvent['type'];
 type EventOf<T extends TableEventType> = Extract<TableEvent, { type: T }>;

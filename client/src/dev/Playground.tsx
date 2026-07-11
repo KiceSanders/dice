@@ -473,6 +473,17 @@ export default function Playground() {
     });
   };
 
+  const replayTransfer = () => {
+    const seated = snapshot.players.filter((player) => player.seat !== null);
+    const [receiver, ...payers] = seated;
+    if (!receiver || payers.length === 0) return;
+    tableEvents.emit({
+      type: 'chips-between-players',
+      toPlayerId: receiver.id,
+      payments: payers.map((player) => ({ playerId: player.id, amount: 2 })),
+    });
+  };
+
   const replayPotAward = () => {
     const game = snapshot.game;
     const winner = snapshot.players.find((player) => player.seat !== null);
@@ -583,6 +594,10 @@ export default function Playground() {
 
           <button type="button" className="secondary" onClick={replayPotAward}>
             Replay pot award
+          </button>
+
+          <button type="button" className="secondary" onClick={replayTransfer}>
+            Replay transfer
           </button>
 
           <button
