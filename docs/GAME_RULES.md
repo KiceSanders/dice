@@ -36,20 +36,22 @@ Rolling a straight triggers an instant side payment from every other seated play
 Scoring lives in `shared/src/game/score.ts`; ordering in `compare.ts`.
 
 - A hand scores as `{ count, face, rollsUsed, straight }`: `count` = size of the largest
-  group of identical dice, `face` = that group's die value.
+  group of identical dice, `face` = that group's die value. `straight` is payout metadata
+  only — it does not affect ranking.
 - **Ones are wild**: each 1 joins whatever group makes the strongest hand (`1,1,3,3,3` →
   five 3s; `1,1,1,1,1` → five 6s). Wilds never count toward straights.
 - Hand A beats hand B, in order:
-  1. straight beats non-straight,
-  2. among non-straights: larger `count`, then higher `face`,
-  3. fewer `rollsUsed`,
-  4. otherwise a **full tie** → sub-round.
+  1. larger `count`, then higher `face`,
+  2. fewer `rollsUsed`,
+  3. otherwise a **full tie** → sub-round.
 
 ## Straights
 
 - A straight is the literal faces `1-2-3-4-5` or `2-3-4-5-6` — no wilds. Both patterns
-  are equivalent.
-- Straights beat every non-straight hand; equal straights tie-break on `rollsUsed`.
+  pay the same; neither outranks a non-straight for the pot.
+- The group score under a straight is weak (`2-3-4-5-6` → one 6; `1-2-3-4-5` → two 5s,
+  because the 1 is wild). Standing on a straight publishes that group as the roll-to-beat —
+  a tradeoff for taking the payout.
 - **Straight payout** (`settings.straightPayout`, applied in `engine.applyStraightPayout`):
   the moment a roll settles showing a straight, every other seated player immediately pays
   the roller `amountPerPlayer` chips from their own pile, clamped to what they have — chips

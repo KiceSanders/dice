@@ -52,14 +52,14 @@ describe('resolveRound', () => {
     expect(winners).toEqual(['b']);
   });
 
-  it('a late straight steals the round', () => {
+  it('a stood straight loses to a stronger group (payout-only)', () => {
     const { winners } = resolveRound(
       hands([
         ['a', hand(5, 6, 1)],
-        ['b', hand(1, 5, 3, 'straight')],
+        ['b', hand(1, 5, 3, 'straight')], // high-straight-style group: one 5
       ]),
     );
-    expect(winners).toEqual(['b']);
+    expect(winners).toEqual(['a']);
   });
 
   it('handles a single hand', () => {

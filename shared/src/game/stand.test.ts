@@ -35,9 +35,12 @@ describe('canStandVoluntarily', () => {
     expect(canStandVoluntarily(hand(4, 4, 4, 2, 1), 2, toBeat)).toBe(false);
   });
 
-  it('respects straight ranking against the roll to beat', () => {
-    const toBeat = scoreHand(hand(2, 3, 4, 5, 6), 1); // big straight
-    expect(canStandVoluntarily(hand(6, 6, 6, 6, 6), 2, toBeat)).toBe(false);
-    expect(canStandVoluntarily(hand(2, 3, 4, 5, 6), 1, toBeat)).toBe(true);
+  it('treats a stood straight as its weak group (not a super-rank)', () => {
+    const toBeat = scoreHand(hand(2, 3, 4, 5, 6), 1); // high straight → one 6
+    expect(toBeat).toMatchObject({ count: 1, face: 6, straight: 'straight' });
+    expect(canStandVoluntarily(hand(6, 6, 6, 6, 6), 2, toBeat)).toBe(true); // five 6s
+    expect(canStandVoluntarily(hand(5, 5, 2, 3, 4), 1, toBeat)).toBe(true); // two 5s
+    expect(canStandVoluntarily(hand(2, 3, 4, 5, 6), 1, toBeat)).toBe(true); // tie on one 6
+    expect(canStandVoluntarily(hand(2, 3, 4, 5, 6), 2, toBeat)).toBe(false); // same group, more rolls
   });
 });

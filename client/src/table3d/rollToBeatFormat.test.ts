@@ -7,16 +7,19 @@ describe('summarizeRollToBeat', () => {
       count: 3,
       face: 6,
       rollsUsed: 1,
-      straight: false,
     });
   });
 
-  it('omits count/face for a straight', () => {
-    expect(summarizeRollToBeat({ count: 0, face: 1, rollsUsed: 2, straight: 'straight' })).toEqual({
-      count: null,
-      face: null,
+  it('uses the group score under a straight (not a Straight label)', () => {
+    expect(summarizeRollToBeat({ count: 1, face: 6, rollsUsed: 2, straight: 'straight' })).toEqual({
+      count: 1,
+      face: 6,
       rollsUsed: 2,
-      straight: true,
+    });
+    expect(summarizeRollToBeat({ count: 2, face: 5, rollsUsed: 1, straight: 'straight' })).toEqual({
+      count: 2,
+      face: 5,
+      rollsUsed: 1,
     });
   });
 });
@@ -31,9 +34,12 @@ describe('formatRollToBeatText', () => {
     );
   });
 
-  it('formats straights without a face', () => {
-    expect(formatRollToBeatText({ count: 0, face: 1, rollsUsed: 1, straight: 'straight' })).toBe(
-      'Straight in 1 roll',
+  it('formats straight groups as count + face', () => {
+    expect(formatRollToBeatText({ count: 1, face: 6, rollsUsed: 1, straight: 'straight' })).toBe(
+      '1 6 in 1 roll',
+    );
+    expect(formatRollToBeatText({ count: 2, face: 5, rollsUsed: 3, straight: 'straight' })).toBe(
+      '2 5s in 3 rolls',
     );
   });
 });

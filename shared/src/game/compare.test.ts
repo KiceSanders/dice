@@ -30,20 +30,25 @@ describe('compareHands', () => {
     expect(compareHands(hand(3, 4, 2), hand(3, 4, 2))).toBe(0);
   });
 
-  it('any straight beats any non-straight, even five of a kind', () => {
-    const straight = hand(1, 5, 3, 'straight');
+  it('ignores the straight flag — five of a kind beats a stood straight group', () => {
+    const highStraight = hand(1, 6, 1, 'straight'); // 2-3-4-5-6
+    const lowStraight = hand(2, 5, 1, 'straight'); // 1-2-3-4-5
     const fiveSixes = hand(5, 6, 1);
-    expect(compareHands(straight, fiveSixes)).toBe(1);
-    expect(compareHands(fiveSixes, straight)).toBe(-1);
+    expect(compareHands(fiveSixes, highStraight)).toBe(1);
+    expect(compareHands(highStraight, fiveSixes)).toBe(-1);
+    expect(compareHands(fiveSixes, lowStraight)).toBe(1);
   });
 
-  it('straights compare on rollsUsed only', () => {
-    expect(compareHands(hand(1, 6, 1, 'straight'), hand(1, 5, 2, 'straight'))).toBe(1);
-    expect(compareHands(hand(1, 5, 3, 'straight'), hand(1, 6, 2, 'straight'))).toBe(-1);
+  it('straight groups compare on count → face → rolls like any hand', () => {
+    // Low straight (2 fives) beats high straight (1 six) on count.
+    expect(compareHands(hand(2, 5, 1, 'straight'), hand(1, 6, 1, 'straight'))).toBe(1);
+    expect(compareHands(hand(1, 6, 1, 'straight'), hand(2, 5, 2, 'straight'))).toBe(-1);
+    // Equal groups: fewer rolls wins.
+    expect(compareHands(hand(1, 6, 1, 'straight'), hand(1, 6, 2, 'straight'))).toBe(1);
   });
 
-  it('equal straights with equal rollsUsed are a full tie', () => {
-    expect(compareHands(hand(1, 6, 2, 'straight'), hand(1, 5, 2, 'straight'))).toBe(0);
-    expect(compareHands(hand(1, 5, 1, 'straight'), hand(1, 6, 1, 'straight'))).toBe(0);
+  it('equal straight groups with equal rollsUsed are a full tie', () => {
+    expect(compareHands(hand(1, 6, 2, 'straight'), hand(1, 6, 2, 'none'))).toBe(0);
+    expect(compareHands(hand(2, 5, 1, 'straight'), hand(2, 5, 1, 'straight'))).toBe(0);
   });
 });

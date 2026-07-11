@@ -61,13 +61,17 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   },
 };
 
-/** Final score of a stood hand. Comparison order: straight > count > face > fewer rollsUsed. */
+/**
+ * Final score of a stood hand. Comparison order: count > face > fewer rollsUsed.
+ * `straight` is metadata for the instant payout only — ignored by compareHands.
+ */
 export interface HandScore {
   /** Size of the largest group of identical dice. */
   count: number;
   /** Face value of that group (higher face wins count ties within a hand). */
   face: Die;
   rollsUsed: number;
+  /** Set when the dice form a straight; does not affect ranking. */
   straight: StraightKind;
 }
 

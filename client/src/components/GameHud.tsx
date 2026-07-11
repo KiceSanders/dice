@@ -1,8 +1,7 @@
 import type { GameStatePublic, HandScore, PlayerPublic } from '@dice/shared';
 
-/** Human-readable hand summary, e.g. "three 4s" or "Straight". */
+/** Human-readable hand summary, e.g. "three 4s" (straight flag ignored — payout-only). */
 export function describeScore(score: HandScore): string {
-  if (score.straight === 'straight') return 'Straight';
   const words = ['', 'one', 'two', 'three', 'four', 'five'];
   return `${words[score.count] ?? score.count} ${score.face}${score.count > 1 ? 's' : ''}`;
 }

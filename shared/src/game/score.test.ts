@@ -50,11 +50,21 @@ describe('scoreHand', () => {
   });
 
   it('detects a straight (1-2-3-4-5; the 1 is a natural 1, not a wild)', () => {
-    expect(scoreHand(h(5, 3, 1, 4, 2), 2)).toMatchObject({ straight: 'straight' });
+    expect(scoreHand(h(5, 3, 1, 4, 2), 2)).toEqual({
+      count: 2,
+      face: 5,
+      rollsUsed: 2,
+      straight: 'straight',
+    });
   });
 
   it('detects a straight (2-3-4-5-6)', () => {
-    expect(scoreHand(h(6, 4, 2, 5, 3), 1)).toMatchObject({ straight: 'straight' });
+    expect(scoreHand(h(6, 4, 2, 5, 3), 1)).toEqual({
+      count: 1,
+      face: 6,
+      rollsUsed: 1,
+      straight: 'straight',
+    });
   });
 
   it('throws on a wrong-sized hand or bad rollsUsed', () => {
