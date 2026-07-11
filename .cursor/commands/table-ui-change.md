@@ -14,6 +14,11 @@ procedure walks. The invariants are test-guarded; trust failing tests over insti
    - **New 3D object** → mount in `SceneContent` (TableCanvas.tsx), positioned at a
      `TABLE_ANCHORS` zone (anchors.ts) within its extents; new spots become new anchors
      so `anchors.test.ts` covers them. No raw coordinates without a framing test.
+   - **New game-state HUD widget** (non-player-specific: roll-to-beat, pot, round
+     state) → append a child to `.table-top-band` in `Table.tsx`; the band owns the
+     reserved 10→2 o'clock top arc (docs/TABLE_UI.md § Reserved arcs) and flex flow
+     spaces siblings. Never hand-position it, and never put player-specific UI there —
+     that belongs at the player's seat on the 2→10 arc (`seatAngle`).
    - **Look/skin** → edit `client/src/table3d/theme.ts` (or thread a theme override);
      never hardcode colors in mesh components.
    - **Dice/cup layout math** → pure modules (`diceLayout.ts`, `diceRuntime.ts`,

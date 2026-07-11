@@ -88,3 +88,6 @@ frame stream, the final layout IS state. It rides `turn:rolled`, lives in the sn
 (`currentTurn.restPose`, `rollToBeat.restPose` — canonical table space), and survives
 crash recovery via the persisted `rolled` event, so every viewer — including rejoiners —
 renders the dice where they physically landed.
+
+`GameStatePublic.rollToBeat` carries `playerIds: PlayerId[]` (first stander first; later
+tiers who fully tie append). A strict beat replaces the list with the new leader alone.

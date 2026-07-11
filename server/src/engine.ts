@@ -111,7 +111,7 @@ export class GameEngine {
   private currentTurn: CurrentTurn | null = null;
   private hands = new Map<PlayerId, { score: HandScore; dice: Die[] }>();
   private rollToBeat: {
-    playerId: PlayerId;
+    playerIds: PlayerId[];
     score: HandScore;
     dice: Die[];
     restPose: BodyPose[] | null;
@@ -444,7 +444,16 @@ export class GameEngine {
     this.emit({ type: 'stood', playerId, dice: [...turn.dice], score: { ...score } });
 
     if (this.rollToBeat === null || compareHands(score, this.rollToBeat.score) > 0) {
-      this.rollToBeat = { playerId, score, dice: [...turn.dice], restPose: turn.restPose };
+      this.rollToBeat = {
+        playerIds: [playerId],
+        score,
+        dice: [...turn.dice],
+        restPose: turn.restPose,
+      };
+    } else if (compareHands(score, this.rollToBeat.score) === 0) {
+      if (!this.rollToBeat.playerIds.includes(playerId)) {
+        this.rollToBeat.playerIds.push(playerId);
+      }
     }
     if (this.roundRollCap === null) this.roundRollCap = turn.rollsUsed;
 
@@ -564,7 +573,7 @@ export class GameEngine {
       currentTurn: turn,
       rollToBeat: this.rollToBeat
         ? {
-            playerId: this.rollToBeat.playerId,
+            playerIds: [...this.rollToBeat.playerIds],
             score: { ...this.rollToBeat.score },
             dice: [...this.rollToBeat.dice],
             restPose: this.rollToBeat.restPose

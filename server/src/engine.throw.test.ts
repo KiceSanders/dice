@@ -155,7 +155,7 @@ describe('GameEngine: authoritative rest pose (ADR 005)', () => {
     expect(engine.stand('p0')).toBeNull();
 
     const state = engine.publicState();
-    expect(state.rollToBeat?.playerId).toBe('p0');
+    expect(state.rollToBeat?.playerIds).toEqual(['p0']);
     expect(state.rollToBeat?.restPose).toEqual(pose);
     // The next player's fresh turn has no pose of its own.
     expect(state.currentTurn?.restPose).toBeNull();

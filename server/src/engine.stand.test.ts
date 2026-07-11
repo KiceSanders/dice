@@ -36,15 +36,40 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(roll(engine, 'p0', [4, 4, 4, 1, 2])).toBeNull();
     expect(roll(engine, 'p0', [4, 4, 4, 3, 5], [0, 1, 2])).toBeNull(); // three 4s in 2 rolls
     expect(engine.standVoluntarily('p0')).toBeNull();
+    expect(engine.publicState().rollToBeat?.playerIds).toEqual(['p0']);
 
     expect(roll(engine, 'p1', [4, 4, 4, 3, 5])).toBeNull(); // same hand in 1 roll — beats p0
     expect(engine.standVoluntarily('p1')).toBeNull();
+    expect(engine.publicState().rollToBeat?.playerIds).toEqual(['p1']);
 
     expect(roll(engine, 'p2', [4, 4, 4, 5, 3])).toBeNull(); // full tie with p1
     expect(engine.standVoluntarily('p2')).toBeNull(); // full tie — allowed
 
+    // Round resolves into a sub-round (clears rollToBeat); leaders were p1 + p2.
     const subRound = events.find((e) => e.type === 'subRoundStarted');
     expect(subRound).toBeDefined();
+    expect(subRound && subRound.type === 'subRoundStarted' && subRound.tiedPlayerIds).toEqual([
+      'p1',
+      'p2',
+    ]);
+  });
+
+  it('appends a mid-round tier to rollToBeat.playerIds', () => {
+    const players = makePlayers();
+    const { engine } = makeEngine(players);
+    engine.start();
+
+    expect(roll(engine, 'p0', [5, 5, 2, 3, 4])).toBeNull();
+    expect(roll(engine, 'p0', [5, 5, 5, 2, 3], [0, 1])).toBeNull(); // three 5s in 2
+    expect(engine.standVoluntarily('p0')).toBeNull();
+    expect(engine.publicState().rollToBeat?.playerIds).toEqual(['p0']);
+
+    // Matching hand in the same rollsUsed — second roll hits the round cap and
+    // auto-stands, appending p1 while p2 still has a turn.
+    expect(roll(engine, 'p1', [5, 5, 2, 3, 4])).toBeNull();
+    expect(roll(engine, 'p1', [5, 5, 5, 2, 4], [0, 1])).toBeNull();
+    expect(engine.publicState().rollToBeat?.playerIds).toEqual(['p0', 'p1']);
+    expect(engine.currentTurnPlayerId).toBe('p2');
   });
 
   it('forceStand bypasses the gate for disconnects/kicks', () => {

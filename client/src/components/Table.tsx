@@ -3,10 +3,13 @@ import { type RefObject, useEffect, useRef, useState } from 'react';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
 import type { OverlayRect } from '../table3d/layout';
+import RollToBeatOverlay from '../table3d/RollToBeatOverlay';
 import SeatOverlay, { SeatStrip } from '../table3d/SeatOverlay';
 import TableCanvas from '../table3d/TableCanvas';
 import TableCenterOverlay from '../table3d/TableCenterOverlay';
 import { SEAT_STACK_QUERY, useMediaQuery } from '../table3d/useMediaQuery';
+import type { ConnectionStatus } from '../ws/client';
+import { ConnectionDot } from './ConnectionStatus';
 
 /** Voluntary-stand affordance anchored to the table frame, outside the play area. */
 export interface StandControl {
@@ -40,6 +43,8 @@ interface Props {
   onTablePointer?: (inside: boolean, clientX?: number, clientY?: number) => void;
   /** Stand button rendered in the frame gutter; omit to hide. */
   stand?: StandControl;
+  /** Renders the red/green dot in the frame's top-right corner; omit to hide. */
+  connection?: ConnectionStatus;
 }
 
 function toOverlayRect(el: HTMLElement): OverlayRect {
@@ -79,6 +84,22 @@ function useLayoutRects(
   return { layout, viewportAspect };
 }
 
+function StandControlView({ stand }: { stand: StandControl }) {
+  return (
+    <div className="table-stand">
+      <button
+        type="button"
+        className="table-stand-button"
+        disabled={!stand.canStand || stand.disabled}
+        onClick={stand.onStand}
+      >
+        Stand
+      </button>
+      {!stand.canStand && stand.hint && <small className="table-stand-hint">{stand.hint}</small>}
+    </div>
+  );
+}
+
 /** 3D poker table with 2D player overlays that stay off the felt. */
 export default function Table({
   snapshot,
@@ -92,6 +113,7 @@ export default function Table({
   diceAiming = false,
   onTablePointer,
   stand,
+  connection,
 }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -114,21 +136,13 @@ export default function Table({
         />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
-      {stand && (
-        <div className="table-stand">
-          <button
-            type="button"
-            className="table-stand-button"
-            disabled={!stand.canStand || stand.disabled}
-            onClick={stand.onStand}
-          >
-            Stand
-          </button>
-          {!stand.canStand && stand.hint && (
-            <small className="table-stand-hint">{stand.hint}</small>
-          )}
-        </div>
-      )}
+      {/* Game-state band on the reserved 10→2 o'clock arc — widgets are normal
+          flow, so they can never overlap each other or the seat arc below. */}
+      <div className="table-top-band">
+        {snapshot.game && <RollToBeatOverlay game={snapshot.game} players={snapshot.players} />}
+      </div>
+      {connection && <ConnectionDot status={connection} />}
+      {stand && <StandControlView stand={stand} />}
       {stacked ? (
         <SeatStrip snapshot={snapshot} myId={myId} onKick={onKick} winnerId={winnerId} />
       ) : (

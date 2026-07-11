@@ -222,30 +222,41 @@ code {
 
 /* ---- Room ---- */
 
+/* No top padding — the table frame owns the top of the page; everything
+   above the fold is play space. */
 .room {
   max-width: var(--layout-max);
   margin: 0 auto;
-  padding: 1rem 1.25rem 4rem;
+  padding: 0 1.25rem 4rem;
 }
 
-.room-header {
+/* Room code / invite / connection text — parked below the fold near Settings;
+   the always-visible signal is the corner dot (.conn-corner). */
+.room-info {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
 }
 
-.room-header h1 {
+.room-info h3 {
   margin: 0;
-  font-size: 1.4rem;
 }
 
-.room-header-actions {
+.room-info-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Minimal connection dot in the table frame's top-right corner — green when open. */
+.conn-corner {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 3;
+  display: flex;
 }
 
 .room-controls {
@@ -259,7 +270,7 @@ code {
   position: relative;
   width: 100%;
   max-width: var(--layout-max);
-  margin: 1rem auto 1.5rem;
+  margin: 0 auto 1.5rem;
 }
 
 .table-3d {
@@ -338,6 +349,89 @@ code {
   inset: 0;
   pointer-events: none;
   z-index: 1;
+}
+
+/* Game-state band on the reserved top arc (10→2 o'clock — no seat may enter,
+   layout.test.ts proves it). Widgets inside are normal flow, so they never
+   overlap each other. Paired with TOP_BAND_MAX_WIDTH_PCT / TOP_BAND_HEIGHT_PX
+   in table3d/layout.ts — keep max-width and height identical on both sides. */
+.table-top-band {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 4.25rem; /* top gutter grid track */
+  max-width: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Compact roll-to-beat chip — a single horizontal row sized to the top
+   gutter's height; the band gives it room to grow sideways, never down. */
+.roll-to-beat-overlay {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 0.3rem 0.6rem;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--surface-2) 70%, transparent);
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.roll-to-beat-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.roll-to-beat-hand {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.roll-to-beat-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+}
+
+.roll-to-beat-straight {
+  font-weight: 700;
+}
+
+.roll-to-beat-rolls {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.roll-to-beat-names {
+  font-size: 0.78rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* The names are the only shrinkable segment when the band hits max-width. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 11rem;
+}
+
+.roll-to-beat-overlay .die-small {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .table-canvas {
@@ -789,22 +883,6 @@ code {
 }
 .chip:nth-child(3) {
   top: 0;
-}
-
-.hud-to-beat {
-  flex: 1;
-  min-width: 200px;
-}
-
-.to-beat {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.to-beat-meta {
-  font-size: 0.85rem;
 }
 
 .subround-banner {
@@ -1410,11 +1488,7 @@ button.die:hover {
 
 @media (max-width: 420px) {
   .room {
-    padding: 0.75rem 0.6rem 4rem;
-  }
-
-  .room-header h1 {
-    font-size: 1.15rem;
+    padding: 0 0.6rem 4rem;
   }
 
   .card,

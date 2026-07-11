@@ -1,10 +1,3 @@
-/** Elliptical seat ring — seat 0 at the front (+Z). Used for future 3D dice placement. */
-export interface SeatLayout {
-  x: number;
-  z: number;
-  angle: number;
-}
-
 /**
  * Table felt scale (X × Z). MUST stay isotropic (x === z, a circle): streamed
  * pose frames are localized per viewer by rotating them around Y in seat-angle
@@ -56,31 +49,28 @@ export const TABLE_WALL_THICKNESS = 0.08;
 /** Outer face of the containment wall (unit radius, before FELT_SCALE). */
 export const TABLE_WALL_OUTER = RAIL_OUTER_WORLD + TABLE_WALL_OUTSET + TABLE_WALL_THICKNESS / 2;
 
-/** Outer edge of the padded rail (world units). */
-const RAIL_OUTER_X = FELT_SCALE.x * RAIL_OUTER;
-const RAIL_OUTER_Z = FELT_SCALE.z * RAIL_OUTER;
+/**
+ * Seats occupy only the lower clock arc (2 o'clock → 10 o'clock, through 6);
+ * the top arc (10 → 2) is reserved for game-state widgets (`topBandRect`).
+ * Guarded by layout tests for every seat count.
+ */
+export const SEAT_ARC_START = -Math.PI / 6; // 2 o'clock (screen Y grows downward)
+export const SEAT_ARC_SPAN = (4 * Math.PI) / 3; // → 10 o'clock, through 6 o'clock
 
-const SEAT_CLEARANCE = 0.48;
-const SEAT_RADIAL_EXTRA = 0.62;
-
-/** World-space seat ring (for dice / 3D props). */
-export function seatLayout(seatIndex: number, seatCount: number): SeatLayout {
-  const angle = Math.PI / 2 + (seatIndex / seatCount) * Math.PI * 2;
-  const ux = Math.cos(angle);
-  const uz = Math.sin(angle);
-  const innerX = RAIL_OUTER_X + SEAT_CLEARANCE;
-  const innerZ = RAIL_OUTER_Z + SEAT_CLEARANCE;
-  const axisExtra = Math.abs(uz) > 0.65 ? 0.38 : 0;
-  const radialExtra = SEAT_RADIAL_EXTRA + axisExtra;
-  return {
-    x: innerX * ux + ux * radialExtra,
-    z: innerZ * uz + uz * radialExtra,
-    angle,
-  };
-}
-
+/**
+ * Display-slot angle: seatCount positions evenly spaced along the seat arc,
+ * endpoints inclusive. Slot 0 (the local player) takes the position nearest
+ * 6 o'clock — exact bottom for odd counts, which includes the shipping
+ * 3-seat table (90°/210°/-30°, identical to the historical full-circle
+ * spacing). Seating order continues around the arc with the wrap falling in
+ * the reserved top gap.
+ */
 export function seatAngle(seatIndex: number, seatCount: number): number {
-  return Math.PI / 2 + (seatIndex / seatCount) * Math.PI * 2;
+  const n = Math.max(seatCount, 2);
+  const step = SEAT_ARC_SPAN / (n - 1);
+  const nearBottomIndex = Math.round((Math.PI / 2 - SEAT_ARC_START) / step);
+  const arcIndex = (seatIndex + nearBottomIndex) % n;
+  return SEAT_ARC_START + arcIndex * step;
 }
 
 export function clampSeatCount(maxPlayers: number): number {
@@ -160,6 +150,73 @@ export function seatOverlayPosition(
     leftPct: cx + rx * Math.cos(angle),
     topPct: cy + ry * Math.sin(angle),
     angle,
+  };
+}
+
+/**
+ * CSS translate that pins the card's inner edge toward the table center.
+ * Shared by SeatOverlay and seatCardRect so render and tests can't drift.
+ */
+export function seatAnchorOffset(angle: number): { tx: number; ty: number } {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  if (s > 0.55) return { tx: -0.5, ty: 0 };
+  if (s < -0.55) return { tx: -0.5, ty: -1 };
+  if (c > 0.55) return { tx: 0, ty: -0.5 };
+  if (c < -0.55) return { tx: -1, ty: -0.5 };
+  return { tx: -0.5, ty: -0.5 };
+}
+
+/** Default seat-card size used by collision tests (matches `.table-3d .seat`). */
+export const SEAT_CARD_SIZE_PX = { width: 118, height: 62 } as const;
+
+/**
+ * Axis-aligned seat-card rect in frame % for a display slot — pure mirror of
+ * SeatOverlay placement for collision tests without a DOM.
+ */
+export function seatCardRect(
+  displaySlot: number,
+  seatCount: number,
+  frame: OverlayRect,
+  viewport: OverlayRect,
+  sizePx: { width: number; height: number } = SEAT_CARD_SIZE_PX,
+): { left: number; top: number; width: number; height: number } {
+  const { leftPct, topPct, angle } = seatOverlayPosition(displaySlot, seatCount, frame, viewport);
+  const { tx, ty } = seatAnchorOffset(angle);
+  const w = (sizePx.width / frame.width) * 100;
+  const h = (sizePx.height / frame.height) * 100;
+  return {
+    left: leftPct + tx * w,
+    top: topPct + ty * h,
+    width: w,
+    height: h,
+  };
+}
+
+/**
+ * Reserved game-state band across the top of the frame (the 10 → 2 o'clock
+ * arc no seat may enter). Widgets inside it are normal flow (flex), so they
+ * can never overlap each other; the layout test proves the band clears every
+ * seat card at every seat count.
+ *
+ * Paired with `.table-top-band` in index.css — keep max-width (% of frame)
+ * and height (top gutter track, 4.25rem) identical on both sides.
+ */
+export const TOP_BAND_MAX_WIDTH_PCT = 50;
+export const TOP_BAND_HEIGHT_PX = 68; // 4.25rem @ 16px root
+
+/** Top-band rect in frame % — pure mirror of `.table-top-band` for tests. */
+export function topBandRect(frame: OverlayRect): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} {
+  return {
+    left: 50 - TOP_BAND_MAX_WIDTH_PCT / 2,
+    top: 0,
+    width: TOP_BAND_MAX_WIDTH_PCT,
+    height: (TOP_BAND_HEIGHT_PX / frame.height) * 100,
   };
 }
 

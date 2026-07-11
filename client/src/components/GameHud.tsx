@@ -1,5 +1,4 @@
 import type { GameStatePublic, HandScore, PlayerPublic } from '@dice/shared';
-import DiceRow from './DiceRow';
 
 /** Human-readable hand summary, e.g. "three 4s" or "Straight". */
 export function describeScore(score: HandScore): string {
@@ -13,7 +12,7 @@ interface Props {
   players: PlayerPublic[];
 }
 
-/** Pot, round number, roll-to-beat, and sub-round banner (PLAN.md 9.4). */
+/** Round / pot / sub-round banner (roll-to-beat lives on the table overlay). */
 export default function GameHud({ game, players }: Props) {
   const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? 'unknown';
 
@@ -43,22 +42,6 @@ export default function GameHud({ game, players }: Props) {
             </span>
             <span className="hud-value">{game.pot}</span>
           </span>
-        </div>
-
-        <div className="hud-cell hud-to-beat">
-          <span className="hud-label">Roll to beat</span>
-          {game.rollToBeat ? (
-            <span className="to-beat">
-              <DiceRow dice={game.rollToBeat.dice} small />
-              <span className="to-beat-meta">
-                {describeScore(game.rollToBeat.score)} in {game.rollToBeat.score.rollsUsed}{' '}
-                {game.rollToBeat.score.rollsUsed === 1 ? 'roll' : 'rolls'} —{' '}
-                {nameOf(game.rollToBeat.playerId)}
-              </span>
-            </span>
-          ) : (
-            <span className="muted">none yet</span>
-          )}
         </div>
       </div>
     </div>

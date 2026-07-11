@@ -116,7 +116,8 @@ export interface GameStatePublic {
   turnQueue: PlayerId[];
   currentTurn: TurnState | null;
   rollToBeat: {
-    playerId: PlayerId;
+    /** Leaders who set or tied this hand (first stander first, later tiers appended). */
+    playerIds: PlayerId[];
     score: HandScore;
     dice: Die[];
     /** Rest pose of the leading hand (see TurnState.restPose). */

@@ -8,3 +8,17 @@ export default function ConnectionStatus({ status }: { status: Status }) {
     </p>
   );
 }
+
+/** Minimal red/green dot pinned to the page corner — full text lives in the room info card. */
+export function ConnectionDot({ status }: { status: Status }) {
+  return (
+    <span
+      className="conn-corner"
+      role="status"
+      aria-label={`Connection: ${status}`}
+      title={`Connection: ${status}`}
+    >
+      <span className={`conn-dot ${status === 'open' ? 'conn-on' : 'conn-off'}`} />
+    </span>
+  );
+}

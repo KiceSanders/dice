@@ -87,7 +87,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(engine2.roundNumber).toBe(before.roundNumber);
     const after = engine2.publicState();
     expect(after.pot).toBe(before.pot);
-    expect(after.rollToBeat?.playerId).toBe(host.id);
+    expect(after.rollToBeat?.playerIds).toEqual([host.id]);
     expect(after.rollToBeat?.score).toEqual(before.rollToBeat?.score);
     expect(after.currentTurn?.playerId).toBe(p1.id);
     expect(after.currentTurn?.dice).toEqual([2, 2, 6, 6, 5]);
@@ -144,7 +144,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
     const after = manager2.get(room.id)!.engine!.publicState();
 
     // Committed physics dice re-applied exactly via replayRolled.
-    expect(after.rollToBeat?.playerId).toBe(host.id);
+    expect(after.rollToBeat?.playerIds).toEqual([host.id]);
     expect(after.rollToBeat?.dice).toEqual([3, 3, 2, 2, 1]);
     // The rest pose survives the crash with the hand it belongs to (ADR 005).
     expect(after.rollToBeat?.restPose).toEqual(standPose);

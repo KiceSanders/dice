@@ -58,7 +58,7 @@ describe('pickHeldRollInput', () => {
   it('prefers the live lastRoll', () => {
     const game = makeGame({
       rollToBeat: {
-        playerId: 'px',
+        playerIds: ['px'],
         score: { count: 2, face: 2, rollsUsed: 1, straight: 'none' },
         dice: [2, 2, 1, 3, 4],
         restPose: null,
@@ -96,7 +96,7 @@ describe('pickHeldRollInput', () => {
         restPose: null,
       },
       rollToBeat: {
-        playerId: 'px',
+        playerIds: ['px'],
         score: { count: 2, face: 2, rollsUsed: 1, straight: 'none' },
         dice: [2, 2, 1, 3, 4],
         restPose,

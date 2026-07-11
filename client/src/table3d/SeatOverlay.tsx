@@ -4,6 +4,7 @@ import Seat from '../components/Seat';
 import {
   displaySeatIndex,
   type OverlayRect,
+  seatAnchorOffset,
   seatOverlayPosition,
   seatStripOrder,
   TABLE_SEAT_COUNT,
@@ -11,13 +12,10 @@ import {
 
 /** Anchor the inner edge of the card toward the table center. */
 function seatAnchorStyle(angle: number): CSSProperties {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  if (s > 0.55) return { transform: 'translate(-50%, 0)' };
-  if (s < -0.55) return { transform: 'translate(-50%, -100%)' };
-  if (c > 0.55) return { transform: 'translate(0, -50%)' };
-  if (c < -0.55) return { transform: 'translate(-100%, -50%)' };
-  return { transform: 'translate(-50%, -50%)' };
+  const { tx, ty } = seatAnchorOffset(angle);
+  const x = tx === 0 ? '0' : tx === -1 ? '-100%' : '-50%';
+  const y = ty === 0 ? '0' : ty === -1 ? '-100%' : '-50%';
+  return { transform: `translate(${x}, ${y})` };
 }
 
 interface SeatsProps {
@@ -45,7 +43,7 @@ function deriveSeats(snapshot: RoomSnapshot, myId: string | null) {
 
 function seatCard(
   seatIndex: number,
-  { snapshot, myId, onKick, winnerId }: SeatsProps,
+  { myId, onKick, winnerId }: SeatsProps,
   derived: ReturnType<typeof deriveSeats>,
 ) {
   const player = derived.bySeat.get(seatIndex) ?? null;

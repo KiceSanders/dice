@@ -175,9 +175,13 @@ export function useTableRoll(
     turn !== null && canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null);
   const standHint =
     turn && !canStand && turn.rollsUsed > 0 && rollToBeat
-      ? `Beat or tie ${
-          snapshot?.players.find((p) => p.id === rollToBeat.playerId)?.name ?? 'the leader'
-        }'s ${describeScore(rollToBeat.score)} to stand`
+      ? (() => {
+          const names = rollToBeat.playerIds
+            .map((id) => snapshot?.players.find((p) => p.id === id)?.name)
+            .filter((n): n is string => Boolean(n));
+          const who = names.length === 0 ? "the leader's" : `${names.join(' / ')}'s`;
+          return `Beat or tie ${who} ${describeScore(rollToBeat.score)} to stand`;
+        })()
       : undefined;
 
   const turnActions: TurnActions | undefined = tableDice

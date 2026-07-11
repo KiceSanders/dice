@@ -152,7 +152,7 @@ export const PLAYGROUND_SCENES: PlaygroundScene[] = [
       baseGame({
         pot: 24,
         rollToBeat: {
-          playerId: DEV_BOB,
+          playerIds: [DEV_BOB],
           score: { count: 3, face: 5, rollsUsed: 2, straight: 'none' },
           dice: [5, 5, 5, 2, 1],
           restPose: null,

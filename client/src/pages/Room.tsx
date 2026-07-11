@@ -211,19 +211,8 @@ export default function Room() {
         />
       )}
 
-      <header className="room-header">
-        <h1>
-          Room <span className="room-code">{snapshot.roomId}</span>
-        </h1>
-        <div className="room-header-actions">
-          <button type="button" className="secondary" onClick={copyInvite}>
-            {copied ? 'Link copied!' : 'Copy invite link'}
-          </button>
-          <ConnectionStatus status={state.connection} />
-        </div>
-      </header>
-
       <Table
+        connection={state.connection}
         snapshot={snapshot}
         myId={myId}
         onKick={(playerId) => send({ type: 'player:kick', playerId })}
@@ -307,6 +296,18 @@ export default function Room() {
             </ul>
           </section>
         )}
+
+        <section className="card room-info">
+          <h3>
+            Room <span className="room-code">{snapshot.roomId}</span>
+          </h3>
+          <div className="room-info-actions">
+            <button type="button" className="secondary" onClick={copyInvite}>
+              {copied ? 'Link copied!' : 'Copy invite link'}
+            </button>
+            <ConnectionStatus status={state.connection} />
+          </div>
+        </section>
 
         <SettingsPanel snapshot={snapshot} isHost={isHost} />
       </section>

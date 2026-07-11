@@ -18,11 +18,15 @@ describe('layout seat helpers', () => {
   });
 
   it('seatAngle spaces three seats 120° apart', () => {
+    // Angles are arc positions and may wrap (seat 2 is -π/6, not 11π/6);
+    // compare direction, not raw values.
+    const tau = Math.PI * 2;
+    const wrap = (a: number) => ((a % tau) + tau) % tau;
     const a0 = seatAngle(0, 3);
     const a1 = seatAngle(1, 3);
     const a2 = seatAngle(2, 3);
-    expect(a1 - a0).toBeCloseTo((2 * Math.PI) / 3, 5);
-    expect(a2 - a1).toBeCloseTo((2 * Math.PI) / 3, 5);
+    expect(wrap(a1 - a0)).toBeCloseTo((2 * Math.PI) / 3, 5);
+    expect(wrap(a2 - a1)).toBeCloseTo((2 * Math.PI) / 3, 5);
   });
 });
 

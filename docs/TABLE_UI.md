@@ -107,6 +107,35 @@ values in mesh components.
 - New HUD/DOM overlays: prefer normal flow or measurement-driven positioning; never
   `100vw`; wide content scrolls inside its own container.
 
+### Reserved arcs — where seats and game-state widgets go
+
+Think of the table frame as a clock face:
+
+- **Seats occupy only the lower arc, 2 → 10 o'clock (through 6).** `seatAngle`
+  (`layout.ts`) distributes any seat count evenly along that arc
+  (`SEAT_ARC_START`/`SEAT_ARC_SPAN`), local player nearest the bottom. For the shipping
+  3-seat table this is identical to the historical layout (6, 10, 2 o'clock). Layout
+  tests pin the arc bounds for counts 2–10, so the top of the frame is provably
+  seat-free at any count.
+- **The top arc, 10 → 2, belongs to game-state widgets** (roll-to-beat today; pot and
+  other non-player-specific state later). They render inside `.table-top-band` — a
+  centered flex row over the top gutter. **To add one: append a child to the band in
+  `Table.tsx`, done.** Normal flow spaces siblings, so widgets can never overlap each
+  other, and the band-vs-seats layout test (`layout.test.ts`, paired constants
+  `TOP_BAND_MAX_WIDTH_PCT`/`TOP_BAND_HEIGHT_PX` ↔ `.table-top-band` CSS) proves the
+  band clears every seat card. Player-specific UI never goes in the band — it belongs
+  at that player's seat.
+- Raising the seat cap past 3 is a bigger change than the arc math: the pose
+  seat-transform assumes evenly spaced display angles, and every koozie dock needs a
+  framing re-check (`diceLayout.test.ts`) — treat that as its own task.
+
+Room chrome: the table frame sits at the very top of the page (no header above it —
+vertical space is play space). The room code / invite link / connection text live in a
+`.room-info` card at the bottom of the page (visible on scroll); the always-visible
+connection signal is the `.conn-corner` red/green dot in the frame's top-right corner
+(Table's `connection` prop). At ≤640px (`SEAT_STACK_QUERY`) seat overlays unmount and
+the band overlays the canvas's top edge (pot/round stay clear).
+
 ## DicePhysics.tsx — edit with care (and usually, don't)
 
 It intentionally remains one file: it orchestrates a rapier world where **ordering is
