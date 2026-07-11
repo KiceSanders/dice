@@ -41,5 +41,6 @@ procedure walks. The invariants are test-guarded; trust failing tests over insti
    tests beside any pure-module change. `npm run verify` must pass.
 5. **Docs-sync**: placement/interaction decisions → amend ADR 003; new invariants →
    docs/TABLE_UI.md, same commit.
-6. Finish with the multi-tab browser flows in docs/browser-testing.md — one view is
-   never enough (hand the checklist to the user if they run browser verification).
+6. After implementation and automated checks, hand the user the relevant multi-tab
+   checklist from docs/browser-testing.md — one view is never enough. Never launch or
+   drive browser verification unless the user explicitly asks.

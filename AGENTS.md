@@ -62,16 +62,19 @@ Server game-logic or protocol changes: also run the smoke scripts
 `npm run dev`, `smoke-recovery.mjs` standalone) — the `verify-game-flow` skill/command
 wraps this.
 
-Client game-flow changes: run the relevant multi-tab flows in
-[docs/browser-testing.md](./docs/browser-testing.md):
+Client game-flow changes: complete code, automated checks, and smoke scripts first, then
+hand the user the relevant multi-tab checklist from
+[docs/browser-testing.md](./docs/browser-testing.md). **Never launch or drive browser
+testing unless the user explicitly asks you to do so.** The user owns browser verification
+by default:
 
 | Area | Browser doc section |
 |-------|---------------------|
 | Client foundation | [Phase 7 (2 tabs)](./docs/browser-testing.md#phase-7--client-foundation-2-tabs) |
 | Lobby UI | [Phase 8 (3 tabs)](./docs/browser-testing.md#phase-8--lobby-ui-3-tabs) |
 
-Do not skip browser verification — unit tests do not cover WebSocket + multi-tab
-`localStorage` behavior.
+Do not claim browser verification passed without the user's results — unit tests do not
+cover WebSocket + multi-tab `localStorage` behavior.
 
 ## Quick reminders
 

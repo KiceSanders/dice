@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import GameArea from '../components/GameArea';
 import Table from '../components/Table';
-import { togglePendingKeep } from '../game/keepSelection';
+import { pendingKeepForTurn, pendingKeepSelection, togglePendingKeep } from '../game/keepSelection';
 import { resolveTableRestPose } from '../table3d/dice/staticPose';
 import {
   clearLiveTuning,
@@ -390,9 +390,10 @@ export default function Playground() {
   const [myId, setMyId] = useState(() => params.get('view') ?? initialScene.defaultMyId);
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [pendingKeep, setPendingKeepState] = useState<number[]>([]);
+  const [pendingSelection, setPendingSelection] = useState(() => pendingKeepSelection(null));
 
   const turn = snapshot.game?.currentTurn ?? null;
+  const pendingKeep = pendingKeepForTurn(pendingSelection, turn);
   const isMyTurn = turn !== null && turn.playerId === myId;
   const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
   const activeSeat =
@@ -403,7 +404,7 @@ export default function Playground() {
       : null;
 
   useEffect(() => {
-    setPendingKeepState(turn ? [...turn.keptIndices] : []);
+    setPendingSelection(pendingKeepSelection(turn));
   }, [turn?.playerId, turn?.rollsUsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -432,6 +433,7 @@ export default function Playground() {
   const onSceneChange = (id: PlaygroundSceneId) => {
     const scene = sceneById(id);
     loadScene(scene);
+    setPendingSelection(pendingKeepSelection(scene.snapshot.game?.currentTurn ?? null));
     setMyId(scene.defaultMyId);
     setPointerOnTable(false);
     setDragging(false);
@@ -447,7 +449,7 @@ export default function Playground() {
       if (!turn || !isMyTurn) return;
       const next = togglePendingKeep(index, pendingKeep, turn.keptIndices, turn.rollsUsed > 0);
       if (!next) return;
-      setPendingKeepState(next);
+      setPendingSelection(pendingKeepSelection(turn, next));
       return next;
     },
     [turn, isMyTurn, pendingKeep],
@@ -648,7 +650,7 @@ export default function Playground() {
         hide2DDice
         mouseThrow
         pendingKeep={pendingKeep}
-        onPendingKeepChange={setPendingKeepState}
+        onPendingKeepChange={(indices) => setPendingSelection(pendingKeepSelection(turn, indices))}
         turnActions={{
           onStand: stand,
           disabled: rolling,

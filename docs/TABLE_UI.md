@@ -28,6 +28,13 @@ the recurring center-line regression and were deleted. Note the kept-dice conseq
 an authoritative pose, kept dice render at the *roller's* rail edge for every viewer (same
 as live streaming); only the slot fallback rails them viewer-locally.
 
+**Turn-handoff invariant:** while that previous hand remains visible, the incoming
+roller's idle physics dice stay hidden in the docked cup. Local pending keeps are owned by
+the exact player/roll version; an outgoing turn's keeps must never reach the incoming
+roller. `buildRuntime` also fails closed: a keep index without a committed die value cannot
+create a visible rail die. Before the incoming roller grabs, exactly the previous hand's
+five dice are visible — never an additional row of identity-rotation face-1 dice.
+
 They already share the presentational meshes (`PipDie`, `KoozieMesh`). **Any new visual
 must either (a) live in a shared presentational component used by all three, or (b) be
 driven by a table event (below) so it renders independently of which view is mounted.**
@@ -180,4 +187,5 @@ next to them. Rules when you must touch it:
 2. New scene content: at an anchor or framing-tested? New effect: on the event bus with
    replay? New colors: in the theme?
 3. `npm run verify` green (framing/symmetry/guard tests are the net).
-4. Browser check per `docs/browser-testing.md` (multi-tab — one view is never enough).
+4. Hand the user the browser checklist from `docs/browser-testing.md` (multi-tab — one
+   view is never enough). Never launch or drive browser testing unless explicitly asked.

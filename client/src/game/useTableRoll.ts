@@ -6,7 +6,7 @@ import { describeScore } from '../components/GameHud';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { displaySeatIndex } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
-import { togglePendingKeep } from './keepSelection';
+import { pendingKeepForTurn, pendingKeepSelection, togglePendingKeep } from './keepSelection';
 
 const ZERO_VELOCITY: ThrowVelocity = { x: 0, y: 0, z: 0 };
 
@@ -35,7 +35,7 @@ export function useTableRoll(
   send: (msg: ClientMessage) => boolean,
   connected: boolean,
 ) {
-  const [pendingKeep, setPendingKeep] = useState<number[]>([]);
+  const [pendingSelection, setPendingSelection] = useState(() => pendingKeepSelection(null));
   const [dragging, setDragging] = useState(false);
   const [rolling, setRolling] = useState(false);
   const [pointerOnTable, setPointerOnTable] = useState(false);
@@ -44,6 +44,11 @@ export function useTableRoll(
   const pendingKeepRef = useRef<number[]>([]);
 
   const turn = snapshot?.game?.currentTurn ?? null;
+  // Effects run after render, so resolve ownership synchronously: on the first
+  // frame of a new turn, the outgoing player's local keeps must not reach the
+  // incoming roller's DicePhysics instance.
+  const pendingKeep = pendingKeepForTurn(pendingSelection, turn);
+  pendingKeepRef.current = pendingKeep;
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
   const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
   const activeSeat =
@@ -58,9 +63,9 @@ export function useTableRoll(
   // New roll confirmed or turn changed: sync selection to the server's locked
   // keeps and drop any stale interaction state.
   useEffect(() => {
-    const next = turn ? [...turn.keptIndices] : [];
-    pendingKeepRef.current = next;
-    setPendingKeep(next);
+    const next = pendingKeepSelection(turn);
+    pendingKeepRef.current = next.indices;
+    setPendingSelection(next);
     setDragging(false);
     setRolling(false);
   }, [turn?.playerId, turn?.rollsUsed]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -129,16 +134,20 @@ export function useTableRoll(
       );
       if (!next) return;
       pendingKeepRef.current = next;
-      setPendingKeep(next);
+      setPendingSelection(pendingKeepSelection(turn, next));
       return next;
     },
     [turn, isMyTurn],
   );
 
-  const updatePendingKeep = useCallback((indices: number[]) => {
-    pendingKeepRef.current = indices;
-    setPendingKeep(indices);
-  }, []);
+  const updatePendingKeep = useCallback(
+    (indices: number[]) => {
+      const next = pendingKeepSelection(turn, indices);
+      pendingKeepRef.current = next.indices;
+      setPendingSelection(next);
+    },
+    [turn],
+  );
 
   const onTablePointer = useCallback((inside: boolean) => {
     setPointerOnTable(inside);

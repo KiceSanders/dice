@@ -32,7 +32,10 @@ If a script hangs or fails with `EADDRINUSE`, kill leftovers first:
 
 ## 2. Multi-tab browser flows
 
-Follow the relevant section of `docs/browser-testing.md`. Essentials:
+Browser verification is user-owned by default. After implementation, automated checks,
+and smoke scripts are complete, hand the user the relevant section of
+`docs/browser-testing.md`. Never launch or drive browser testing unless the user explicitly
+asks. If explicitly asked, essentials are:
 
 - One dev stack only (:5173 / :3001).
 - Per tab: `localStorage.setItem('dice:name', '<name>')`, then wait for
@@ -41,6 +44,7 @@ Follow the relevant section of `docs/browser-testing.md`. Essentials:
 
 ## Done means
 
-All four smoke scripts pass AND the relevant browser section was actually driven and
-observed (state stays in sync across tabs after a hard-refresh rejoin). Report which flows
-you ran and what you saw — not just "tests pass".
+All four smoke scripts pass and the relevant browser checklist has been handed to the user.
+Do not claim browser verification passed until the user reports the result. If the user
+explicitly asks the agent to drive it, report which flows ran and what was observed — not
+just "tests pass".

@@ -2,7 +2,10 @@
 
 Manual verification for **Phase 7** (client foundation) and **Phase 8** (lobby UI). Run these after changes to `client/`, the WebSocket client, or room join/rejoin logic.
 
-Use the Cursor **browser MCP** (`cursor-ide-browser`) or a normal browser with multiple tabs.
+Browser verification is user-owned by default. Agents must finish implementation and
+automated checks first, then hand the relevant checklist to the user. **Agents must not
+launch or drive the Cursor browser MCP (or any other browser test) unless the user
+explicitly asks them to do so.**
 
 ---
 
@@ -188,8 +191,10 @@ running counter.
    rotated to A's seat) — not five dice in a line across the table's center.
 2. **Keep + reroll:** A keeps 2 dice and rolls again. Both tabs: kept dice sit at A's
    rail edge, the rest scattered where they landed.
-3. **Turn switch:** A stands. While B idles pre-roll, both tabs still show A's final
-   layout unchanged.
+3. **Turn switch with keeps:** A keeps 4 dice, completes the hand, then stands. While B
+   idles pre-roll, both tabs still show A's final layout unchanged and **exactly 5 dice
+   total**. B must not get an additional near-rail row of 4 face-1 dice. When B grabs the
+   koozie, A's held pose hides and B's own dice proceed through the normal throw flow.
 4. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
    real layout (snapshot `restPose`) — this used to be a guaranteed fallback.
 5. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its

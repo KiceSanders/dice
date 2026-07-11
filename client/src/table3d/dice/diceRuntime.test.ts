@@ -37,6 +37,19 @@ describe('buildRuntime — cup mode (the roller)', () => {
     }
   });
 
+  it('ignores stale keeps when the incoming turn has no dice values', () => {
+    const runtime = buildRuntime([], [0, 1, 2, 3], true, TUNING);
+
+    expect(runtime).toHaveLength(DICE_COUNT);
+    for (const rt of runtime) {
+      expect(rt.visible).toBe(true);
+      expect(rt.meshVisible).toBe(false);
+      expect(rt.inCup).toBe(true);
+      expect(rt.locked).toBe(false);
+      expectInsideDockedCup(rt.position);
+    }
+  });
+
   it('puts kept dice on the near rail after a mid-turn remount, unkept visible in the cup', () => {
     const keep = [1, 3];
     const runtime = buildRuntime(HAND, keep, true, TUNING);

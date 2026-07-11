@@ -78,8 +78,13 @@ export function buildRuntime(
     });
   }
 
-  const kept = new Set(keepIndices);
-  const keptSorted = [...keepIndices].sort((a, b) => a - b);
+  // A keep without a committed value is stale/invalid input (most notably the
+  // one-render turn-switch lag this module must fail closed against). Never
+  // turn it into a visible identity-rotation die on the near rail.
+  const keptSorted = keepIndices
+    .filter((i) => i >= 0 && i < DICE_COUNT && dice[i] !== undefined)
+    .sort((a, b) => a - b);
+  const kept = new Set(keptSorted);
   const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => !kept.has(i));
   const home = createHomePose(tuning);
 
@@ -98,12 +103,13 @@ export function buildRuntime(
       };
     }
 
-    const hideIdleCupDice = dice.length === 0;
     const cupSlot = unkeptIndices.indexOf(i);
     const local = spawnDiceInCupLocal(cupSlot, unkeptIndices.length, tuning.cup);
     return {
       visible: true,
-      meshVisible: !hideIdleCupDice,
+      // Full hands are visible on a mid-turn remount; empty first-roll hands
+      // remain physical but hidden. Partial malformed hands also fail closed.
+      meshVisible: dice[i] !== undefined,
       locked: false,
       inCup: true,
       position: cupLocalToWorld(local.position, home.position, home.quaternion),
