@@ -84,8 +84,8 @@ const DEFAULT_CUP_FLOAT_Y = DICE_FELT_Y + 0.72;
 export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
   world: {
     gravityY: PHYSICS.gravity[1],
-    // 60 Hz halves catch-up steps on laggy frames vs 120 Hz (Chromebook death spiral).
-    // Playground Leva can still raise this for A/B.
+    // Fixed 60 Hz keeps simulation behavior deterministic. Chromebook profiling
+    // traced the held-cup stalls to CCD TOI searches, not this step rate.
     timeStep: 1 / 60,
     timeScale: 1,
     debug: false,

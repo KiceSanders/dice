@@ -255,6 +255,10 @@ add unit tests next to them. Geometry constants are also re-exported from
 - While `held`, unkept dice stay dynamic for slosh but are **velocity-clamped every
   frame** (`heldMaxLinVel` / `heldMaxAngVel` in tuning) so a laggy kinematic cup
   cannot explode in-cup contacts (ADR 002).
+- Hard CCD must stay off on the local dice and koozie. Chromebook profiling traced
+  86–121 ms steps to hard-CCD TOI searches; `SOFT_CCD_PREDICTION` supplies the needed
+  predictive contacts while preserving dynamic slosh. Read ADR 002's measured test
+  matrix and future-tuning guardrails before changing CCD, timestep, or cup colliders.
 - Fixed/locked bodies move **declaratively only** (props / `layoutGen` remounts); never
   `setTranslation` on a fixed body (rapier skips mesh sync — invisible desync).
 - The window-level capture `pointerdown` handler must `return` (no `stopPropagation`)

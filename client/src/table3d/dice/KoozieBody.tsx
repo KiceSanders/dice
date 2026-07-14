@@ -6,6 +6,7 @@ import {
   TrimeshCollider,
 } from '@react-three/rapier';
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+import { SOFT_CCD_PREDICTION } from './constants';
 import KoozieMesh from './KoozieMesh';
 import {
   createKooziePickGeometry,
@@ -29,7 +30,6 @@ interface Props {
   rotation?: [number, number, number];
   visible?: boolean;
   lid?: boolean;
-  ccd?: boolean;
   tuning: DicePhysicsTuning;
   onGrabStart?: (event: ThreeEvent<PointerEvent>) => void;
   onPointerEnter?: (event: ThreeEvent<PointerEvent>) => void;
@@ -44,7 +44,6 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
     rotation,
     visible = true,
     lid = false,
-    ccd = false,
     tuning,
     onGrabStart,
     onPointerEnter,
@@ -86,7 +85,10 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       linearDamping={0.35}
       angularDamping={0.4}
       gravityScale={0}
-      ccd={ccd}
+      // Hard CCD on the moving cup/dice contact graph caused pathological
+      // TOI searches on Chromebook. Soft prediction keeps wall contacts (ADR 002).
+      ccd={false}
+      softCcdPrediction={bodyType === 'kinematicPosition' ? SOFT_CCD_PREDICTION : 0}
       canSleep
     >
       {/* Collider names feed impact-audio classification (audio/impactRules.ts). */}

@@ -58,8 +58,8 @@ Spawn poses and rim height stay in [`koozieColliders.ts`](../../client/src/table
 - Changing table shape: edit [`layout.ts`](../../client/src/table3d/layout.ts) and/or [`tableGeometry.ts`](../../client/src/table3d/tableGeometry.ts) — mesh and colliders follow.
 - Changing cup shape: edit cup tuning defaults in [`constants.ts`](../../client/src/table3d/dice/constants.ts) / [`tuning.ts`](../../client/src/table3d/dice/tuning.ts) and builders in [`koozieGeometry.ts`](../../client/src/table3d/dice/koozieGeometry.ts).
 - Trimesh winding must face **inward** on containment rings so dice hit the inner surface.
-- ~64 segments for table oval curves; 32 for koozie (triangle count is small; drag cost
-  is dominated by fixed-timestep catch-up + kinematic contacts — see ADR 002).
+- ~64 segments for table oval curves; 32 for koozie. Chromebook profiling traced the
+  held-drag stalls to CCD time-of-impact searches, not the triangle count — see ADR 002.
 - **Future:** koozie bottom/lid could move to trimesh for full parity; cylinders are fine for now.
 
 ## Verification

@@ -1128,7 +1128,6 @@ export default function DicePhysics({
         position={cupPosition}
         visible={cupVisible}
         lid={cupLid}
-        ccd={cupPhase === 'held' || cupPhase === 'pouring'}
         tuning={tuning}
         onGrabStart={canGrabKoozie ? handleKoozieGrab : undefined}
         onPointerEnter={canGrabKoozie ? handleKoozieHover : undefined}

@@ -2,7 +2,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { CuboidCollider, type RapierRigidBody, RigidBody } from '@react-three/rapier';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { handleDieContactForce } from '../audio/rollerImpacts';
-import { DIE_HALF } from './constants';
+import { DIE_HALF, SOFT_CCD_PREDICTION } from './constants';
 import PipDie from './PipDie';
 import type { GlowHandle } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
@@ -64,7 +64,10 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
       linearDamping={tuning.dice.linearDamping}
       angularDamping={tuning.dice.angularDamping}
       canSleep
-      ccd={!locked && !driven}
+      // Hard CCD's nonlinear TOI search caused 86–121 ms Chromebook steps
+      // with several dice in the cup. Keep this paired with soft CCD (ADR 002).
+      ccd={false}
+      softCcdPrediction={!locked && !driven ? SOFT_CCD_PREDICTION : 0}
     >
       <CuboidCollider
         // `name` tags this side of a contact for impact audio (impactRules.ts);

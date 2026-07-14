@@ -10,6 +10,13 @@ import {
 export const DIE_SIZE = 0.12;
 export const DIE_HALF = DIE_SIZE / 2;
 
+/**
+ * Predict contacts up to one die-width ahead without Rapier's hard-CCD TOI
+ * shape casts. This exceeds the maximum held cup/die relative travel in one
+ * 60 Hz step while keeping the predictive broad-phase local to the cup.
+ */
+export const SOFT_CCD_PREDICTION = DIE_SIZE;
+
 export const DICE_COUNT = 5;
 /** Five stood-hand dice plus the temporary Yahtzee bonus die. */
 export const BONUS_DICE_COUNT = DICE_COUNT + 1;
