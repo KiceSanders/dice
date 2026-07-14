@@ -263,10 +263,12 @@ describe('persistence & crash recovery (Phase 6)', () => {
 
     // The rejoining roller can complete the bonus throw.
     room2.rejoin(host.rejoinToken, new FakeLink());
+    room2.rejoin(p1.rejoinToken, new FakeLink());
     expect(room2.engine!.beginBonusThrow(host.id)).toBeNull();
     expect(room2.engine!.commitBonusThrow(host.id, 6)).toBeNull();
     expect(room2.players.get(host.id)!.chips).toBe(109);
     expect(room2.players.get(p1.id)!.chips).toBe(39);
+    expect(room2.engine!.currentTurnPlayerId).toBe(p1.id);
 
     manager.stop();
     manager2.stop();

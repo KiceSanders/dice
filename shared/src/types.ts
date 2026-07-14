@@ -52,9 +52,10 @@ export interface ClassicPotConfig {
 
 /**
  * Yahtzee bonus: when a roll settles as five of a kind (wilds count), the
- * roller throws one bonus die. If it literally matches the quint's scored
- * face (a rolled 1 is NOT wild here), every other seated player pays the
- * roller min(amount, payer stack, roller stack). Zero-sum, once per turn.
+ * roller throws a temporary sixth die while the five-die quint stays on the
+ * rail. If it literally matches the quint's scored face (a rolled 1 is NOT
+ * wild here), every other seated player pays the roller min(amount, payer
+ * stack, roller stack). The roller then stands automatically. Zero-sum.
  * See docs/GAME_RULES.md "Yahtzee bonus".
  */
 export interface YahtzeeBonusConfig {

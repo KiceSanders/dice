@@ -11,6 +11,10 @@ export const DIE_SIZE = 0.12;
 export const DIE_HALF = DIE_SIZE / 2;
 
 export const DICE_COUNT = 5;
+/** Five stood-hand dice plus the temporary Yahtzee bonus die. */
+export const BONUS_DICE_COUNT = DICE_COUNT + 1;
+/** Runtime index of the temporary Yahtzee bonus die. */
+export const BONUS_DIE_INDEX = DICE_COUNT;
 
 /** Overhead safety collider half-extents (slightly inset from visual rail). */
 export const FELT_HALF_X = FELT_SCALE.x * TABLE.feltRadius * 0.92;

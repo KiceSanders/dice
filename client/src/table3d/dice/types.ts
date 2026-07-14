@@ -10,10 +10,10 @@ export interface ThrowVelocity {
 /** Props for 3D dice rolling on the table canvas. */
 export interface TableDiceProps {
   /**
-   * Yahtzee bonus mode: the quint dice are force-kept on the rail and only
-   * the single bonus die rides in the cup (keepIndices carries the forced
-   * keep set; keep toggling is disabled). TableCanvas remounts DicePhysics
-   * when this flips so the runtime rebuilds.
+   * Yahtzee bonus mode: all five quint dice are force-kept on the rail and a
+   * temporary sixth die rides in the cup (keepIndices carries the forced keep
+   * set; keep toggling is disabled). TableCanvas remounts DicePhysics when
+   * this flips so the runtime rebuilds.
    */
   bonusMode?: boolean;
   /** Which dice indices are locked (kept) this turn. */

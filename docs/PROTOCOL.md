@@ -19,8 +19,8 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `game:start` | `{}` | Host only, ≥2 seated |
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
-| `turn:bonusThrowStart` | `{}` | Yahtzee bonus phase 1: koozie released with the single bonus die (no keeps) |
-| `turn:bonusThrowResult` | `{ die }` | Phase 2: the settled bonus face, integer in [1, 6]. Carries no `restPose` — the quint's pose stays the between-turns layout |
+| `turn:bonusThrowStart` | `{}` | Yahtzee bonus phase 1: koozie released with a temporary sixth die; all 5 hand dice stay railed |
+| `turn:bonusThrowResult` | `{ die }` | Phase 2: the settled bonus face, integer in [1, 6]. The temporary die is removed and the roller auto-stands. Carries no `restPose` — the quint's pose stays the between-turns layout |
 | `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
 | `turn:stand` | `{ restPose? }` | Voluntary stand (gated by `canStandVoluntarily`); optional final selecting layout (canonical space, 5 dice, ADR 005) so dice stay exactly where they were when Stand was clicked. Invalid `restPose` is dropped server-side; the stand itself never fails on it |
 | `chat:send` | `{ text }` | ≤500 chars, rate-limited |
@@ -45,7 +45,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `straight:paid` | `{ playerId, kind, amountPerPlayer, total, payments }` | Instant side payment |
 | `classic:donated` | `{ playerId, amount, classicPot }` | First-roll four-of-a-kind → Classic Pot |
 | `classic:won` | `{ playerId, amount }` | First-roll three 6s while roll-to-beat unset takes Classic Pot |
-| `turn:bonusOffered` | `{ playerId, face }` | A Yahtzee settled: the roller owes a single-die bonus throw before the turn continues |
+| `turn:bonusOffered` | `{ playerId, face }` | A Yahtzee settled: the roller owes a temporary sixth-die throw before auto-standing |
 | `turn:bonusThrowStarted` | `{ playerId }` | A bonus throw is in flight |
 | `turn:bonusRolled` | `{ playerId, die, face, matched }` | The bonus die settled; `matched = die === face` (a rolled 1 is NOT wild here) |
 | `yahtzee:paid` | `{ playerId, amountPerPlayer, total, payments }` | Yahtzee bonus hit: every other seated player paid the roller |
@@ -97,8 +97,9 @@ through `room:state` snapshots (plus `chat:message` for chat). Replay path:
 ## Ephemeral vs persisted
 
 `dice:frames`, `turn:throwStarted`, and `turn:bonusThrowStarted` are streaming/transient —
-never persisted, never in the reducer's state. The bonus die result carries no rest pose:
-the quint's settled pose remains the between-turns layout. Everything a recovered room needs lives in the `RoomEvent` log
+never persisted, never in the reducer's state. Bonus frames temporarily carry the cup plus
+six dice; the bonus die result carries no rest pose and the sixth die is discarded, so the
+quint's settled five-die pose remains the between-turns layout. Everything a recovered room needs lives in the `RoomEvent` log
 (`server/logs/<roomId>.log`, JSON Lines, compacted to a snapshot at each round end).
 
 The settled **rest pose** is the exception that proves the rule (ADR 005): unlike the

@@ -3,6 +3,7 @@ import { canStandVoluntarily } from '@dice/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
+import { BONUS_DIE_INDEX, DICE_COUNT } from '../table3d/dice/constants';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { displaySeatIndex } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
@@ -22,8 +23,8 @@ import {
 import { usePendingKeep } from './usePendingKeep';
 
 const ZERO_VELOCITY: ThrowVelocity = { x: 0, y: 0, z: 0 };
-/** Bonus mode force-keeps the quint on the rail; index 4 becomes the bonus die. */
-const BONUS_KEEP = [0, 1, 2, 3];
+/** Bonus mode force-keeps the full quint; runtime index 5 is a temporary sixth die. */
+const BONUS_KEEP = Array.from({ length: DICE_COUNT }, (_, index) => index);
 
 function standHintFor(
   snapshot: RoomSnapshot,
@@ -73,8 +74,8 @@ export function useTableRoll(
   });
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
   const turnRollsUsed = turn?.rollsUsed ?? 0;
-  // Yahtzee bonus: while pending, the roller owes a single-die cup throw —
-  // the quint is force-kept, keep clicks and standing are off.
+  // Yahtzee bonus: while pending, the roller owes a temporary sixth-die cup
+  // throw — the full quint is force-kept, keep clicks and standing are off.
   const bonusPending = isMyTurn ? (turn?.bonusPending ?? null) : null;
   const bonusMode = bonusPending !== null;
   const bonusModeRef = useRef(bonusMode);
@@ -103,9 +104,9 @@ export function useTableRoll(
     (dice: Die[], settleFrame: PoseFrame) => {
       setRolling(false);
       if (bonusModeRef.current) {
-        // Only index 4 was thrown; no rest pose, so the quint's settled pose
-        // survives as the between-turns layout.
-        const die = dice[4];
+        // Only the temporary sixth die was thrown; no rest pose, so the
+        // quint's settled pose survives as the between-turns layout.
+        const die = dice[BONUS_DIE_INDEX];
         if (die !== undefined) send(bonusThrowResultMessage(die));
         return;
       }

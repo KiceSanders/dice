@@ -1,6 +1,6 @@
 import type { Die } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
-import { DICE_COUNT, dieSlotPosition } from './constants';
+import { BONUS_DICE_COUNT, BONUS_DIE_INDEX, DICE_COUNT, dieSlotPosition } from './constants';
 import { KEPT_DIE_RAIL_Y } from './diceLayout';
 import { buildRuntime } from './diceRuntime';
 import { createHomePose, isInsideCup } from './koozieMotion';
@@ -77,6 +77,26 @@ describe('buildRuntime — cup mode (the roller)', () => {
   it('centers the kept row: two keeps sit symmetrically about x = 0', () => {
     const runtime = buildRuntime(HAND, [0, 4], true, TUNING);
     expect(runtime[0]!.position[0]).toBeCloseTo(-runtime[4]!.position[0], 5);
+  });
+
+  it('keeps the full Yahtzee on the rail and adds a temporary sixth die', () => {
+    const keep = [0, 1, 2, 3, 4];
+    const runtime = buildRuntime(HAND, keep, true, TUNING, true);
+
+    expect(runtime).toHaveLength(BONUS_DICE_COUNT);
+    for (const i of keep) {
+      const rt = runtime[i]!;
+      expect(rt.locked).toBe(true);
+      expect(rt.inCup).toBe(false);
+      expect(rt.meshVisible).toBe(true);
+      expect(rt.position[1]).toBeCloseTo(KEPT_DIE_RAIL_Y, 5);
+    }
+
+    const bonus = runtime[BONUS_DIE_INDEX]!;
+    expect(bonus.locked).toBe(false);
+    expect(bonus.inCup).toBe(true);
+    expect(bonus.meshVisible).toBe(true);
+    expectInsideDockedCup(bonus.position);
   });
 });
 

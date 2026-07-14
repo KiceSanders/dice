@@ -50,7 +50,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
     expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.pot + engine.classicPot).toBe(
       before,
     );
-    expect(engine.publicState().currentTurn?.bonusPending).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p1');
   });
 
   it('wild-composed quints trigger too, targeting the scored face', () => {
@@ -85,9 +85,9 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
     expect(ofType(events, 'bonusOffered')[0]).toMatchObject({ face: 6 });
   });
 
-  it('rerolling and voluntary standing are rejected while the bonus is pending', () => {
+  it('rerolling and voluntary standing are rejected while pending; resolving auto-stands', () => {
     const players = makePlayers([100, 100]);
-    const { engine } = makeEngine(players);
+    const { engine, events } = makeEngine(players);
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
@@ -97,25 +97,27 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
     });
     expect(engine.standVoluntarily('p0')).toMatchObject({ code: 'STAND_NOT_ALLOWED' });
 
-    // Resolving the bonus (miss) unblocks the turn.
+    // Resolving the bonus (miss) stands immediately and advances the turn.
     expect(bonusRoll(engine, 'p0', 2)).toBeNull();
-    expect(engine.standVoluntarily('p0')).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    expect(ofType(events, 'stood')).toContainEqual(
+      expect.objectContaining({ type: 'stood', playerId: 'p0', dice: QUINT }),
+    );
   });
 
-  it('fires at most once per turn, even if a reroll shows another quint', () => {
+  it('offers exactly once, then ends the turn after the bonus throw', () => {
     const players = makePlayers([100, 100]);
     const { engine, events } = makeEngine(players);
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
     expect(bonusRoll(engine, 'p0', 3)).toBeNull(); // miss
-    expect(roll(engine, 'p0', QUINT, [0, 1, 2, 3])).toBeNull(); // quint again, same turn
 
     expect(ofType(events, 'bonusOffered')).toHaveLength(1);
-    expect(engine.publicState().currentTurn?.bonusPending).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p1');
   });
 
-  it('defers the roll-cap auto-stand until the bonus die resolves', () => {
+  it('defers a capped stand until the bonus die resolves', () => {
     const players = makePlayers([100, 100]);
     const { engine } = makeEngine(players, {
       settings: { ...bonusSettings({}), maxRolls: 1 },

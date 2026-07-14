@@ -42,15 +42,17 @@ driven by a table event (below) so it renders independently of which view is mou
 A visual wired into only `DicePhysics` will work on your screen and be invisible to every
 other player — this is the #1 historical mistake shape.
 
-**Yahtzee bonus mode** (docs/GAME_RULES.md "Yahtzee bonus") reuses this machinery rather
-than parameterizing the dice count: while `turn.bonusPending` is set, `useTableRoll` mounts
-`DicePhysics` with `bonusMode` and a forced keep set `[0,1,2,3]` (TableCanvas flips the
-component `key`, so the runtime rebuilds) — 4 quint dice sit railed and exactly one die
-rides in the cup; the settled `values[4]` is reported as `turn:bonusThrowResult`. Keep
+**Yahtzee bonus mode** (docs/GAME_RULES.md "Yahtzee bonus") temporarily extends the live
+dice runtime without changing the five-die hand: while `turn.bonusPending` is set,
+`useTableRoll` mounts `DicePhysics` with `bonusMode` and a forced keep set `[0,1,2,3,4]`
+(TableCanvas flips the component `key`, so the runtime rebuilds). All 5 quint dice sit
+railed and a temporary sixth die rides in the cup; settled runtime `values[5]` alone is
+reported as `turn:bonusThrowResult`. The sixth body is removed immediately after settle,
+the five-die rest pose remains untouched, and the server auto-stands the player. Keep
 clicks are disabled and the Stand button renders disabled with a "throw the bonus die"
-hint. Spectators need nothing new: the throw streams over the same `dice:frames` relay,
-and the match payout animates via the existing `chips-between-players` event
-(`yahtzee:paid` → `lastTransfer`).
+hint. Spectators render up to 6 streamed dice through `RemoteDiceView`; ordinary throws
+still hide its unused sixth mesh. The match payout animates via the existing
+`chips-between-players` event (`yahtzee:paid` → `lastTransfer`).
 
 ## Adding an animation / effect → use table events
 

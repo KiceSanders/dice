@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useTableEvent } from '../tableEvents';
 import {
+  BONUS_DICE_COUNT,
   DICE_COUNT,
   DICE_FELT_Y,
   DIE_HALF,
@@ -191,7 +192,7 @@ function countUnkeptInside(
   const r = cupBody.rotation();
   const cupRot = { x: r.x, y: r.y, z: r.z, w: r.w };
   let inside = 0;
-  for (let i = 0; i < DICE_COUNT; i++) {
+  for (let i = 0; i < runtime.length; i++) {
     const rt = runtime[i];
     if (!rt?.visible || rt.locked) continue;
     const body = liveBody(refs[i]?.body);
@@ -231,6 +232,7 @@ function respawnDieOnFelt(index: number, body: NonNullable<DieBodyHandle['body']
 }
 
 export default function DicePhysics({
+  bonusMode = false,
   keepIndices,
   dice,
   active,
@@ -244,13 +246,14 @@ export default function DicePhysics({
 }: TableDiceProps) {
   const { camera, gl } = useThree();
   const tuning = useDicePhysicsTuning();
-  const dieRefs = useRef<(DieBodyHandle | null)[]>(Array(DICE_COUNT).fill(null));
+  const runtimeDiceCount = bonusMode ? BONUS_DICE_COUNT : DICE_COUNT;
+  const dieRefs = useRef<(DieBodyHandle | null)[]>(Array(runtimeDiceCount).fill(null));
   const koozieRef = useRef<KoozieBodyHandle | null>(null);
   const rollingRef = useRef(false);
   const settleCountRef = useRef(0);
   const keepRef = useRef(keepIndices);
   const onKeepToggleRef = useRef(onKeepToggle);
-  const feltPoseRef = useRef<(DiePose | null)[]>(Array(DICE_COUNT).fill(null));
+  const feltPoseRef = useRef<(DiePose | null)[]>(Array(runtimeDiceCount).fill(null));
   const onSettledRef = useRef(onSettled);
   const onRollingChangeRef = useRef(onRollingChange);
   const onReleaseRef = useRef(onRelease);
@@ -285,7 +288,7 @@ export default function DicePhysics({
     })(),
   );
   const lastDiePosesRef = useRef<BodyPose[]>(
-    Array.from({ length: DICE_COUNT }, (_, i) => {
+    Array.from({ length: runtimeDiceCount }, (_, i) => {
       const [x, y, z] = dieSlotPosition(i);
       return [x, y, z, 0, 0, 0, 1];
     }),
@@ -303,7 +306,7 @@ export default function DicePhysics({
   const dieHoverCountRef = useRef(0);
   const [layoutGen, setLayoutGen] = useState(0);
   const [runtime, setRuntime] = useState<DieRuntime[]>(() =>
-    buildRuntime(dice, keepIndices, canDrag, tuning),
+    buildRuntime(dice, keepIndices, canDrag, tuning, bonusMode),
   );
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
@@ -348,7 +351,15 @@ export default function DicePhysics({
       skipDiceLayoutRef.current = true;
       layoutGenRef.current += 1;
       setLayoutGen(layoutGenRef.current);
-      setRuntime(buildRuntime(nextDice ?? diceRef.current, keepRef.current, cupMode, latestTuning));
+      setRuntime(
+        buildRuntime(
+          nextDice ?? diceRef.current,
+          keepRef.current,
+          cupMode,
+          latestTuning,
+          bonusMode,
+        ),
+      );
       setCupPosition(homePosition(latestTuning));
       transitionCupPhase(cupMode ? 'idle' : 'hidden');
       setCupVisible(cupMode);
@@ -358,9 +369,9 @@ export default function DicePhysics({
       settleCountRef.current = 0;
       heldStateRef.current = null;
       pourStateRef.current = null;
-      feltPoseRef.current = Array(DICE_COUNT).fill(null);
+      feltPoseRef.current = Array(runtimeDiceCount).fill(null);
     },
-    [clearStraightGlow, transitionCupPhase],
+    [bonusMode, clearStraightGlow, runtimeDiceCount, transitionCupPhase],
   );
 
   const enterSelectingPhase = useCallback(
@@ -458,7 +469,7 @@ export default function DicePhysics({
   }, []);
 
   const wakeUnkeptDice = useCallback(() => {
-    for (let i = 0; i < DICE_COUNT; i++) {
+    for (let i = 0; i < runtimeRef.current.length; i++) {
       const rt = runtimeRef.current[i];
       if (!rt?.visible || rt.locked || !rt.inCup) continue;
       const body = liveBody(dieRefs.current[i]?.body);
@@ -479,14 +490,16 @@ export default function DicePhysics({
     const cupQuat = new THREE.Quaternion(r.x, r.y, r.z, r.w);
 
     const kept = new Set(keepRef.current);
-    const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => {
-      const rt = runtimeRef.current[i];
-      if (kept.has(i) || !rt?.visible) return false;
-      // Dice already sitting in the cup normally stay put; when the cup just
-      // teleported off its dock they must come along or they'd be stranded
-      // outside the containment wall.
-      return opts?.includeCupDice || !rt.inCup || rt.meshVisible === false;
-    });
+    const unkeptIndices = Array.from({ length: runtimeRef.current.length }, (_, i) => i).filter(
+      (i) => {
+        const rt = runtimeRef.current[i];
+        if (kept.has(i) || !rt?.visible) return false;
+        // Dice already sitting in the cup normally stay put; when the cup just
+        // teleported off its dock they must come along or they'd be stranded
+        // outside the containment wall.
+        return opts?.includeCupDice || !rt.inCup || rt.meshVisible === false;
+      },
+    );
     if (unkeptIndices.length === 0) return;
 
     const nextRuntime = [...runtimeRef.current];
@@ -518,55 +531,61 @@ export default function DicePhysics({
     setRuntime(nextRuntime);
   }, []);
 
-  const readCurrentDieValues = useCallback((fallbackDice?: Die[]): Die[] => {
-    // Dev-only settle override (see the Window declaration above): substitutes
-    // unkept faces only, so the server's kept-unchanged check still passes.
-    const forcedRaw = import.meta.env.DEV ? window.__forceSettleFaces : undefined;
-    const forced =
-      forcedRaw?.length === HAND_SIZE &&
-      forcedRaw.every((d) => Number.isInteger(d) && d >= 1 && d <= 6)
-        ? (forcedRaw as Die[])
-        : null;
+  const readCurrentDieValues = useCallback(
+    (fallbackDice?: Die[]): Die[] => {
+      // Dev-only settle override (see the Window declaration above): substitutes
+      // unkept faces only, so the server's kept-unchanged check still passes.
+      const forcedRaw = import.meta.env.DEV ? window.__forceSettleFaces : undefined;
+      const forced =
+        forcedRaw?.length === HAND_SIZE &&
+        forcedRaw.every((d) => Number.isInteger(d) && d >= 1 && d <= 6)
+          ? (forcedRaw as Die[])
+          : null;
 
-    const values: Die[] = [];
-    for (let i = 0; i < HAND_SIZE; i++) {
-      if (keepRef.current.includes(i) && diceRef.current[i]) {
-        values.push(diceRef.current[i]!);
-        continue;
+      const values: Die[] = [];
+      for (let i = 0; i < runtimeDiceCount; i++) {
+        if (keepRef.current.includes(i) && diceRef.current[i]) {
+          values.push(diceRef.current[i]!);
+          continue;
+        }
+        if (forced && i < HAND_SIZE) {
+          values.push(forced[i]!);
+          continue;
+        }
+        const body = liveBody(dieRefs.current[i]?.body);
+        if (!body) {
+          values.push(fallbackDice?.[i] ?? diceRef.current[i] ?? 1);
+          continue;
+        }
+        const rot = body.rotation();
+        _quat.set(rot.x, rot.y, rot.z, rot.w);
+        values.push(readTopFace(_quat));
       }
-      if (forced) {
-        values.push(forced[i]!);
-        continue;
-      }
-      const body = liveBody(dieRefs.current[i]?.body);
-      if (!body) {
-        values.push(fallbackDice?.[i] ?? diceRef.current[i] ?? 1);
-        continue;
-      }
-      const rot = body.rotation();
-      _quat.set(rot.x, rot.y, rot.z, rot.w);
-      values.push(readTopFace(_quat));
-    }
-    return values;
-  }, []);
+      return values;
+    },
+    [runtimeDiceCount],
+  );
 
-  const samplePoseFrame = useCallback((now: number): PoseFrame => {
-    const phase = cupPhaseRef.current;
-    const cup = liveBody(koozieRef.current?.body);
-    if (cup) lastCupPoseRef.current = readBodyPose(cup);
-    const bodies: BodyPose[] = [lastCupPoseRef.current];
-    for (let i = 0; i < DICE_COUNT; i++) {
-      const body = liveBody(dieRefs.current[i]?.body);
-      if (body) lastDiePosesRef.current[i] = readBodyPose(body);
-      bodies.push(lastDiePosesRef.current[i]!);
-    }
-    return {
-      t: Math.round(now - (streamStartRef.current ?? now)),
-      bodies,
-      // Parked/hidden cup is roller-only UX; spectators see it while carried.
-      cupVisible: cupStreamingVisible(phase),
-    };
-  }, []);
+  const samplePoseFrame = useCallback(
+    (now: number): PoseFrame => {
+      const phase = cupPhaseRef.current;
+      const cup = liveBody(koozieRef.current?.body);
+      if (cup) lastCupPoseRef.current = readBodyPose(cup);
+      const bodies: BodyPose[] = [lastCupPoseRef.current];
+      for (let i = 0; i < runtimeDiceCount; i++) {
+        const body = liveBody(dieRefs.current[i]?.body);
+        if (body) lastDiePosesRef.current[i] = readBodyPose(body);
+        bodies.push(lastDiePosesRef.current[i]!);
+      }
+      return {
+        t: Math.round(now - (streamStartRef.current ?? now)),
+        bodies,
+        // Parked/hidden cup is roller-only UX; spectators see it while carried.
+        cupVisible: cupStreamingVisible(phase),
+      };
+    },
+    [runtimeDiceCount],
+  );
 
   const finishWithCurrentFaces = useCallback(
     (fallbackDice?: Die[]) => {
@@ -578,14 +597,25 @@ export default function DicePhysics({
         finishPendingRef.current = false;
         settleCountRef.current = 0;
         setSimRolling(false);
-        enterSelectingPhase(values);
+        if (!bonusMode) enterSelectingPhase(values);
         const settleFrame = samplePoseFrame(performance.now());
         onPoseFrameRef.current?.(settleFrame);
         onRollingChangeRef.current?.(false);
         onSettledRef.current(values, settleFrame);
+        if (bonusMode) {
+          // The sixth die exists only for this throw. Keep the stood quint in
+          // place while the server advances the turn, but remove the bonus die
+          // and cup immediately after its settled face has been reported.
+          const quintRuntime = runtimeRef.current.slice(0, DICE_COUNT);
+          runtimeRef.current = quintRuntime;
+          setRuntime(quintRuntime);
+          transitionCupPhase('hidden');
+          setCupVisible(false);
+          return;
+        }
       });
     },
-    [readCurrentDieValues, enterSelectingPhase, samplePoseFrame],
+    [bonusMode, readCurrentDieValues, enterSelectingPhase, samplePoseFrame, transitionCupPhase],
   );
 
   const recordSample = useCallback(
@@ -766,8 +796,8 @@ export default function DicePhysics({
     }
     layoutGenRef.current += 1;
     setLayoutGen(layoutGenRef.current);
-    setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current));
-  }, [dice, keepIndices, dragging, canDrag]);
+    setRuntime(buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current, bonusMode));
+  }, [dice, keepIndices, dragging, canDrag, bonusMode]);
 
   useEffect(() => {
     if (cupPhaseRef.current !== 'selecting' && cupPhaseRef.current !== 'held') return;
@@ -805,7 +835,7 @@ export default function DicePhysics({
       setCupVisible(false);
       clearStraightGlow();
       setRuntime(
-        Array.from({ length: DICE_COUNT }, () => ({
+        Array.from({ length: runtimeDiceCount }, () => ({
           visible: false,
           locked: false,
           inCup: false,
@@ -820,7 +850,7 @@ export default function DicePhysics({
         resetToIdleInCup();
       }
     }
-  }, [active, resetToIdleInCup, clearStraightGlow, transitionCupPhase]);
+  }, [active, resetToIdleInCup, clearStraightGlow, runtimeDiceCount, transitionCupPhase]);
 
   useEffect(() => {
     if (
@@ -986,7 +1016,7 @@ export default function DicePhysics({
         setCupPose(cup, pose);
         // Cap in-cup energy while the kinematic trimesh moves — settle clamps
         // alone left drag free to explode on laggy frames (ADR 002).
-        for (let i = 0; i < DICE_COUNT; i++) {
+        for (let i = 0; i < runtimeRef.current.length; i++) {
           const rt = runtimeRef.current[i];
           if (!rt?.visible || rt.locked) continue;
           const body = liveBody(dieRefs.current[i]?.body);
@@ -1029,7 +1059,7 @@ export default function DicePhysics({
     }
 
     let settled = true;
-    for (let i = 0; i < DICE_COUNT; i++) {
+    for (let i = 0; i < runtimeRef.current.length; i++) {
       const rt = runtimeRef.current[i];
       if (!rt?.visible || rt.locked) continue;
       const body = liveBody(dieRefs.current[i]?.body);

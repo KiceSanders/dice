@@ -100,20 +100,24 @@ payout) and the payout in `engine.applyYahtzeeBonusPayout`.
 
 - **Trigger** (`settings.yahtzeeBonus`): the moment a roll settles scoring five
   of a kind (**wilds count**: `6,6,6,1,1` is five 6s; `1,1,1,1,1` scores five
-  6s), the turn pauses and the roller throws **one bonus die** with the real
-  cup gesture (a real physics throw, ADR 004 — `turn:bonusThrowStart` /
-  `turn:bonusThrowResult`).
+  6s), the turn pauses. All **five Yahtzee dice stay on the rail**, and the
+  roller throws a temporary **sixth bonus die** with the real cup gesture (a
+  real physics throw, ADR 004 — `turn:bonusThrowStart` /
+  `turn:bonusThrowResult`). The sixth die exists only for that throw and is
+  removed from view as soon as it settles; it never replaces or alters a die
+  in the five-die hand.
 - **Match**: the bonus die must **literally equal the quint's scored face** — a
   rolled 1 is NOT wild here (quint of 6s needs a 6; a 1 misses). On a match,
   every other seated player immediately pays the roller
   `min(amountPerPlayer, payer.chips, roller.chips)` — the same reciprocal cap
   as the straight payout. Zero-sum, pot untouched. On a miss nothing happens.
 - **Turn flow**: while the bonus is pending, re-rolling and voluntary standing
-  are rejected — throw the bonus die first. A quint on the final allowed roll
-  **defers the roll-cap auto-stand** until the bonus die resolves. After the
-  bonus (hit or miss) the turn continues normally.
-- **At most once per turn** (latched like the straight payout — a re-roll into
-  a second quint does not re-offer, and disabling mid-turn cannot re-arm it).
+  are rejected — throw the bonus die first. After the bonus settles (**hit or
+  miss**), the roller **stands automatically** on the five-die Yahtzee. A quint
+  on the final allowed roll therefore defers its stand only until the bonus die
+  resolves.
+- **At most once per turn** (the bonus resolution ends the turn; the offer is
+  also latched so disabling mid-throw cannot re-arm it).
 - Forced stands (disconnect, kick) abandon a pending bonus: the player stands
   on the quint, no payout. Crash recovery replays the quint and re-offers the
   bonus; a recorded bonus die replays verbatim (`bonusRolled` room event).

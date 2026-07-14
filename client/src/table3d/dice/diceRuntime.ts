@@ -1,6 +1,6 @@
 import type { Die } from '@dice/shared';
 import * as THREE from 'three';
-import { DICE_COUNT, dieSlotPosition } from './constants';
+import { BONUS_DICE_COUNT, BONUS_DIE_INDEX, DICE_COUNT, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
 import { quaternionForFace } from './faceValue';
 import { spawnDiceInCupLocal } from './koozieColliders';
@@ -55,6 +55,7 @@ export function buildRuntime(
   keepIndices: number[],
   cupMode: boolean,
   tuning: DicePhysicsTuning,
+  bonusMode = false,
 ): DieRuntime[] {
   if (!cupMode) {
     return Array.from({ length: DICE_COUNT }, (_, i) => {
@@ -81,14 +82,17 @@ export function buildRuntime(
   // A keep without a committed value is stale/invalid input (most notably the
   // one-render turn-switch lag this module must fail closed against). Never
   // turn it into a visible identity-rotation die on the near rail.
+  const runtimeDiceCount = bonusMode ? BONUS_DICE_COUNT : DICE_COUNT;
   const keptSorted = keepIndices
     .filter((i) => i >= 0 && i < DICE_COUNT && dice[i] !== undefined)
     .sort((a, b) => a - b);
   const kept = new Set(keptSorted);
-  const unkeptIndices = Array.from({ length: DICE_COUNT }, (_, i) => i).filter((i) => !kept.has(i));
+  const unkeptIndices = Array.from({ length: runtimeDiceCount }, (_, i) => i).filter(
+    (i) => !kept.has(i),
+  );
   const home = createHomePose(tuning);
 
-  return Array.from({ length: DICE_COUNT }, (_, i) => {
+  return Array.from({ length: runtimeDiceCount }, (_, i) => {
     if (kept.has(i)) {
       const value = dice[i];
       // Kept dice live on the near rail (same slot math as enterSelectingPhase /
@@ -109,7 +113,7 @@ export function buildRuntime(
       visible: true,
       // Full hands are visible on a mid-turn remount; empty first-roll hands
       // remain physical but hidden. Partial malformed hands also fail closed.
-      meshVisible: dice[i] !== undefined,
+      meshVisible: dice[i] !== undefined || (bonusMode && i === BONUS_DIE_INDEX),
       locked: false,
       inCup: true,
       position: cupLocalToWorld(local.position, home.position, home.quaternion),

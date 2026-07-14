@@ -45,7 +45,7 @@ export function throwResultMessage(dice: Die[], restPose: BodyPose[] | null): Cl
   };
 }
 
-/** Yahtzee bonus throw, phase 1: no keeps — the single bonus die is implied. */
+/** Yahtzee bonus throw, phase 1: the temporary sixth die is implied. */
 export function bonusThrowStartMessage(): ClientMessage {
   return { type: 'turn:bonusThrowStart' };
 }

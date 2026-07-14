@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import type * as THREE from 'three';
 import { useTableEvent } from '../tableEvents';
-import { DICE_COUNT } from './constants';
+import { BONUS_DICE_COUNT } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
 import type { RemoteRollFeed } from './remoteFeed';
@@ -27,7 +27,7 @@ export default function RemoteDiceView({ feed }: { feed: RemoteRollFeed }) {
   const tuning = useDicePhysicsTuning();
   const rootRef = useRef<THREE.Group>(null);
   const cupRef = useRef<THREE.Group>(null);
-  const dieRefs = useRef<(THREE.Group | null)[]>(Array(DICE_COUNT).fill(null));
+  const dieRefs = useRef<(THREE.Group | null)[]>(Array(BONUS_DICE_COUNT).fill(null));
   const glowTimerRef = useRef<number | null>(null);
   const { glow, start: startStraightGlow, clear: clearStraightGlow } = useStraightGlow();
 
@@ -71,7 +71,7 @@ export default function RemoteDiceView({ feed }: { feed: RemoteRollFeed }) {
       cup.position.set(cupPose[0], cupPose[1], cupPose[2]);
       cup.quaternion.set(cupPose[3], cupPose[4], cupPose[5], cupPose[6]);
     }
-    for (let i = 0; i < DICE_COUNT; i++) {
+    for (let i = 0; i < BONUS_DICE_COUNT; i++) {
       const die = dieRefs.current[i];
       if (!die) continue;
       const pose = dicePoses[i];
@@ -90,7 +90,7 @@ export default function RemoteDiceView({ feed }: { feed: RemoteRollFeed }) {
       <group ref={cupRef}>
         <KoozieMesh cup={tuning.cup} />
       </group>
-      {Array.from({ length: DICE_COUNT }, (_, i) => (
+      {Array.from({ length: BONUS_DICE_COUNT }, (_, i) => (
         <group
           key={i}
           ref={(el) => {

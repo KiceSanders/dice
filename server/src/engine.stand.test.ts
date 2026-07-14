@@ -26,7 +26,7 @@ describe('GameEngine: voluntary stand gating', () => {
 
     expect(roll(engine, 'p2', [6, 6, 6, 6, 1])).toBeNull();
     expect(bonusRoll(engine, 'p2', 3)).toBeNull(); // quint owes its bonus die first
-    expect(engine.standVoluntarily('p2')).toBeNull(); // beating the roll-to-beat
+    expect(engine.currentTurnPlayerId).not.toBe('p2'); // bonus resolution auto-stands
   });
 
   it('allows standing on a beat and on a full tie (tie starts the sub-round)', () => {

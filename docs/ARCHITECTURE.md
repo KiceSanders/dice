@@ -55,6 +55,11 @@ current selecting layout (including dice newly moved to the rail after the last 
 The server soft-gates it with the same rest-pose validator and, if valid, replaces
 `currentTurn.restPose` before copying it into `rollToBeat.restPose`.
 
+Yahtzee bonus throws temporarily extend only the live physics/pose stream to six dice:
+the five authoritative hand dice stay railed, a sixth die is created in the cup, and only
+its face is sent in `turn:bonusThrowResult`. The sixth die is then removed, the original
+five-die rest pose remains authoritative, and the engine stands the roller automatically.
+
 Round-end delay: 5s (`ROUND_END_DELAY_MS`) → next round auto-starts. Disconnect/kick
 during a turn calls `forceStand` (stand on settled dice, or forfeit if none).
 

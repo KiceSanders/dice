@@ -79,7 +79,8 @@ function SceneContent({
         debug={tuning.world.debug}
       >
         {/* Key flip forces a runtime rebuild entering/leaving bonus mode
-            (docs/GAME_RULES.md "Yahtzee bonus"): 4 railed quint dice + 1 in cup. */}
+            (docs/GAME_RULES.md "Yahtzee bonus"): 5 railed quint dice + a
+            temporary sixth die in the cup. */}
         {dice ? (
           <DicePhysics key={dice.bonusMode ? 'bonus' : 'hand'} {...dice} />
         ) : (

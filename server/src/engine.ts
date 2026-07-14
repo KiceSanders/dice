@@ -94,7 +94,7 @@ export type EngineEvent =
       playerId: PlayerId;
       amount: number;
     }
-  /** A Yahtzee settled: the roller owes a single-die bonus throw (docs/GAME_RULES.md). */
+  /** A Yahtzee settled: the roller owes a temporary sixth-die throw (docs/GAME_RULES.md). */
   | { type: 'bonusOffered'; playerId: PlayerId; face: Die }
   | { type: 'bonusThrowStarted'; playerId: PlayerId }
   /** The bonus die settled. matched = die === face (a rolled 1 is NOT wild here). */
@@ -136,7 +136,7 @@ interface CurrentTurn {
   rollCap: number;
   /** The instant straight payout fired this turn (it pays at most once). */
   straightPaid: boolean;
-  /** Awaiting/streaming the single Yahtzee bonus die. Null = no bonus in play. */
+  /** Awaiting/streaming the temporary sixth die. Null = no bonus in play. */
   bonus: { face: Die; throwing: boolean } | null;
   /** A Yahtzee already offered the bonus this turn (mirrors straightPaid). */
   bonusOffered: boolean;
@@ -460,8 +460,8 @@ export class GameEngine {
     this.applyClassicDonation(turn);
     this.applyClassicPayout(turn);
 
-    // A fresh Yahtzee bonus defers the roll-cap auto-stand until the bonus
-    // die resolves (commitBonusThrow re-runs the check).
+    // A fresh Yahtzee bonus defers standing until the bonus die resolves;
+    // commitBonusThrow always stands the player immediately afterward.
     const bonusOffered = this.offerYahtzeeBonus(turn);
     if (!bonusOffered && turn.rollsUsed >= turn.rollCap) return this.stand(turn.playerId);
     this.emit({ type: 'stateChanged' });
@@ -629,7 +629,7 @@ export class GameEngine {
 
   /**
    * Yahtzee bonus offer (docs/GAME_RULES.md "Yahtzee bonus"): a settled quint
-   * (wilds count) owes a single-die bonus throw before the turn continues.
+   * (wilds count) owes a temporary sixth-die throw before auto-standing.
    * Latches once per turn like the straight payout. Returns true when a bonus
    * is now pending.
    */
@@ -644,7 +644,7 @@ export class GameEngine {
     return true;
   }
 
-  /** Bonus throw, phase 1: the koozie is released with the single bonus die. */
+  /** Bonus throw, phase 1: the koozie is released with the temporary sixth die. */
   beginBonusThrow(playerId: PlayerId): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
@@ -660,8 +660,8 @@ export class GameEngine {
 
   /**
    * Bonus throw, phase 2: the single die settled. A literal face match (a
-   * rolled 1 is NOT wild here) pays the roller; either way the turn resumes,
-   * including the roll-cap auto-stand deferred by the offer.
+   * rolled 1 is NOT wild here) pays the roller; either way the player then
+   * stands automatically on the Yahtzee.
    */
   commitBonusThrow(playerId: PlayerId, die: Die): EngineError | null {
     const turn = this.guardTurn(playerId);
@@ -675,9 +675,7 @@ export class GameEngine {
     const matched = die === face;
     this.emit({ type: 'bonusRolled', playerId, die, face, matched });
     if (matched) this.applyYahtzeeBonusPayout(turn);
-    if (turn.rollsUsed >= turn.rollCap) return this.stand(playerId);
-    this.emit({ type: 'stateChanged' });
-    return null;
+    return this.stand(playerId);
   }
 
   /** Log replay (PLAN.md Phase 6): re-apply a recorded bonus die verbatim. */

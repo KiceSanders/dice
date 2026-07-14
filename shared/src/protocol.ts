@@ -40,7 +40,7 @@ export type ClientMessage =
    * optional; the server drops it (never the throw) if validation fails.
    */
   | { type: 'turn:throwResult'; dice: Die[]; restPose?: BodyPose[] }
-  /** Yahtzee bonus throw, phase 1: koozie released with the single bonus die (no keeps). */
+  /** Yahtzee bonus phase 1: koozie released with a temporary sixth die; quint stays railed. */
   | { type: 'turn:bonusThrowStart' }
   /** Yahtzee bonus throw, phase 2: the sim settled the bonus die on this face. */
   | { type: 'turn:bonusThrowResult'; die: Die }
@@ -133,7 +133,7 @@ export type ServerMessage =
       /** Chips taken from the Classic Pot (pot is zeroed). */
       amount: number;
     }
-  /** A Yahtzee settled: the roller owes a single-die bonus throw before the turn continues. */
+  /** A Yahtzee settled: the roller owes a temporary sixth-die throw before auto-standing. */
   | { type: 'turn:bonusOffered'; playerId: PlayerId; face: Die }
   /** A bonus throw is in flight; the result arrives via turn:bonusRolled. */
   | { type: 'turn:bonusThrowStarted'; playerId: PlayerId }

@@ -218,8 +218,7 @@ assert(
   `yahtzee bonus paid 10 to the roller (${paid.total})`,
 );
 
-// Turn resumes: the roller stands on the quint; the other player is capped at 1.
-r2Roller.send({ type: 'turn:stand' });
+// Bonus resolution auto-stands the roller; the other player is capped at 1.
 state = await host.stateWhere(
   (s) => s.game?.currentTurn != null && s.game.currentTurn.playerId !== r2First,
   'round 2 second turn',
