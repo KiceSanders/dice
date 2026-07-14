@@ -3,6 +3,7 @@ import type {
   ClientMessage,
   RoomSettings,
   StraightPayoutConfig,
+  YahtzeeBonusConfig,
 } from '@dice/shared';
 
 export type ParseResult = { ok: true; message: ClientMessage } | { ok: false; error: string };
@@ -27,6 +28,10 @@ function isClassicPotConfig(v: unknown): v is ClassicPotConfig {
   return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.donationAmount);
 }
 
+function isYahtzeeBonusConfig(v: unknown): v is YahtzeeBonusConfig {
+  return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.amountPerPlayer);
+}
+
 /** Structural check only; range clamping happens in the room layer (Phase 3.2). */
 function isRoomSettings(v: unknown): v is RoomSettings {
   return (
@@ -37,7 +42,8 @@ function isRoomSettings(v: unknown): v is RoomSettings {
     isFiniteNumber(v.minBuyIn) &&
     isFiniteNumber(v.maxBuyIn) &&
     isStraightPayoutConfig(v.straightPayout) &&
-    isClassicPotConfig(v.classicPot)
+    isClassicPotConfig(v.classicPot) &&
+    isYahtzeeBonusConfig(v.yahtzeeBonus)
   );
 }
 
@@ -124,6 +130,11 @@ const validators: Record<ClientMessage['type'], Validator> = {
     }
     return null;
   },
+  'turn:bonusThrowStart': () => null,
+  'turn:bonusThrowResult': (m) =>
+    Number.isInteger(m.die) && (m.die as number) >= 1 && (m.die as number) <= 6
+      ? null
+      : 'die must be an integer in [1, 6]',
   'dice:frames': (m) =>
     Array.isArray(m.frames) &&
     m.frames.length >= 1 &&

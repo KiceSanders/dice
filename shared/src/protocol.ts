@@ -40,6 +40,10 @@ export type ClientMessage =
    * optional; the server drops it (never the throw) if validation fails.
    */
   | { type: 'turn:throwResult'; dice: Die[]; restPose?: BodyPose[] }
+  /** Yahtzee bonus throw, phase 1: koozie released with the single bonus die (no keeps). */
+  | { type: 'turn:bonusThrowStart' }
+  /** Yahtzee bonus throw, phase 2: the sim settled the bonus die on this face. */
+  | { type: 'turn:bonusThrowResult'; die: Die }
   /** Live throw poses; relayed to everyone else in the room, never persisted. */
   | { type: 'dice:frames'; frames: PoseFrame[] }
   /** Voluntary stand; optional final selecting layout for the settled hand (ADR 005). */
@@ -122,12 +126,27 @@ export type ServerMessage =
       /** Classic pot total after the donation. */
       classicPot: number;
     }
-  /** Classic (three 6s while roll-to-beat unset) wins the Classic Pot. */
+  /** Classic (first-roll three 6s while roll-to-beat unset) wins the Classic Pot. */
   | {
       type: 'classic:won';
       playerId: PlayerId;
       /** Chips taken from the Classic Pot (pot is zeroed). */
       amount: number;
+    }
+  /** A Yahtzee settled: the roller owes a single-die bonus throw before the turn continues. */
+  | { type: 'turn:bonusOffered'; playerId: PlayerId; face: Die }
+  /** A bonus throw is in flight; the result arrives via turn:bonusRolled. */
+  | { type: 'turn:bonusThrowStarted'; playerId: PlayerId }
+  /** The bonus die settled. matched = die === face (a rolled 1 is NOT wild here). */
+  | { type: 'turn:bonusRolled'; playerId: PlayerId; die: Die; face: Die; matched: boolean }
+  /** Yahtzee bonus hit: every other seated player paid the roller. */
+  | {
+      type: 'yahtzee:paid';
+      playerId: PlayerId;
+      amountPerPlayer: number;
+      total: number;
+      /** Actual per-payer transfers; min(amount, payer, roller) for short stacks. */
+      payments: { playerId: PlayerId; amount: number }[];
     }
   | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }
   | { type: 'error'; code: ErrorCode; message: string };

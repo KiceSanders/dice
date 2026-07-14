@@ -45,6 +45,17 @@ export function throwResultMessage(dice: Die[], restPose: BodyPose[] | null): Cl
   };
 }
 
+/** Yahtzee bonus throw, phase 1: no keeps — the single bonus die is implied. */
+export function bonusThrowStartMessage(): ClientMessage {
+  return { type: 'turn:bonusThrowStart' };
+}
+
+/** Yahtzee bonus throw, phase 2: settled face only — no rest pose, so the
+    quint's pose stays the between-turns layout. */
+export function bonusThrowResultMessage(die: Die): ClientMessage {
+  return { type: 'turn:bonusThrowResult', die };
+}
+
 export function standMessage(restPose: BodyPose[] | null): ClientMessage {
   return {
     type: 'turn:stand',

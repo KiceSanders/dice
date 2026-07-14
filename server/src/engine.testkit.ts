@@ -53,6 +53,13 @@ export function roll(
   return engine.commitThrow(id, dice, restPose);
 }
 
+/** Complete one Yahtzee bonus throw: beginBonusThrow, then commit the given face. */
+export function bonusRoll(engine: GameEngine, id: PlayerId, die: Die): EngineError | null {
+  const begun = engine.beginBonusThrow(id);
+  if (begun) return begun;
+  return engine.commitBonusThrow(id, die);
+}
+
 /** A valid on-table rest pose matching `dice` (passes validateRestPose). */
 export function restPoseFor(dice: Die[]): BodyPose[] {
   return dice.map((value, i) => {

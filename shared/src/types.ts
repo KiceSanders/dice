@@ -50,6 +50,19 @@ export interface ClassicPotConfig {
   donationAmount: number;
 }
 
+/**
+ * Yahtzee bonus: when a roll settles as five of a kind (wilds count), the
+ * roller throws one bonus die. If it literally matches the quint's scored
+ * face (a rolled 1 is NOT wild here), every other seated player pays the
+ * roller min(amount, payer stack, roller stack). Zero-sum, once per turn.
+ * See docs/GAME_RULES.md "Yahtzee bonus".
+ */
+export interface YahtzeeBonusConfig {
+  enabled: boolean;
+  /** Chips each other seated player pays the roller on a match. */
+  amountPerPlayer: number;
+}
+
 export interface RoomSettings {
   chipsPerRound: number;
   /** Absolute max rolls for the round's first player. */
@@ -60,6 +73,7 @@ export interface RoomSettings {
   maxBuyIn: number;
   straightPayout: StraightPayoutConfig;
   classicPot: ClassicPotConfig;
+  yahtzeeBonus: YahtzeeBonusConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -75,6 +89,10 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   classicPot: {
     enabled: true,
     donationAmount: 1,
+  },
+  yahtzeeBonus: {
+    enabled: true,
+    amountPerPlayer: 10,
   },
 };
 
@@ -117,6 +135,8 @@ export interface TurnState {
   rollCap: number;
   /** True while a physics throw is in flight (throwStart → throwResult, ADR 004). */
   throwing: boolean;
+  /** Set while the turn awaits its Yahtzee bonus die (docs/GAME_RULES.md "Yahtzee bonus"). */
+  bonusPending: { face: Die } | null;
   /**
    * Where the last roll's dice physically came to rest (ADR 005): canonical
    * table space, one pose per die in hand-index order, cup excluded. Null

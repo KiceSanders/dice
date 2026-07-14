@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeEngine, makePlayers, roll } from './engine.testkit.js';
+import { bonusRoll, makeEngine, makePlayers, roll } from './engine.testkit.js';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -25,6 +25,7 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(engine.currentTurnPlayerId).toBe('p2');
 
     expect(roll(engine, 'p2', [6, 6, 6, 6, 1])).toBeNull();
+    expect(bonusRoll(engine, 'p2', 3)).toBeNull(); // quint owes its bonus die first
     expect(engine.standVoluntarily('p2')).toBeNull(); // beating the roll-to-beat
   });
 

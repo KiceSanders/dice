@@ -2,12 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { formatRollToBeatText, summarizeRollToBeat } from './rollToBeatFormat';
 
 describe('summarizeRollToBeat', () => {
-  it('exposes digit count and face for a group hand', () => {
+  it('labels three 6s in 1 roll as Classic', () => {
     expect(summarizeRollToBeat({ count: 3, face: 6, rollsUsed: 1, straight: 'none' })).toEqual({
+      kind: 'classic',
+    });
+  });
+
+  it('exposes digit count and face for a group hand', () => {
+    expect(summarizeRollToBeat({ count: 3, face: 5, rollsUsed: 1, straight: 'none' })).toEqual({
+      kind: 'group',
+      count: 3,
+      face: 5,
+      rollsUsed: 1,
+    });
+  });
+
+  it('keeps three 6s on later rolls as a normal group', () => {
+    expect(summarizeRollToBeat({ count: 3, face: 6, rollsUsed: 2, straight: 'none' })).toEqual({
       kind: 'group',
       count: 3,
       face: 6,
-      rollsUsed: 1,
+      rollsUsed: 2,
     });
   });
 
@@ -39,9 +54,18 @@ describe('summarizeRollToBeat', () => {
 });
 
 describe('formatRollToBeatText', () => {
-  it('uses digits for count and rollsUsed', () => {
+  it('labels three 6s in 1 roll as Classic', () => {
     expect(formatRollToBeatText({ count: 3, face: 6, rollsUsed: 1, straight: 'none' })).toBe(
-      '3 6s in 1 roll',
+      'Classic',
+    );
+  });
+
+  it('uses digits for count and rollsUsed', () => {
+    expect(formatRollToBeatText({ count: 3, face: 5, rollsUsed: 1, straight: 'none' })).toBe(
+      '3 5s in 1 roll',
+    );
+    expect(formatRollToBeatText({ count: 3, face: 6, rollsUsed: 2, straight: 'none' })).toBe(
+      '3 6s in 2 rolls',
     );
     expect(formatRollToBeatText({ count: 1, face: 4, rollsUsed: 2, straight: 'none' })).toBe(
       '1 4 in 2 rolls',

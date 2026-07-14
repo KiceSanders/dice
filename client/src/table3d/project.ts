@@ -4,6 +4,25 @@ import { SEAT_VIEW } from './layout';
 /** The viewport's fixed aspect ratio (index.css pins `.table-3d-viewport` to 16:9). */
 export const FRAME_ASPECT = 16 / 9;
 
+/**
+ * Camera view-offset for a canvas that bleeds ABOVE the 16:9 viewport (the
+ * top-band strip is playing field: a raised koozie renders over the HUD
+ * widgets there). The virtual full frame stays the 16:9 rect aligned to the
+ * canvas BOTTOM — exactly the `.table-3d-viewport` element — so every
+ * framing/overlay/picking assumption (`projectToNdc`, seat overlays,
+ * pointerToFelt) keeps holding; the bleed strip just exposes more frustum
+ * above NDC y=1. Returns null when the canvas is 16:9 or shorter (no bleed).
+ */
+export function frameViewOffset(
+  width: number,
+  height: number,
+): { fullWidth: number; fullHeight: number; x: number; y: number } | null {
+  const frameHeight = width / FRAME_ASPECT;
+  const bleed = height - frameHeight;
+  if (!(bleed > 0.5)) return null;
+  return { fullWidth: width, fullHeight: frameHeight, x: 0, y: -bleed };
+}
+
 const _vec = new THREE.Vector3();
 const _cam = new THREE.PerspectiveCamera();
 

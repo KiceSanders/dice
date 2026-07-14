@@ -280,9 +280,13 @@ code {
   position: relative;
   display: grid;
   /* Fluid seat gutters — no fixed track may force an intrinsic min width,
-     or narrow windows horizontal-scroll (Chrome) / shrink-to-fit (Safari). */
+     or narrow windows horizontal-scroll (Chrome) / shrink-to-fit (Safari).
+     The top row (--table-top-band-h) hosts the top-band HUD widgets, but it is
+     still playing field: the transparent canvas bleeds up over it (see
+     .table-canvas) so a raised koozie draws over the widgets. */
+  --table-top-band-h: 4.75rem;
   grid-template-columns: clamp(4.25rem, 9%, 7.5rem) 1fr clamp(4.25rem, 9%, 7.5rem);
-  grid-template-rows: 4.25rem auto 4.25rem;
+  grid-template-rows: var(--table-top-band-h) auto 4.25rem;
 }
 
 .table-3d-viewport {
@@ -290,13 +294,14 @@ code {
   grid-row: 2;
   position: relative;
   /* Width-driven 16:9 at every size — the fixed camera, overlay projection
-     (project.ts), and the framing tests all assume this exact ratio. */
+     (project.ts), and the framing tests all assume this exact ratio.
+     No overflow clipping: the transparent canvas bleeds above this rect into
+     the top-band row (FixedCamera extends the frustum to match). */
   aspect-ratio: 16 / 9;
   width: 100%;
   min-width: 0;
   min-height: 0;
   border-radius: calc(var(--radius) - 2px);
-  overflow: hidden;
   z-index: 1;
 }
 
@@ -354,21 +359,26 @@ code {
 /* Game-state band on the reserved top arc (10→2 o'clock — no seat may enter,
    layout.test.ts proves it). Widgets occupy normal-flow pot/roll lanes, so they
    never overlap each other. Paired with the TOP_BAND_* constants in
-   table3d/layout.ts — keep width, height, gap, and pot lane sizing in sync. */
+   table3d/layout.ts — keep width, height, gap, and pot lane sizing in sync.
+   The band stacks UNDER the transparent canvas (z-index 0 vs the viewport's 1):
+   widgets show through the canvas's empty pixels as HUD chrome, and a koozie
+   raised into the top arc paints over them instead of hiding behind a bar. */
 .table-top-band {
   position: absolute;
   top: 0;
   /* Bias the band toward the right so Classic Pot sits nearer the frame corner. */
   left: 58%;
   transform: translateX(-50%);
-  height: 4.75rem; /* room for coin pyramid + Classic Pot label */
+  height: 4.75rem; /* room for coin pyramid + Classic Pot label; keep equal to
+                      .table-3d's --table-top-band-h so the canvas bleed covers
+                      exactly the band */
   width: 68%;
   max-width: 68%;
   display: grid;
   grid-template-columns: minmax(4.75rem, 0.3fr) minmax(0, 1fr) minmax(5rem, 0.5fr);
   align-items: center;
   gap: 0.5rem;
-  z-index: 2;
+  z-index: 0;
   pointer-events: none;
   user-select: none;
 }
@@ -416,8 +426,9 @@ code {
   pointer-events: none;
 }
 
-/* Compact roll-to-beat chip — a single horizontal row sized to the top
-   gutter's height; the band gives it room to grow sideways, never down. */
+/* Compact roll-to-beat chip — a single horizontal row sized to the band's
+   height; the band gives it room to grow sideways, never down. Light scrim
+   (not a solid bar) so it reads as HUD chrome over the table backdrop. */
 .roll-to-beat-overlay {
   display: flex;
   align-items: center;
@@ -426,17 +437,10 @@ code {
   white-space: nowrap;
   padding: 0.3rem 0.6rem;
   border-radius: calc(var(--radius) - 2px);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--surface-2) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--surface-2) 55%, transparent);
   color: var(--text);
   line-height: 1.2;
-}
-
-.roll-to-beat-label {
-  font-size: 0.58rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 
 .roll-to-beat-hand {
@@ -450,6 +454,12 @@ code {
 .roll-to-beat-count {
   font-variant-numeric: tabular-nums;
   font-size: 1rem;
+}
+
+.roll-to-beat-classic {
+  font-size: 1rem;
+  font-style: italic;
+  font-weight: 600;
 }
 
 .roll-to-beat-rolls {
@@ -494,11 +504,21 @@ code {
   text-align: center;
 }
 
+/* The canvas bleeds ABOVE the 16:9 viewport into the top-band row, so that
+   strip is playing field: FixedCamera extends the frustum upward to match,
+   and a koozie raised there paints over the band widgets (which stack under
+   the transparent canvas). The virtual 16:9 camera frame stays aligned to the
+   viewport rect, so overlay/picking math is untouched. */
 .table-canvas {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: calc(-1 * var(--table-top-band-h, 0rem));
   /* biome-ignore lint/complexity/noImportantStyles: overrides r3f inline canvas sizing */
   width: 100% !important;
   /* biome-ignore lint/complexity/noImportantStyles: overrides r3f inline canvas sizing */
-  height: 100% !important;
+  height: calc(100% + var(--table-top-band-h, 0rem)) !important;
   display: block;
 }
 
@@ -543,6 +563,9 @@ code {
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.6rem;
+  /* No top-band gutter in the stacked flow — kill the canvas bleed
+     (FixedCamera clears its view offset when the canvas is exactly 16:9). */
+  --table-top-band-h: 0rem;
 }
 
 .table-3d--stacked .table-stand {
@@ -908,6 +931,30 @@ code {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.hud-audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hud-audio-mute {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hud-audio-volume {
+  width: 90px;
+  accent-color: var(--ok);
+}
+
+.hud-audio-volume:disabled {
+  opacity: 0.4;
 }
 
 .chip-stack {

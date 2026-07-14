@@ -67,6 +67,10 @@ const settings = {
     enabled: true,
     donationAmount: 1,
   },
+  yahtzeeBonus: {
+    enabled: true,
+    amountPerPlayer: 10,
+  },
 };
 
 const host = client('host');
@@ -170,6 +174,65 @@ state = await host.stateWhere(
   8000,
 );
 assert(state.snapshot.game.roundNumber === 2, 'round 2 started automatically');
+
+// -- Round 2: Yahtzee bonus flow (docs/GAME_RULES.md "Yahtzee bonus") --------
+state = await host.stateWhere(
+  (s) => s.game?.roundNumber === 2 && s.game.currentTurn != null,
+  'round 2 first turn',
+);
+const r2First = state.snapshot.game.currentTurn.playerId;
+const r2Roller = byId(r2First);
+const r2Other = r2Roller === host ? ann : host;
+
+// Quint of 4s → bonus offered; standing is blocked until the bonus die resolves.
+await throwDice(r2Roller, r2First, [], [4, 4, 4, 4, 4]);
+const offered = await r2Roller.nextWhere(
+  (m) => m.type === 'turn:bonusOffered' && m.playerId === r2First,
+  'turn:bonusOffered',
+);
+assert(offered.face === 4, `bonus targets the quint face (${offered.face})`);
+r2Roller.send({ type: 'turn:stand' });
+// nextWhere (not next('error')): playTurn's post-cap stand leaves a stale
+// harmless error buffered on whichever client auto-stood in round 1.
+const standBlocked = await r2Roller.nextWhere(
+  (m) => m.type === 'error' && m.code === 'STAND_NOT_ALLOWED',
+  'stand while bonus pending → STAND_NOT_ALLOWED',
+);
+assert(standBlocked.code === 'STAND_NOT_ALLOWED', 'stand while bonus pending → STAND_NOT_ALLOWED');
+
+// Single-die bonus throw: a literal match pays 10 from the other player.
+r2Roller.send({ type: 'turn:bonusThrowStart' });
+await r2Roller.nextWhere(
+  (m) => m.type === 'turn:bonusThrowStarted' && m.playerId === r2First,
+  'turn:bonusThrowStarted',
+);
+r2Roller.send({ type: 'turn:bonusThrowResult', die: 4 });
+const bonusRolled = await r2Roller.nextWhere(
+  (m) => m.type === 'turn:bonusRolled' && m.playerId === r2First,
+  'turn:bonusRolled',
+);
+assert(bonusRolled.matched === true, 'bonus die matched the quint face');
+const paid = await r2Other.next('yahtzee:paid');
+assert(
+  paid.playerId === r2First && paid.total === 10 && paid.payments.length === 1,
+  `yahtzee bonus paid 10 to the roller (${paid.total})`,
+);
+
+// Turn resumes: the roller stands on the quint; the other player is capped at 1.
+r2Roller.send({ type: 'turn:stand' });
+state = await host.stateWhere(
+  (s) => s.game?.currentTurn != null && s.game.currentTurn.playerId !== r2First,
+  'round 2 second turn',
+);
+const r2Second = state.snapshot.game.currentTurn.playerId;
+await throwDice(byId(r2Second), r2Second, [], [2, 3, 4, 2, 6]); // junk, auto-stands at cap 1
+const ended2 = await host.next('round:ended');
+assert(ended2.winnerId === r2First, 'quint wins round 2');
+state = await host.stateWhere((s) => s.phase === 'roundEnd', 'round 2 end phase');
+const totalChips2 =
+  state.snapshot.players.reduce((sum, p) => sum + p.chips, 0) +
+  (state.snapshot.game?.classicPot ?? 0);
+assert(totalChips2 === 200, `chips conserved after the yahtzee bonus (${totalChips2})`);
 
 if (failures > 0) {
   console.error(`${failures} assertion(s) failed`);

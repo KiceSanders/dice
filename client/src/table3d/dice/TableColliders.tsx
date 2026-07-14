@@ -41,8 +41,10 @@ export default function TableColliders() {
         friction={tuning.table.friction}
         restitution={tuning.table.restitution}
       >
-        <TrimeshCollider args={feltTrimeshArgs} />
+        {/* Collider names feed impact-audio classification (audio/impactRules.ts). */}
+        <TrimeshCollider name="felt" args={feltTrimeshArgs} />
         <CuboidCollider
+          name="ceiling"
           args={[FELT_HALF_X, 0.025, FELT_HALF_Z]}
           position={[0, ceilingY, 0]}
           friction={tuning.table.wallFriction}
@@ -55,7 +57,7 @@ export default function TableColliders() {
         friction={tuning.table.railFriction}
         restitution={tuning.table.railRestitution}
       >
-        <TrimeshCollider args={railTrimeshArgs} />
+        <TrimeshCollider name="rail" args={railTrimeshArgs} />
       </RigidBody>
 
       <RigidBody
@@ -63,7 +65,7 @@ export default function TableColliders() {
         friction={tuning.table.wallFriction}
         restitution={tuning.table.wallRestitution}
       >
-        <TrimeshCollider args={wallTrimeshArgs} />
+        <TrimeshCollider name="wall" args={wallTrimeshArgs} />
       </RigidBody>
     </group>
   );

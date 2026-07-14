@@ -42,6 +42,17 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'room:create', playerName: 'a', settings })).toMatchObject({ ok: false });
   });
 
+  it('rejects malformed settings (bad or missing yahtzeeBonus)', () => {
+    const bad = { ...DEFAULT_SETTINGS, yahtzeeBonus: { enabled: true } };
+    expect(parse({ type: 'room:create', playerName: 'a', settings: bad })).toMatchObject({
+      ok: false,
+    });
+    const { yahtzeeBonus: _omitted, ...missing } = DEFAULT_SETTINGS;
+    expect(parse({ type: 'room:create', playerName: 'a', settings: missing })).toMatchObject({
+      ok: false,
+    });
+  });
+
   it('validates room:join with optional rejoinToken', () => {
     expect(parse({ type: 'room:join', roomId: 'ABC234', playerName: 'p' })).toMatchObject({
       ok: true,
@@ -53,6 +64,15 @@ describe('parseClientMessage', () => {
       parse({ type: 'room:join', roomId: 'ABC234', playerName: 'p', rejoinToken: '' }),
     ).toMatchObject({ ok: false });
     expect(parse({ type: 'room:join', playerName: 'p' })).toMatchObject({ ok: false });
+  });
+
+  it('validates the Yahtzee bonus throw messages', () => {
+    expect(parse({ type: 'turn:bonusThrowStart' })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:bonusThrowResult', die: 6 })).toMatchObject({ ok: true });
+    expect(parse({ type: 'turn:bonusThrowResult', die: 0 })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:bonusThrowResult', die: 7 })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:bonusThrowResult', die: 3.5 })).toMatchObject({ ok: false });
+    expect(parse({ type: 'turn:bonusThrowResult' })).toMatchObject({ ok: false });
   });
 
   it('rejects the removed turn:roll message (physics throws replaced it, ADR 004)', () => {

@@ -1,6 +1,8 @@
 import type { BodyPose, Die, PoseFrame } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
 import {
+  bonusThrowResultMessage,
+  bonusThrowStartMessage,
   FRAMES_PER_MESSAGE,
   FrameBatch,
   framesMessage,
@@ -111,6 +113,11 @@ describe('message builders', () => {
   it('builds frames message', () => {
     const frames = [frame(true, [body()])];
     expect(framesMessage(frames)).toEqual({ type: 'dice:frames', frames });
+  });
+
+  it('builds the Yahtzee bonus throw pair (no keeps, no restPose)', () => {
+    expect(bonusThrowStartMessage()).toEqual({ type: 'turn:bonusThrowStart' });
+    expect(bonusThrowResultMessage(6)).toEqual({ type: 'turn:bonusThrowResult', die: 6 });
   });
 });
 

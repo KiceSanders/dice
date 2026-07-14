@@ -47,6 +47,7 @@ const settings = {
   maxBuyIn: 1000,
   straightPayout: { enabled: true, amountPerPlayer: 5 },
   classicPot: { enabled: true, donationAmount: 1 },
+  yahtzeeBonus: { enabled: true, amountPerPlayer: 10 },
 };
 
 const alice = client('Alice');

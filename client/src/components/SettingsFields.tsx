@@ -1,4 +1,9 @@
-import type { ClassicPotConfig, RoomSettings, StraightPayoutConfig } from '@dice/shared';
+import type {
+  ClassicPotConfig,
+  RoomSettings,
+  StraightPayoutConfig,
+  YahtzeeBonusConfig,
+} from '@dice/shared';
 
 interface Props {
   value: RoomSettings;
@@ -17,6 +22,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
     onChange?.({ ...value, straightPayout: { ...value.straightPayout, ...patch } });
   const setClassic = (patch: Partial<ClassicPotConfig>) =>
     onChange?.({ ...value, classicPot: { ...value.classicPot, ...patch } });
+  const setYahtzee = (patch: Partial<YahtzeeBonusConfig>) =>
+    onChange?.({ ...value, yahtzeeBonus: { ...value.yahtzeeBonus, ...patch } });
 
   const num = (raw: string, fallback: number): number => {
     const n = Number(raw);
@@ -138,7 +145,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           Classic Pot
         </label>
         <small>
-          First-roll four of a kind donates to a side pot; three 6s while setting the roll wins it.
+          First-roll four of a kind donates to a side pot; first-roll three 6s while setting the
+          roll wins it.
         </small>
 
         {value.classicPot.enabled && (
@@ -159,6 +167,44 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
             </div>
             <small className="field-help">
               Chips moved from the roller into the Classic Pot on a first-roll four of a kind.
+            </small>
+          </div>
+        )}
+      </div>
+
+      <div className="settings-bonus">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={value.yahtzeeBonus.enabled}
+            onChange={(e) => setYahtzee({ enabled: e.target.checked })}
+          />
+          Yahtzee bonus
+        </label>
+        <small>
+          Five of a kind earns a one-die bonus throw; matching the face makes every other seated
+          player pay the roller.
+        </small>
+
+        {value.yahtzeeBonus.enabled && (
+          <div className="bonus-grid">
+            <div className="field">
+              <label htmlFor="set-yahtzee-amount">Chips per player</label>
+              <input
+                id="set-yahtzee-amount"
+                type="number"
+                min={0}
+                value={value.yahtzeeBonus.amountPerPlayer}
+                onChange={(e) =>
+                  setYahtzee({
+                    amountPerPlayer: num(e.target.value, value.yahtzeeBonus.amountPerPlayer),
+                  })
+                }
+              />
+            </div>
+            <small className="field-help">
+              The bonus die must literally match the quint's face — a rolled 1 is not wild here.
+              Payments are capped by what a player has.
             </small>
           </div>
         )}

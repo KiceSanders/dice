@@ -76,6 +76,10 @@ const settings = {
     enabled: true,
     donationAmount: 1,
   },
+  yahtzeeBonus: {
+    enabled: true,
+    amountPerPlayer: 10,
+  },
 };
 
 const host = client('host');

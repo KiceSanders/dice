@@ -852,17 +852,9 @@ export default function DicePhysics({
       if (e.button !== 0 || rollingRef.current || draggingRef.current || !canDragRef.current)
         return;
       if (cupPhaseRef.current !== 'idle' && cupPhaseRef.current !== 'selecting') return;
-      if (camera instanceof THREE.PerspectiveCamera) {
-        const el = canvasLayoutElement(canvas);
-        const h = el.clientHeight;
-        if (h > 0) {
-          const aspect = el.clientWidth / h;
-          if (Math.abs(camera.aspect - aspect) > 0.001) {
-            camera.aspect = aspect;
-            camera.updateProjectionMatrix();
-          }
-        }
-      }
+      // The projection is owned by FixedCamera (pinned 16:9 aspect + top-band
+      // view offset) — never resync aspect from the canvas element here; the
+      // canvas is intentionally taller than the virtual frame.
       camera.updateMatrixWorld();
       const latestTuning = tuningRef.current;
       const center = cupCenterNow(koozieRef.current?.body ?? null, latestTuning);

@@ -97,6 +97,8 @@ export type RoomEvent =
       /** Final stand pose (ADR 005); optional so older logs still parse. */
       restPose?: BodyPose[];
     }
+  /** Yahtzee bonus die (replayed through engine.replayBonusRolled). */
+  | { type: 'bonusRolled'; playerId: PlayerId; die: Die }
   /** Turn ended with no completed roll: replay must advance past the player. */
   | { type: 'forfeited'; playerId: PlayerId }
   | { type: 'gameEnded'; reason: string }
@@ -126,6 +128,13 @@ export type RoomEvent =
       type: 'classicWon';
       playerId: PlayerId;
       amount: number;
+    }
+  | {
+      type: 'yahtzeeBonusPaid';
+      playerId: PlayerId;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
     }
   | { type: 'roundEnded'; winnerId: PlayerId | null; potWon: number }
   // -- chat (Phase 10) ---------------------------------------------------------

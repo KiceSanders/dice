@@ -235,6 +235,73 @@ describe('persistence & crash recovery (Phase 6)', () => {
     manager2.stop();
   });
 
+  it('a crash between quint and bonus die recovers with the bonus still pending', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create(DEFAULT_SETTINGS);
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const p1 = seatPlayer(room, 'P1', 50);
+
+    expect(room.startGame(host.id)).toBeNull();
+    const engine = room.engine!;
+    expect(roll(engine, host.id, [6, 6, 6, 6, 6])).toBeNull();
+    expect(engine.publicState().currentTurn?.bonusPending).toEqual({ face: 6 });
+
+    await store.flush();
+    const manager2 = new RoomManager(undefined, undefined, new RoomLogStore(dir));
+    expect(await recoverRooms(new RoomLogStore(dir), manager2)).toBe(1);
+    const room2 = manager2.get(room.id)!;
+
+    // Replaying the quint 'rolled' re-offers the bonus; no chips have moved.
+    const turn = room2.engine!.publicState().currentTurn;
+    expect(turn?.playerId).toBe(host.id);
+    expect(turn?.bonusPending).toEqual({ face: 6 });
+    expect(turn?.throwing).toBe(false);
+    expect(room2.players.get(host.id)!.chips).toBe(99);
+    expect(room2.players.get(p1.id)!.chips).toBe(49);
+
+    // The rejoining roller can complete the bonus throw.
+    room2.rejoin(host.rejoinToken, new FakeLink());
+    expect(room2.engine!.beginBonusThrow(host.id)).toBeNull();
+    expect(room2.engine!.commitBonusThrow(host.id, 6)).toBeNull();
+    expect(room2.players.get(host.id)!.chips).toBe(109);
+    expect(room2.players.get(p1.id)!.chips).toBe(39);
+
+    manager.stop();
+    manager2.stop();
+  });
+
+  it('yahtzee bonus payouts survive replay with identical chip movements', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create(DEFAULT_SETTINGS);
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const p1 = seatPlayer(room, 'P1', 50);
+
+    expect(room.startGame(host.id)).toBeNull();
+    const engine = room.engine!;
+    expect(roll(engine, host.id, [6, 6, 6, 6, 6])).toBeNull();
+    expect(engine.beginBonusThrow(host.id)).toBeNull();
+    expect(engine.commitBonusThrow(host.id, 6)).toBeNull();
+    expect(room.players.get(host.id)!.chips).toBe(109); // 100 - 1 ante + 10
+    expect(room.players.get(p1.id)!.chips).toBe(39); // 50 - 1 ante - 10
+
+    await store.flush();
+    const manager2 = new RoomManager(undefined, undefined, new RoomLogStore(dir));
+    expect(await recoverRooms(new RoomLogStore(dir), manager2)).toBe(1);
+    const room2 = manager2.get(room.id)!;
+
+    // Replaying rolled + bonusRolled re-fires the payout identically.
+    expect(room2.players.get(host.id)!.chips).toBe(109);
+    expect(room2.players.get(p1.id)!.chips).toBe(39);
+    expect(room2.engine!.publicState().currentTurn?.bonusPending).toBeNull();
+
+    manager.stop();
+    manager2.stop();
+  });
+
   it('survives kicks and settings changes (replayed through the same reducers)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);

@@ -19,6 +19,7 @@ import {
   orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
+  yahtzeeBonusTarget,
 } from '@dice/shared';
 import {
   softGateRestPose,
@@ -87,11 +88,24 @@ export type EngineEvent =
       amount: number;
       classicPot: number;
     }
-  /** Classic (three 6s while roll-to-beat unset) wins the Classic Pot. */
+  /** Classic (first-roll three 6s while roll-to-beat unset) wins the Classic Pot. */
   | {
       type: 'classicWon';
       playerId: PlayerId;
       amount: number;
+    }
+  /** A Yahtzee settled: the roller owes a single-die bonus throw (docs/GAME_RULES.md). */
+  | { type: 'bonusOffered'; playerId: PlayerId; face: Die }
+  | { type: 'bonusThrowStarted'; playerId: PlayerId }
+  /** The bonus die settled. matched = die === face (a rolled 1 is NOT wild here). */
+  | { type: 'bonusRolled'; playerId: PlayerId; die: Die; face: Die; matched: boolean }
+  /** Yahtzee bonus hit: every other seated player paid the roller. */
+  | {
+      type: 'yahtzeeBonusPaid';
+      playerId: PlayerId;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
     }
   | { type: 'stateChanged' }
   | { type: 'gameEnded'; reason: string };
@@ -122,6 +136,10 @@ interface CurrentTurn {
   rollCap: number;
   /** The instant straight payout fired this turn (it pays at most once). */
   straightPaid: boolean;
+  /** Awaiting/streaming the single Yahtzee bonus die. Null = no bonus in play. */
+  bonus: { face: Die; throwing: boolean } | null;
+  /** A Yahtzee already offered the bonus this turn (mirrors straightPaid). */
+  bonusOffered: boolean;
   /** Validated rest pose of the latest roll (canonical space, ADR 005). */
   restPose: BodyPose[] | null;
 }
@@ -275,6 +293,8 @@ export class GameEngine {
       rollsUsed: 0,
       rollCap: this.roundRollCap ?? this.settings.maxRolls,
       straightPaid: false,
+      bonus: null,
+      bonusOffered: false,
       restPose: null,
     };
     this.emit({ type: 'stateChanged' });
@@ -347,6 +367,7 @@ export class GameEngine {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is already in flight');
+    if (turn.bonus) return err('BAD_REQUEST', 'resolve the bonus throw first');
 
     if (turn.dice === null) {
       if (keepIndices.length > 0) return err('BAD_REQUEST', 'nothing to keep on the first roll');
@@ -439,7 +460,10 @@ export class GameEngine {
     this.applyClassicDonation(turn);
     this.applyClassicPayout(turn);
 
-    if (turn.rollsUsed >= turn.rollCap) return this.stand(turn.playerId);
+    // A fresh Yahtzee bonus defers the roll-cap auto-stand until the bonus
+    // die resolves (commitBonusThrow re-runs the check).
+    const bonusOffered = this.offerYahtzeeBonus(turn);
+    if (!bonusOffered && turn.rollsUsed >= turn.rollCap) return this.stand(turn.playerId);
     this.emit({ type: 'stateChanged' });
     return null;
   }
@@ -458,6 +482,7 @@ export class GameEngine {
     if ('code' in turn) return turn;
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
     if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
+    if (turn.bonus) return err('STAND_NOT_ALLOWED', 'throw the bonus die first');
     if (!canStandVoluntarily(turn.dice, turn.rollsUsed, this.rollToBeat?.score ?? null)) {
       return err('STAND_NOT_ALLOWED', 'beat or tie the roll to beat, or keep rolling');
     }
@@ -577,7 +602,7 @@ export class GameEngine {
   }
 
   /**
-   * Classic win: three 6s while roll-to-beat is still unset
+   * Classic win: first-roll three 6s while roll-to-beat is still unset
    * (docs/GAME_RULES.md "Classic Pot").
    */
   private applyClassicPayout(turn: CurrentTurn): void {
@@ -599,6 +624,100 @@ export class GameEngine {
       type: 'classicWon',
       playerId: turn.playerId,
       amount,
+    });
+  }
+
+  /**
+   * Yahtzee bonus offer (docs/GAME_RULES.md "Yahtzee bonus"): a settled quint
+   * (wilds count) owes a single-die bonus throw before the turn continues.
+   * Latches once per turn like the straight payout. Returns true when a bonus
+   * is now pending.
+   */
+  private offerYahtzeeBonus(turn: CurrentTurn): boolean {
+    if (turn.bonusOffered || !turn.dice) return false;
+    const face = yahtzeeBonusTarget(this.scoreFor(turn));
+    if (face === null) return false;
+    turn.bonusOffered = true;
+    if (!this.settings.yahtzeeBonus.enabled) return false;
+    turn.bonus = { face, throwing: false };
+    this.emit({ type: 'bonusOffered', playerId: turn.playerId, face });
+    return true;
+  }
+
+  /** Bonus throw, phase 1: the koozie is released with the single bonus die. */
+  beginBonusThrow(playerId: PlayerId): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    if (!turn.bonus) return err('BAD_REQUEST', 'no bonus throw pending');
+    if (turn.bonus.throwing || this.pendingThrow) {
+      return err('BAD_REQUEST', 'a throw is already in flight');
+    }
+    turn.bonus.throwing = true;
+    this.emit({ type: 'bonusThrowStarted', playerId });
+    this.emit({ type: 'stateChanged' });
+    return null;
+  }
+
+  /**
+   * Bonus throw, phase 2: the single die settled. A literal face match (a
+   * rolled 1 is NOT wild here) pays the roller; either way the turn resumes,
+   * including the roll-cap auto-stand deferred by the offer.
+   */
+  commitBonusThrow(playerId: PlayerId, die: Die): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    if (!turn.bonus?.throwing) return err('BAD_REQUEST', 'no bonus throw in flight');
+    if (!Number.isInteger(die) || die < 1 || die > 6) {
+      return err('BAD_REQUEST', 'die must be an integer in [1, 6]');
+    }
+    const { face } = turn.bonus;
+    turn.bonus = null;
+    const matched = die === face;
+    this.emit({ type: 'bonusRolled', playerId, die, face, matched });
+    if (matched) this.applyYahtzeeBonusPayout(turn);
+    if (turn.rollsUsed >= turn.rollCap) return this.stand(playerId);
+    this.emit({ type: 'stateChanged' });
+    return null;
+  }
+
+  /** Log replay (PLAN.md Phase 6): re-apply a recorded bonus die verbatim. */
+  replayBonusRolled(playerId: PlayerId, die: Die): EngineError | null {
+    const turn = this.guardTurn(playerId);
+    if ('code' in turn) return turn;
+    if (!turn.bonus) return err('BAD_REQUEST', 'no bonus throw pending');
+    turn.bonus.throwing = true;
+    return this.commitBonusThrow(playerId, die);
+  }
+
+  /**
+   * Yahtzee bonus payout: mirrors applyStraightPayout — every other seated
+   * player pays min(amount, payer stack, roller stack). Zero-sum, pot
+   * untouched. Settings re-read here so a mid-bonus toggle-off pays nothing.
+   */
+  private applyYahtzeeBonusPayout(turn: CurrentTurn): void {
+    const config = this.settings.yahtzeeBonus;
+    if (!config.enabled || config.amountPerPlayer <= 0) return;
+    const roller = this.participantById(turn.playerId);
+    if (!roller) return;
+
+    const payments: { playerId: PlayerId; amount: number }[] = [];
+    let total = 0;
+    for (const p of this.getSeated()) {
+      if (p.id === turn.playerId || p.seat === null) continue;
+      // Reciprocal: neither side pays more than the other could pay back.
+      const paid = Math.min(config.amountPerPlayer, p.chips, roller.chips);
+      p.chips -= paid;
+      total += paid;
+      payments.push({ playerId: p.id, amount: paid });
+    }
+    roller.chips += total;
+
+    this.emit({
+      type: 'yahtzeeBonusPaid',
+      playerId: turn.playerId,
+      amountPerPlayer: config.amountPerPlayer,
+      total,
+      payments,
     });
   }
 
@@ -644,7 +763,8 @@ export class GameEngine {
           keptIndices: [...this.currentTurn.keptIndices],
           rollsUsed: this.currentTurn.rollsUsed,
           rollCap: this.currentTurn.rollCap,
-          throwing: this.pendingThrow !== null,
+          throwing: this.pendingThrow !== null || (this.currentTurn.bonus?.throwing ?? false),
+          bonusPending: this.currentTurn.bonus ? { face: this.currentTurn.bonus.face } : null,
           restPose: this.currentTurn.restPose
             ? this.currentTurn.restPose.map((p): BodyPose => [...p])
             : null,
@@ -715,6 +835,9 @@ export class GameEngine {
   pause(): void {
     this.paused = true;
     this.clearPendingThrow();
+    // An in-flight bonus throw is abandoned like pendingThrow; the bonus
+    // itself stays owed so the rejoining roller throws again.
+    if (this.currentTurn?.bonus) this.currentTurn.bonus.throwing = false;
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;
   }

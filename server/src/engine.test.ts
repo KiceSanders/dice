@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EngineEvent } from './engine.js';
-import { makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
+import { bonusRoll, makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
 
 const lastRoundEnd = (events: EngineEvent[]) => ofType(events, 'roundEnded').at(-1)!;
 
@@ -82,8 +82,11 @@ describe('GameEngine: roll-cap pressure', () => {
     engine.stand('p0'); // cap is now 1
     expect(engine.publicState().currentTurn?.rollCap).toBe(1);
 
-    // p1's single roll auto-stands (cap reached).
+    // p1's single roll hits the cap, but the Yahtzee defers the auto-stand
+    // until the bonus die resolves.
     expect(roll(engine, 'p1', [6, 6, 6, 6, 6])).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    expect(bonusRoll(engine, 'p1', 3)).toBeNull(); // miss → deferred auto-stand fires
     expect(engine.currentTurnPlayerId).toBe('p2');
   });
 
@@ -133,7 +136,7 @@ describe('GameEngine: keep validation', () => {
     const players = makePlayers();
     const { engine } = makeEngine(players);
     engine.start();
-    roll(engine, 'p0', [6, 6, 6, 6, 1]);
+    roll(engine, 'p0', [6, 6, 5, 2, 3]);
     // Pre-ADR-004 a keep-all roll was an implicit stand; now beginThrow rejects it.
     expect(engine.beginThrow('p0', [0, 1, 2, 3, 4])).toMatchObject({
       code: 'BAD_REQUEST',

@@ -66,6 +66,18 @@ scene never rotates). Seat identity is applied to pose data **at the wire bounda
 incoming frames into the local view. If dice appear in the wrong place for one seat only,
 look there.
 
+## Audio
+
+`client/src/table3d/audio/` — one Web Audio graph (`audioEngine.ts`, the only impure
+module) behind a single subscriber (`TableAudio`, mounted once in `Room.tsx`). Impact cues
+travel a dedicated non-replaying `audioBus`; game-moment one-shots ride the existing
+`tableEvents`. The roller derives impacts from rapier `onContactForce` on die colliders
+(`rollerImpacts.ts` + pure `impactRules.ts` gate); spectators derive them from the
+streamed pose frames (`useRemoteRoll` → `remotePoseAudio.ts` → pure `poseImpacts.ts`) —
+no protocol involvement. Constants in `audioTuning.ts`, samples + processing pipeline
+documented in `client/public/audio/CREDITS.md`. Full rules and the add-a-sound recipe:
+[TABLE_UI.md § Audio](./TABLE_UI.md#audio--impacts-rattle-and-adding-a-sound).
+
 ## Persistence
 
 `server/src/persistence.ts`: append-only JSON-Lines `RoomEvent` log per room, compacted to

@@ -7,6 +7,8 @@ import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { displaySeatIndex } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
 import {
+  bonusThrowResultMessage,
+  bonusThrowStartMessage,
   FRAME_FLUSH_MS,
   FrameBatch,
   framesMessage,
@@ -20,6 +22,8 @@ import {
 import { usePendingKeep } from './usePendingKeep';
 
 const ZERO_VELOCITY: ThrowVelocity = { x: 0, y: 0, z: 0 };
+/** Bonus mode force-keeps the quint on the rail; index 4 becomes the bonus die. */
+const BONUS_KEEP = [0, 1, 2, 3];
 
 function standHintFor(
   snapshot: RoomSnapshot,
@@ -69,6 +73,12 @@ export function useTableRoll(
   });
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
   const turnRollsUsed = turn?.rollsUsed ?? 0;
+  // Yahtzee bonus: while pending, the roller owes a single-die cup throw —
+  // the quint is force-kept, keep clicks and standing are off.
+  const bonusPending = isMyTurn ? (turn?.bonusPending ?? null) : null;
+  const bonusMode = bonusPending !== null;
+  const bonusModeRef = useRef(bonusMode);
+  bonusModeRef.current = bonusMode;
   const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
   const activeSeat =
     turn !== null ? (snapshot?.players.find((p) => p.id === turn.playerId)?.seat ?? null) : null;
@@ -82,7 +92,9 @@ export function useTableRoll(
       setReleaseVelocity(velocity);
       setReleaseSignal((s) => s + 1);
       setRolling(true);
-      send(throwStartMessage(pendingKeepRef.current));
+      send(
+        bonusModeRef.current ? bonusThrowStartMessage() : throwStartMessage(pendingKeepRef.current),
+      );
     },
     [send, pendingKeepRef],
   );
@@ -90,6 +102,13 @@ export function useTableRoll(
   const onSettled = useCallback(
     (dice: Die[], settleFrame: PoseFrame) => {
       setRolling(false);
+      if (bonusModeRef.current) {
+        // Only index 4 was thrown; no rest pose, so the quint's settled pose
+        // survives as the between-turns layout.
+        const die = dice[4];
+        if (die !== undefined) send(bonusThrowResultMessage(die));
+        return;
+      }
       const canonical = poseFrameToCanonical(settleFrame, mySeat);
       send(throwResultMessage(dice, restPoseForThrowResult(canonical.bodies, dice)));
     },
@@ -133,7 +152,8 @@ export function useTableRoll(
       ? {
           releaseSignal,
           releaseVelocity,
-          keepIndices: pendingKeep,
+          bonusMode,
+          keepIndices: bonusMode ? BONUS_KEEP : pendingKeep,
           dice: turn.dice,
           canDrag,
           active: true,
@@ -141,14 +161,16 @@ export function useTableRoll(
           onRelease,
           onDragChange: setDragging,
           onRollingChange: setRolling,
-          onKeepToggle,
+          onKeepToggle: bonusMode ? undefined : onKeepToggle,
           onPoseFrame,
         }
       : undefined;
 
   const rollToBeat = snapshot?.game?.rollToBeat ?? null;
   const canStand =
-    turn !== null && canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null);
+    turn !== null &&
+    !bonusMode &&
+    canStandVoluntarily(turn.dice, turn.rollsUsed, rollToBeat?.score ?? null);
   const turnActions: TurnActions | undefined = tableDice
     ? {
         onStand: () => {
@@ -159,7 +181,11 @@ export function useTableRoll(
           send(standMessage(restPose));
         },
         canStand,
-        standHint: snapshot ? standHintFor(snapshot, turn, canStand) : undefined,
+        standHint: bonusPending
+          ? `Throw the bonus die — match a ${bonusPending.face}!`
+          : snapshot
+            ? standHintFor(snapshot, turn, canStand)
+            : undefined,
         disabled: rolling || !connected,
         aiming: dragging,
       }

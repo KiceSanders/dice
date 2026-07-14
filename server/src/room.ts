@@ -9,6 +9,7 @@ import type {
   RoomSnapshot,
   ServerMessage,
   StraightPayoutConfig,
+  YahtzeeBonusConfig,
 } from '@dice/shared';
 import { assertNever, DEFAULT_SETTINGS } from '@dice/shared';
 import { type EngineOptions, GameEngine } from './engine.js';
@@ -50,8 +51,10 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   // Lenient on nested configs: settings replayed from older logs may lack keys.
   const sp: Partial<StraightPayoutConfig> = s.straightPayout ?? {};
   const cp: Partial<ClassicPotConfig> = s.classicPot ?? {};
+  const yb: Partial<YahtzeeBonusConfig> = s.yahtzeeBonus ?? {};
   const dSp = DEFAULT_SETTINGS.straightPayout;
   const dCp = DEFAULT_SETTINGS.classicPot;
+  const dYb = DEFAULT_SETTINGS.yahtzeeBonus;
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
@@ -65,6 +68,10 @@ export function clampSettings(s: RoomSettings): RoomSettings {
     classicPot: {
       enabled: cp.enabled === undefined ? dCp.enabled : Boolean(cp.enabled),
       donationAmount: clampInt(cp.donationAmount ?? dCp.donationAmount, 0, 100_000),
+    },
+    yahtzeeBonus: {
+      enabled: yb.enabled === undefined ? dYb.enabled : Boolean(yb.enabled),
+      amountPerPlayer: clampInt(yb.amountPerPlayer ?? dYb.amountPerPlayer, 0, 100_000),
     },
   };
 }
@@ -186,6 +193,7 @@ export class Room {
       case 'created':
       case 'roundStarted':
       case 'rolled':
+      case 'bonusRolled':
       case 'stood':
       case 'forfeited':
       case 'gameEnded':
@@ -193,6 +201,7 @@ export class Room {
       case 'straightPaid':
       case 'classicDonated':
       case 'classicWon':
+      case 'yahtzeeBonusPaid':
       case 'roundEnded':
         // Engine-driven and audit-only events are not applied here: replay
         // routes them through the engine (persistence.ts) or skips them.

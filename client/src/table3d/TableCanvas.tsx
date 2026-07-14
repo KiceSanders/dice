@@ -48,7 +48,10 @@ function SceneContent({
     <>
       <FixedCamera />
 
-      <color attach="background" args={[DEFAULT_TABLE_THEME.background]} />
+      {/* No scene background: the canvas is transparent (gl alpha) so the
+          top-band HUD widgets — stacked UNDER the canvas — show through empty
+          pixels while rendered geometry (the raised koozie) paints over them.
+          Fog must match the page --bg for the horizon seam to stay invisible. */}
       <fog attach="fog" args={[DEFAULT_TABLE_THEME.background, 6, 14]} />
 
       <ambientLight intensity={0.45} />
@@ -75,7 +78,13 @@ function SceneContent({
         interpolate
         debug={tuning.world.debug}
       >
-        {dice ? <DicePhysics {...dice} /> : <TableColliders />}
+        {/* Key flip forces a runtime rebuild entering/leaving bonus mode
+            (docs/GAME_RULES.md "Yahtzee bonus"): 4 railed quint dice + 1 in cup. */}
+        {dice ? (
+          <DicePhysics key={dice.bonusMode ? 'bonus' : 'hand'} {...dice} />
+        ) : (
+          <TableColliders />
+        )}
       </Physics>
 
       {/* Remote throw playback: plain meshes outside the physics world. The
@@ -120,8 +129,12 @@ export default function TableCanvas({
         fov: SEAT_VIEW.fov,
         near: 0.1,
         far: 30,
+        // FixedCamera owns the projection: aspect stays the 16:9 virtual
+        // frame and a view offset exposes the top-band bleed strip. r3f's
+        // responsive resize would overwrite both with canvas width/height.
+        manual: true,
       }}
-      gl={{ antialias: true, alpha: false, preserveDrawingBuffer: true }}
+      gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
       onCreated={({ camera }) => {
         camera.lookAt(...SEAT_VIEW.target);
       }}

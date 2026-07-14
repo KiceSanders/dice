@@ -1,4 +1,5 @@
 import type { GameStatePublic, HandScore, PlayerPublic } from '@dice/shared';
+import { setAudioSettings, useAudioSettings } from '../table3d/audio/audioSettings';
 
 /** Human-readable hand summary, e.g. "three 4s" or "Yahtzee" (straight flag ignored). */
 export function describeScore(score: HandScore): string {
@@ -43,7 +44,41 @@ export default function GameHud({ game, players }: Props) {
             <span className="hud-value">{game.pot}</span>
           </span>
         </div>
+
+        <AudioControl />
       </div>
+    </div>
+  );
+}
+
+/** Personal volume/mute — localStorage-backed (audioSettings), never wire-synced. */
+function AudioControl() {
+  const { volume, muted } = useAudioSettings();
+  return (
+    <div className="hud-cell hud-audio">
+      <span className="hud-label">Sound</span>
+      <span className="hud-audio-controls">
+        <button
+          type="button"
+          className="hud-audio-mute"
+          aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+          aria-pressed={muted}
+          onClick={() => setAudioSettings({ muted: !muted })}
+        >
+          {muted || volume === 0 ? '🔇' : '🔊'}
+        </button>
+        <input
+          type="range"
+          className="hud-audio-volume"
+          aria-label="Sound volume"
+          min={0}
+          max={1}
+          step={0.05}
+          value={muted ? 0 : volume}
+          disabled={muted}
+          onChange={(e) => setAudioSettings({ volume: Number(e.target.value) })}
+        />
+      </span>
     </div>
   );
 }

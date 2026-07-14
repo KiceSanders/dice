@@ -36,6 +36,7 @@ function snapshot(
       maxBuyIn: 50,
       straightPayout: { enabled: true, amountPerPlayer: 2 },
       classicPot: { enabled: true, donationAmount: 1 },
+      yahtzeeBonus: { enabled: true, amountPerPlayer: 10 },
     },
     players: partial.players,
     seatRequests: partial.seatRequests ?? [],
@@ -141,6 +142,67 @@ describe('instant transfers', () => {
       ],
       receivedAt: 3_456,
     });
+  });
+
+  it('retains yahtzee bonus payments as a player-to-player transfer', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(5_678);
+    const state = receive({
+      type: 'yahtzee:paid',
+      playerId: 'roller',
+      amountPerPlayer: 10,
+      total: 14,
+      payments: [
+        { playerId: 'p2', amount: 10 },
+        { playerId: 'p3', amount: 4 },
+      ],
+    });
+
+    expect(state.lastTransfer).toEqual({
+      toPlayerId: 'roller',
+      payments: [
+        { playerId: 'p2', amount: 10 },
+        { playerId: 'p3', amount: 4 },
+      ],
+      receivedAt: 5_678,
+    });
+    expect(state.toasts).toHaveLength(1);
+  });
+});
+
+describe('yahtzee bonus messages', () => {
+  it('turn:bonusOffered announces the offer without touching lastRoll', () => {
+    const state = receive({ type: 'turn:bonusOffered', playerId: 'p1', face: 5 });
+    expect(state.lastRoll).toBeNull();
+    expect(state.toasts).toHaveLength(1);
+    expect(state.chat.at(-1)).toMatchObject({ kind: 'system' });
+  });
+
+  it('turn:bonusThrowStarted is state-neutral (socket-direct, like throwStarted)', () => {
+    const state = receive({ type: 'turn:bonusThrowStarted', playerId: 'p1' });
+    expect(state).toBe(initialState);
+  });
+
+  it('a missed bonus die gets a chat line and never sets lastRoll', () => {
+    const state = receive({
+      type: 'turn:bonusRolled',
+      playerId: 'p1',
+      die: 2,
+      face: 6,
+      matched: false,
+    });
+    expect(state.lastRoll).toBeNull();
+    expect(state.chat.at(-1)).toMatchObject({ kind: 'system' });
+  });
+
+  it('a matched bonus die is silent — yahtzee:paid announces it', () => {
+    const state = receive({
+      type: 'turn:bonusRolled',
+      playerId: 'p1',
+      die: 6,
+      face: 6,
+      matched: true,
+    });
+    expect(state).toBe(initialState);
   });
 });
 

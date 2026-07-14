@@ -10,8 +10,9 @@ a rule seems wrong, flag it — do not silently change either side. Rule logic l
 turn rolling 5 dice — keeping and re-rolling to build the best hand — trying to beat the
 current roll-to-beat. Best stood hand wins the pot. Ties spawn sub-rounds with doubled antes.
 Rolling a straight triggers an instant side payment from every other seated player.
-A first-roll four-of-a-kind donates into a separate Classic Pot; three 6s while
-roll-to-beat is unset wins that pot.
+A first-roll four-of-a-kind donates into a separate Classic Pot; a first-roll
+three 6s while roll-to-beat is unset wins that pot. A Yahtzee earns a one-die
+bonus throw — matching the quint's face makes every other seated player pay the roller.
 
 ## Turn structure
 
@@ -78,15 +79,47 @@ Side pool separate from the round-winner ante pot. Detection lives in
   `min(donationAmount, roller.chips)` into `classicPot`. Zero transfers are
   skipped. Fires at most once per first roll that qualifies.
 - **Payout**: when `rollToBeat` is still unset (nobody has stood yet this
-  round/sub-round) and a settled roll scores three 6s (`count === 3`, `face === 6`,
-  wilds OK), the roller takes the entire Classic Pot and the pool zeros. A zero
-  pot skips the emit. The turn continues normally either way.
+  round/sub-round) and the player's **first roll of their turn** scores three 6s
+  (`count === 3`, `face === 6`, wilds OK — a "classic"), the roller takes the
+  entire Classic Pot and the pool zeros. Later rolls of the turn that reach
+  three 6s do not win it. A zero pot skips the emit. The turn continues normally
+  either way.
 - The Classic Pot **persists across rounds and sub-rounds** within a game and
   resets when a new game starts. It is zero-sum against player stacks (ante pot
   untouched).
 - **Settings**: `settings.classicPot = { enabled, donationAmount }`. Takes effect
   on the next roll settlement. Disabling freezes the pool (no donations, no
   wins) until re-enabled — any balance stays until claimed after re-enable.
+
+## Yahtzee bonus
+
+Instant side bet on rolling a Yahtzee. Detection lives in
+`shared/src/game/yahtzeeBonus.ts` (`yahtzeeBonusTarget`); the offer fires in
+`engine.offerYahtzeeBonus` on roll settlement (same moment as the straight
+payout) and the payout in `engine.applyYahtzeeBonusPayout`.
+
+- **Trigger** (`settings.yahtzeeBonus`): the moment a roll settles scoring five
+  of a kind (**wilds count**: `6,6,6,1,1` is five 6s; `1,1,1,1,1` scores five
+  6s), the turn pauses and the roller throws **one bonus die** with the real
+  cup gesture (a real physics throw, ADR 004 — `turn:bonusThrowStart` /
+  `turn:bonusThrowResult`).
+- **Match**: the bonus die must **literally equal the quint's scored face** — a
+  rolled 1 is NOT wild here (quint of 6s needs a 6; a 1 misses). On a match,
+  every other seated player immediately pays the roller
+  `min(amountPerPlayer, payer.chips, roller.chips)` — the same reciprocal cap
+  as the straight payout. Zero-sum, pot untouched. On a miss nothing happens.
+- **Turn flow**: while the bonus is pending, re-rolling and voluntary standing
+  are rejected — throw the bonus die first. A quint on the final allowed roll
+  **defers the roll-cap auto-stand** until the bonus die resolves. After the
+  bonus (hit or miss) the turn continues normally.
+- **At most once per turn** (latched like the straight payout — a re-roll into
+  a second quint does not re-offer, and disabling mid-turn cannot re-arm it).
+- Forced stands (disconnect, kick) abandon a pending bonus: the player stands
+  on the quint, no payout. Crash recovery replays the quint and re-offers the
+  bonus; a recorded bonus die replays verbatim (`bonusRolled` room event).
+- **Settings**: `settings.yahtzeeBonus = { enabled, amountPerPlayer }`. The
+  offer checks `enabled` at roll settlement; the payout re-reads it at the
+  bonus commit, so disabling between offer and commit pays nothing.
 
 ## Standing
 
@@ -116,9 +149,9 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 - The **host** (room creator) approves/denies seat requests, kicks (kicked → banned
   spectator), edits settings anytime (including mid-round), and starts the game (≥2 seated).
   Chip amounts take effect at the next natural point: `chipsPerRound` on the next round /
-  sub-round ante, `straightPayout` / `classicPot` on the next roll settlement, buy-in
-  bounds and `maxPlayers` on the next seat request, `maxRolls` on the next turn that
-  reads the ceiling.
+  sub-round ante, `straightPayout` / `classicPot` / `yahtzeeBonus` on the next roll
+  settlement, buy-in bounds and `maxPlayers` on the next seat request, `maxRolls` on the
+  next turn that reads the ceiling.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
@@ -134,6 +167,7 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
 | `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
 | `classicPot` | `{ enabled: true, donationAmount: 1 }` | See Classic Pot |
+| `yahtzeeBonus` | `{ enabled: true, amountPerPlayer: 10 }` | See Yahtzee bonus |
 
 Defaults: `DEFAULT_SETTINGS` in `shared/src/types.ts`. Server-side clamping:
 `clampSettings` in `server/src/room.ts`.

@@ -22,8 +22,13 @@ describe('isClassicDonation', () => {
 });
 
 describe('isClassicWin', () => {
-  it('is true for three 6s', () => {
-    expect(isClassicWin(score({ count: 3, face: 6 }))).toBe(true);
+  it('is true for three 6s on the first roll', () => {
+    expect(isClassicWin(score({ count: 3, face: 6, rollsUsed: 1 }))).toBe(true);
+  });
+
+  it('is false for three 6s on a later roll', () => {
+    expect(isClassicWin(score({ count: 3, face: 6, rollsUsed: 2 }))).toBe(false);
+    expect(isClassicWin(score({ count: 3, face: 6, rollsUsed: 3 }))).toBe(false);
   });
 
   it('is false for other triples, fours, or Yahtzees of 6', () => {

@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from '@dice/shared';
 import { useEffect, useRef, useState } from 'react';
+import { createRemotePoseAudioTap } from '../table3d/audio/remotePoseAudio';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import { poseFrameFromCanonical } from '../table3d/seatTransform';
 import type { WsClient } from '../ws/client';
@@ -32,6 +33,11 @@ export function useRemoteRoll(
   const feedRef = useRef<RemoteRollFeed | null>(null);
   if (feedRef.current === null) feedRef.current = new RemoteRollFeed();
   const feed = feedRef.current;
+  // Audio side-channel of the same frames: derives impact/rattle cues
+  // (spectators have no physics bodies to collide — three-renderer rule).
+  const audioTapRef = useRef<ReturnType<typeof createRemotePoseAudioTap> | null>(null);
+  if (audioTapRef.current === null) audioTapRef.current = createRemotePoseAudioTap();
+  const audioTap = audioTapRef.current;
   const [live, setLive] = useState(false);
   const [cupInPlay, setCupInPlay] = useState(false);
 
@@ -42,6 +48,7 @@ export function useRemoteRoll(
   useEffect(() => {
     if (!remote || turnPlayerId === null) {
       feed.clear();
+      audioTap.clear();
       setLive(false);
       setCupInPlay(false);
       return;
@@ -52,23 +59,30 @@ export function useRemoteRoll(
       if (msg.type === 'dice:frames' && msg.playerId === turnPlayerId) {
         // Wire frames are canonical table space; the feed (and everything
         // rendered from it) lives in this viewer's view space.
-        feed.push(msg.frames.map((f) => poseFrameFromCanonical(f, mySeat)));
+        const viewFrames = msg.frames.map((f) => poseFrameFromCanonical(f, mySeat));
+        feed.push(viewFrames);
+        audioTap.push(viewFrames);
         setLive(true);
         // Batches are phase-consistent: held/pour flush with cupVisible true;
         // selecting flushes immediately with cupVisible false.
         setCupInPlay(msg.frames.some((f) => f.cupVisible === true));
       }
-      if (msg.type === 'turn:rolled' && msg.playerId === turnPlayerId) {
+      if (
+        (msg.type === 'turn:rolled' || msg.type === 'turn:bonusRolled') &&
+        msg.playerId === turnPlayerId
+      ) {
         setLive(false);
         setCupInPlay(false);
         feed.clear();
+        audioTap.clear();
       }
     });
     return () => {
       off();
       feed.clear();
+      audioTap.clear();
     };
-  }, [ws, feed, remote, turnPlayerId, mySeat]);
+  }, [ws, feed, audioTap, remote, turnPlayerId, mySeat]);
 
   return {
     feed,

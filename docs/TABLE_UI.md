@@ -42,6 +42,16 @@ driven by a table event (below) so it renders independently of which view is mou
 A visual wired into only `DicePhysics` will work on your screen and be invisible to every
 other player — this is the #1 historical mistake shape.
 
+**Yahtzee bonus mode** (docs/GAME_RULES.md "Yahtzee bonus") reuses this machinery rather
+than parameterizing the dice count: while `turn.bonusPending` is set, `useTableRoll` mounts
+`DicePhysics` with `bonusMode` and a forced keep set `[0,1,2,3]` (TableCanvas flips the
+component `key`, so the runtime rebuilds) — 4 quint dice sit railed and exactly one die
+rides in the cup; the settled `values[4]` is reported as `turn:bonusThrowResult`. Keep
+clicks are disabled and the Stand button renders disabled with a "throw the bonus die"
+hint. Spectators need nothing new: the throw streams over the same `dice:frames` relay,
+and the match payout animates via the existing `chips-between-players` event
+(`yahtzee:paid` → `lastTransfer`).
+
 ## Adding an animation / effect → use table events
 
 `client/src/table3d/tableEvents.ts` is a typed pub/sub bus for one-shot table happenings.
@@ -72,6 +82,57 @@ the final total before the chips arrive. The flight canvas draws in viewport
 coordinates and is portaled to `<body>`: `.table-top-band` is a transformed ancestor, and
 a transform re-roots `position: fixed` descendants onto itself — mounting the canvas
 inside the band squashes it into the band's box and lands chips beside roll-to-beat.
+
+## Audio — impacts, rattle, and adding a sound
+
+All audio lives in `client/src/table3d/audio/` and plays through one Web Audio graph
+(`audioEngine.ts` — the only impure module; everything deciding *what* to play is pure and
+unit-tested). The single subscriber is `TableAudio` (mounted once in `Room.tsx`, outside
+the canvas), so sound exists for the roller, spectators, and between turns regardless of
+which dice renderer is up — the three-renderer rule is satisfied by construction.
+
+**Two buses, on purpose:**
+
+- `audioBus.ts` carries high-frequency impact/rattle cues (dozens per throw,
+  renderer-local, never replayed — sticky replay would re-fire stale clacks).
+- `tableEvents.ts` stays the source for game-moment one-shots (straight bell, chip
+  sounds). `TableAudio` subscribes the existing members with a short `replayLastMs`.
+
+**Where impact cues come from (both sides of the three-renderer rule):**
+
+- **Roller** — `onContactForce` on each die's collider (`DieBody`) calls
+  `rollerImpacts.ts`; the surface hit is read from collider `name` props (`die`, `felt`,
+  `rail`, `wall`, `cup-bottom`, `cup-wall`, `cup-lid` — set in DieBody/TableColliders/
+  KoozieBody; unnamed or `ceiling` colliders are silent). The pure gate in
+  `impactRules.ts` turns the per-step force stream into discrete plays (per-pair
+  threshold + rising edge + cooldown + global rate cap) and force magnitude sets volume.
+- **Spectators** — no physics bodies, so `useRemoteRoll` feeds the same view-space pose
+  frames into `remotePoseAudio.ts`; `poseImpacts.ts` derives impacts from velocity
+  changes and schedules them `REMOTE_PLAYBACK_DELAY_MS` late to line up with the delayed
+  visuals.
+- **Cup rattle** — not discrete events: a seamless loop whose gain follows the leaky
+  integrator in `rattle.ts`, fed by die-cup contact forces (roller) or pose-derived shake
+  (spectators).
+
+**Adding a sound (the whole recipe):**
+
+1. Run the file through `scripts/normalize-audio.sh`, drop it in `client/public/audio/`,
+   add a line to `CREDITS.md` there.
+2. Add a `SoundId` entry in `sampleManifest.ts` (multiple files = random variations).
+3. Map a cue to it in `cues.ts`.
+4. Trigger it: physics impact → extend `classifyPair`/`AUDIO_TUNING`; game moment → emit
+   a `tableEvents` member as usual and add one `useTableEvent` line in `TableAudio.tsx`.
+
+`sampleManifest.test.ts` fails if a manifest file is missing on disk, and
+`cues.test.ts` fails if a cue maps to nothing — a broken step 1–3 cannot pass `npm test`.
+
+**Tuning and settings:** every constant (force thresholds, cooldowns, pose-detector
+thresholds, pan width, pitch jitter) lives in `audioTuning.ts`. To recalibrate force
+thresholds against real contacts, set `localStorage['dice:audio-debug'] = '1'` and read
+the logged per-pair magnitudes. Volume/mute is a client-local preference
+(`audioSettings.ts`, key `dice:audio`, HUD control in `GameHud`) — personal, never a
+`RoomSettings` field. Browser autoplay: the context unlocks on the first
+pointer/keyboard gesture; earlier cues are dropped silently.
 
 ## Adding a 3D object → place it at an anchor
 
@@ -141,15 +202,29 @@ Think of the table frame as a clock face:
   tests pin the arc bounds for counts 2–10, so the top of the frame is provably
   seat-free at any count.
 - **The top arc, 10 → 2, belongs to game-state widgets** (ante pot, roll-to-beat, and
-  Classic Pot). They render inside `.table-top-band` — a three-lane grid over the top
-  gutter, biased slightly right so Classic Pot sits nearer the frame corner: ante pot
-  left, roll-to-beat center, Classic Pot (gold-coin pyramid + “Classic Pot” label under
-  it) on the right. **To add one: append it to the appropriate lane in `Table.tsx`,
-  done.** Normal flow spaces siblings, so widgets can never overlap each other, and the
-  band-vs-seats layout test (`layout.test.ts`, paired constants
+  Classic Pot). They render inside `.table-top-band` — a three-lane grid overlaying the
+  top of the canvas, biased slightly right so Classic Pot sits nearer the frame corner:
+  ante pot left, roll-to-beat center, Classic Pot (gold-coin pyramid + “Classic Pot”
+  label under it) on the right. **To add one: append it to the appropriate lane in
+  `Table.tsx`, done.** Normal flow spaces siblings, so widgets can never overlap each
+  other, and the band-vs-seats layout test (`layout.test.ts`, paired constants
   `TOP_BAND_MAX_WIDTH_PCT`/`TOP_BAND_CENTER_PCT`/`TOP_BAND_HEIGHT_PX` ↔ `.table-top-band`
   CSS) proves the band clears every seat card. Player-specific UI never goes in the
   band — it belongs at that player's seat.
+  **The band is HUD chrome, never an occluder.** The band row (`--table-top-band-h`)
+  reserves vertical space above the 16:9 viewport, but it is still playing field: the
+  canvas element bleeds up over it (`.table-canvas` top offset) and `FixedCamera`
+  extends the frustum upward with a matching `setViewOffset` (`frameViewOffset` in
+  `project.ts`, test-pinned) — the virtual 16:9 camera frame stays exactly the viewport
+  rect, so all framing/overlay/picking math is unchanged. The band stacks *under* the
+  canvas (band `z-index: 0`, viewport `z-index: 1`) and the canvas renders with a
+  transparent background (`gl alpha: true`, no scene `<color attach="background">`), so
+  the widgets show through empty pixels while rendered geometry — a koozie raised into
+  the top arc — paints over them. Invariants: the band stays `pointer-events: none`
+  (its widgets are display-only; anything interactive belongs elsewhere), the Canvas
+  camera stays `manual` (r3f's responsive resize would overwrite the pinned aspect and
+  view offset), and the fog color (`theme.background`) must equal the page `--bg` or a
+  visible horizon seam appears where the felt fades into the page.
 - Raising the seat cap past 3 is a bigger change than the arc math: the pose
   seat-transform assumes evenly spaced display angles, and every koozie dock needs a
   framing re-check (`diceLayout.test.ts`) — treat that as its own task.
@@ -159,7 +234,7 @@ vertical space is play space). The room code / invite link / connection text liv
 `.room-info` card at the bottom of the page (visible on scroll); the always-visible
 connection signal is the `.conn-corner` red/green dot in the frame's top-right corner
 (Table's `connection` prop). At ≤640px (`SEAT_STACK_QUERY`) seat overlays unmount and
-the band overlays the canvas's top edge (pot, roll-to-beat, and Classic Pot stay clear).
+seats flow below the canvas; the band overlays the canvas's top edge at every size.
 
 ## DicePhysics.tsx — edit with care (and usually, don't)
 
@@ -189,7 +264,8 @@ add unit tests next to them. Geometry constants are also re-exported from
 
 1. Does the change render correctly for **roller, spectator, and between turns**?
 2. New scene content: at an anchor or framing-tested? New effect: on the event bus with
-   replay? New colors: in the theme?
+   replay? New colors: in the theme? New sound: through the audio recipe above (manifest
+   + cue mapping), audible for all three viewers?
 3. `npm run verify` green (framing/symmetry/guard tests are the net).
 4. Hand the user the browser checklist from `docs/browser-testing.md` (multi-tab — one
    view is never enough). Never launch or drive browser testing unless explicitly asked.

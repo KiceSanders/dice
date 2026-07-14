@@ -239,6 +239,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     // turn:rolled that follow. dice:frames especially must never churn the
     // reducer — it arrives at stream rate.
     case 'turn:throwStarted':
+    case 'turn:bonusThrowStarted':
     case 'dice:frames':
       return state;
 
@@ -392,6 +393,38 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         lastClassicWin: {
           playerId: msg.playerId,
           amount: msg.amount,
+          receivedAt: Date.now(),
+        },
+        toasts: pushToast(state.toasts, 'info', text),
+        chat: pushChat(state.chat, [systemLine(text)]),
+      };
+    }
+
+    case 'turn:bonusOffered': {
+      const amount = state.snapshot?.settings.yahtzeeBonus.amountPerPlayer;
+      const text = `${playerName(state, msg.playerId)} rolled a Yahtzee — bonus throw: match a ${msg.face}${amount ? ` to collect ${amount} per player` : ''}`;
+      return {
+        ...state,
+        toasts: pushToast(state.toasts, 'info', text),
+        chat: pushChat(state.chat, [systemLine(text)]),
+      };
+    }
+
+    case 'turn:bonusRolled': {
+      // A match is announced by the yahtzee:paid that follows. Never touches
+      // lastRoll — that drives the 5-dice static view of the settled hand.
+      if (msg.matched) return state;
+      const text = `${playerName(state, msg.playerId)}'s bonus die shows ${msg.die} — no match (needed ${msg.face})`;
+      return { ...state, chat: pushChat(state.chat, [systemLine(text)]) };
+    }
+
+    case 'yahtzee:paid': {
+      const text = `${playerName(state, msg.playerId)} matched the Yahtzee bonus — collects ${msg.total} chips (${msg.amountPerPlayer} each)`;
+      return {
+        ...state,
+        lastTransfer: {
+          toPlayerId: msg.playerId,
+          payments: msg.payments,
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),

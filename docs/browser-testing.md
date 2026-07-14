@@ -165,11 +165,12 @@ same override; switch **View as** to check the passive glow.
    chip flies seat → Classic Pot.
 3. Yahtzee on first roll (`[4,4,4,4,4]`) must **not** donate. A four-of-a-kind on the second
    roll of a turn must **not** donate.
-4. With Classic Pot > 0 and nobody stood yet this round, force three 6s
-   (`[6,6,6,2,3]` or `[6,6,1,2,3]`). Roller collects the Classic Pot; pool zeros; chip flies
-   Classic Pot → seat.
-5. After someone stands (roll-to-beat set), three 6s on a later turn must **not** win the
-   Classic Pot.
+4. With Classic Pot > 0 and nobody stood yet this round, force three 6s on the **first**
+   throw of a turn (`[6,6,6,2,3]` or `[6,6,1,2,3]`). Roller collects the Classic Pot; pool
+   zeros; chip flies Classic Pot → seat. Three 6s on a second/third throw of the same
+   turn must **not** win it.
+5. After someone stands (roll-to-beat set), first-roll three 6s on a later turn must
+   **not** win the Classic Pot.
 6. Disable Classic Pot in settings mid-game with a non-zero pool: no further donations or
    wins; the frozen balance stays visible until re-enabled.
 
@@ -234,6 +235,38 @@ running counter.
 11. **Dev face override (fallback *expected*):** with `window.__forceSettleFaces` set,
     the reported values disagree with the physics pose, so the client omits it, the
     server would drop it anyway, and viewers get the slot layout.
+
+---
+
+## Audio — by-ear checklist, 2 tabs
+
+Setup: tabs A (roller) and B (spectator/other seat), game started, system volume up.
+Sounds only start after a tab's first click/keypress (browser autoplay policy).
+
+1. **Roller impacts (A):** grab the koozie and shake — a continuous rattle whose
+   loudness tracks how hard you shake; stop moving and it dies away. **Hold the koozie
+   perfectly still: total silence** (resting dice must not rattle). Pour: dice
+   tumbling out produce felt thuds and die-on-die clacks scaled by impact; a die
+   reaching the rail gives a distinct softer knock. After settle: true silence (no
+   residual ticking from resting dice).
+   In B, an opponent's stand / keep-selection must be silent — dice snapping to the
+   rail are repositions, not impacts.
+2. **Stereo pan (A):** throw dice hard left, then hard right — the impacts audibly
+   shift channels.
+3. **Spectator (B):** during A's throw, B hears the shake rattle and landing impacts
+   roughly in sync with its (slightly delayed) visuals. Between turns — static dice —
+   B is silent.
+4. **Autoplay unlock (B):** open a fresh third tab, join, and don't click anywhere:
+   A's next throw is silent there with no console errors. Click once; the following
+   throw is audible.
+5. **One-shots:** round ante → chip-stack sound once per tab (not doubled); round win →
+   chip payout sound; a straight → bell, together with the glow.
+6. **Volume control:** HUD Sound cell — mute silences everything instantly, the slider
+   scales it, and both survive a reload (`localStorage['dice:audio']`). A hidden tab
+   goes silent (switch away during a shake) and comes back on focus.
+7. **Calibration (optional):** `localStorage.setItem('dice:audio-debug', '1')` in A's
+   console logs `[audio] <pair> force=…` per contact — use it to tune
+   `AUDIO_TUNING.impact` if thuds feel too eager/shy.
 
 ---
 

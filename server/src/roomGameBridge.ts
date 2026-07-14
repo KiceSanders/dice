@@ -137,6 +137,52 @@ export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext):
         amount: event.amount,
       });
       break;
+    case 'bonusOffered':
+      // Not recorded: replaying the quint 'rolled' re-offers deterministically.
+      ctx.broadcast({
+        type: 'turn:bonusOffered',
+        playerId: event.playerId,
+        face: event.face,
+      });
+      break;
+    case 'bonusThrowStarted':
+      // Not recorded: replay only needs the final die (the 'bonusRolled' event).
+      ctx.broadcast({
+        type: 'turn:bonusThrowStarted',
+        playerId: event.playerId,
+      });
+      break;
+    case 'bonusRolled':
+      ctx.recorder?.append({
+        type: 'bonusRolled',
+        playerId: event.playerId,
+        die: event.die,
+      });
+      ctx.broadcast({
+        type: 'turn:bonusRolled',
+        playerId: event.playerId,
+        die: event.die,
+        face: event.face,
+        matched: event.matched,
+      });
+      ctx.broadcastState();
+      break;
+    case 'yahtzeeBonusPaid':
+      ctx.recorder?.append({
+        type: 'yahtzeeBonusPaid',
+        playerId: event.playerId,
+        amountPerPlayer: event.amountPerPlayer,
+        total: event.total,
+        payments: event.payments,
+      });
+      ctx.broadcast({
+        type: 'yahtzee:paid',
+        playerId: event.playerId,
+        amountPerPlayer: event.amountPerPlayer,
+        total: event.total,
+        payments: event.payments,
+      });
+      break;
     case 'roundEnded':
       ctx.setPhaseRoundEnd();
       ctx.recorder?.append({

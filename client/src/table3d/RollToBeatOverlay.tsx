@@ -16,21 +16,28 @@ export default function RollToBeatOverlay({ game, players }: Props) {
   const names = toBeat.playerIds
     .map((id) => players.find((p) => p.id === id)?.name ?? 'unknown')
     .join(', ');
-  const rollsLabel = summary.rollsUsed === 1 ? '1 roll' : `${summary.rollsUsed} rolls`;
 
   return (
     <div className="roll-to-beat-overlay">
-      <span className="roll-to-beat-label">Roll to beat</span>
       <div className="roll-to-beat-hand">
-        {summary.kind === 'yahtzee' ? (
-          <span className="roll-to-beat-count">Yahtzee</span>
+        {summary.kind === 'classic' ? (
+          <span className="roll-to-beat-classic">Classic</span>
+        ) : summary.kind === 'yahtzee' ? (
+          <>
+            <span className="roll-to-beat-count">Yahtzee</span>
+            <span className="roll-to-beat-rolls">
+              in {summary.rollsUsed === 1 ? '1 roll' : `${summary.rollsUsed} rolls`}
+            </span>
+          </>
         ) : (
           <>
             <span className="roll-to-beat-count">{summary.count}</span>
             <Die value={summary.face} small />
+            <span className="roll-to-beat-rolls">
+              in {summary.rollsUsed === 1 ? '1 roll' : `${summary.rollsUsed} rolls`}
+            </span>
           </>
         )}
-        <span className="roll-to-beat-rolls">in {rollsLabel}</span>
       </div>
       <div className="roll-to-beat-names">{names}</div>
     </div>

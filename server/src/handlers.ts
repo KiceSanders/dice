@@ -157,6 +157,28 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       if (error) conn.sendError(error.code, error.message);
     },
 
+    'turn:bonusThrowStart': (conn) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.engine) {
+        conn.sendError('BAD_REQUEST', 'no game in progress');
+        return;
+      }
+      const error = c.room.engine.beginBonusThrow(c.playerId);
+      if (error) conn.sendError(error.code, error.message);
+    },
+
+    'turn:bonusThrowResult': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.engine) {
+        conn.sendError('BAD_REQUEST', 'no game in progress');
+        return;
+      }
+      const error = c.room.engine.commitBonusThrow(c.playerId, msg.die);
+      if (error) conn.sendError(error.code, error.message);
+    },
+
     'dice:frames': (conn, msg) => {
       // Ephemeral pose relay (ADR 004). Invalid senders are dropped silently:
       // frames straddle turn boundaries, and erroring at stream rate would flood.

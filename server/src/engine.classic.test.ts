@@ -128,6 +128,23 @@ describe('classic pot', () => {
     expect(chipsPlusClassic(players, engine.classicPot) + engine.pot).toBe(beforeWithPot);
   });
 
+  it('does not pay classic on three 6s after the first roll of the turn', () => {
+    const players = makePlayers([100, 100]);
+    const { engine, events } = makeEngine(players, {
+      settings: classicSettings({ donationAmount: 1 }),
+    });
+    engine.start();
+    engine.classicPot = 5;
+
+    expect(roll(engine, 'p0', WEAK)).toBeNull();
+    expect(roll(engine, 'p0', WEAK, [])).toBeNull();
+    events.length = 0;
+    expect(roll(engine, 'p0', THREE_SIXES, [])).toBeNull();
+
+    expect(ofType(events, 'classicWon')).toHaveLength(0);
+    expect(engine.classicPot).toBe(5);
+  });
+
   it('does not pay classic when roll-to-beat is already set', () => {
     const players = makePlayers([100, 100]);
     const { engine, events } = makeEngine(players, {

@@ -7,5 +7,6 @@ export * from './game/restPose.js';
 export * from './game/score.js';
 export * from './game/stand.js';
 export * from './game/turnOrder.js';
+export * from './game/yahtzeeBonus.js';
 export * from './protocol.js';
 export * from './types.js';

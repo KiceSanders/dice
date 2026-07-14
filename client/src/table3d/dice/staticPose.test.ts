@@ -71,6 +71,7 @@ describe('pickHeldRollInput', () => {
         rollsUsed: 1,
         rollCap: 5,
         throwing: false,
+        bonusPending: null,
         restPose: null,
       },
       rollToBeat: {
@@ -96,6 +97,7 @@ describe('pickHeldRollInput', () => {
         rollsUsed: 0,
         rollCap: 5,
         throwing: false,
+        bonusPending: null,
         restPose: null,
       },
     });
@@ -116,6 +118,7 @@ describe('pickHeldRollInput', () => {
         rollsUsed: 1,
         rollCap: 5,
         throwing: false,
+        bonusPending: null,
         restPose,
       },
     });
@@ -132,6 +135,7 @@ describe('pickHeldRollInput', () => {
         rollsUsed: 0,
         rollCap: 5,
         throwing: false,
+        bonusPending: null,
         restPose: null,
       },
       rollToBeat: {
@@ -168,6 +172,7 @@ describe('pickHeldRollInput', () => {
         rollsUsed: 0,
         rollCap: 2,
         throwing: false,
+        bonusPending: null,
         restPose: null,
       },
       rollToBeat: {

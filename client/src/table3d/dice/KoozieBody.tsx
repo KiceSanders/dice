@@ -89,7 +89,9 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       ccd={ccd}
       canSleep
     >
+      {/* Collider names feed impact-audio classification (audio/impactRules.ts). */}
       <CylinderCollider
+        name="cup-bottom"
         args={[tuning.cup.bottomThickness * 0.5, tuning.cup.radius * KOOZIE_COLLIDER_RADIUS_INSET]}
         position={[0, bottomY, 0]}
         friction={tuning.cup.friction}
@@ -98,6 +100,7 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
       />
       {lid ? (
         <CylinderCollider
+          name="cup-lid"
           args={[
             tuning.cup.lidThickness * 0.5,
             tuning.cup.radius * KOOZIE_LID_COLLIDER_RADIUS_INSET,
@@ -109,6 +112,7 @@ const KoozieBody = forwardRef<KoozieBodyHandle, Props>(function KoozieBody(
         />
       ) : null}
       <TrimeshCollider
+        name="cup-wall"
         args={wallTrimeshArgs}
         friction={tuning.cup.friction}
         restitution={tuning.cup.restitution}

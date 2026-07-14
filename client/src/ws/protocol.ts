@@ -72,6 +72,26 @@ const validators: Record<ServerMessage['type'], Validator> = {
       : 'classic:donated missing fields',
   'classic:won': (m) =>
     isNonEmptyString(m.playerId) && isFiniteNumber(m.amount) ? null : 'classic:won missing fields',
+  'turn:bonusOffered': (m) =>
+    isNonEmptyString(m.playerId) && isFiniteNumber(m.face)
+      ? null
+      : 'turn:bonusOffered missing fields',
+  'turn:bonusThrowStarted': (m) =>
+    isNonEmptyString(m.playerId) ? null : 'turn:bonusThrowStarted missing playerId',
+  'turn:bonusRolled': (m) =>
+    isNonEmptyString(m.playerId) &&
+    isFiniteNumber(m.die) &&
+    isFiniteNumber(m.face) &&
+    typeof m.matched === 'boolean'
+      ? null
+      : 'turn:bonusRolled missing fields',
+  'yahtzee:paid': (m) =>
+    isNonEmptyString(m.playerId) &&
+    isFiniteNumber(m.amountPerPlayer) &&
+    isFiniteNumber(m.total) &&
+    Array.isArray(m.payments)
+      ? null
+      : 'yahtzee:paid missing fields',
   'chat:message': (m) =>
     isNonEmptyString(m.playerId) &&
     isNonEmptyString(m.playerName) &&

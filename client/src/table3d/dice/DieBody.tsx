@@ -1,6 +1,7 @@
 import type { ThreeEvent } from '@react-three/fiber';
 import { CuboidCollider, type RapierRigidBody, RigidBody } from '@react-three/rapier';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { handleDieContactForce } from '../audio/rollerImpacts';
 import { DIE_HALF } from './constants';
 import PipDie from './PipDie';
 import type { GlowHandle } from './straightGlow';
@@ -66,10 +67,14 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
       ccd={!locked && !driven}
     >
       <CuboidCollider
+        // `name` tags this side of a contact for impact audio (impactRules.ts);
+        // onContactForce only exists here — dice touch everything we sound.
+        name="die"
         args={[DIE_HALF * 0.96, DIE_HALF * 0.96, DIE_HALF * 0.96]}
         friction={tuning.dice.friction}
         restitution={tuning.dice.restitution}
         density={tuning.dice.density}
+        onContactForce={handleDieContactForce}
       />
       <group
         visible={meshVisible}

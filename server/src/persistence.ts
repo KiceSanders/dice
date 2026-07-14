@@ -116,6 +116,13 @@ function applyReplayEvent(room: Room, event: RoomEvent): void {
       break;
     }
 
+    case 'bonusRolled': {
+      const engine = requireEngine(room, event.type);
+      const error = engine.replayBonusRolled(event.playerId, event.die);
+      if (error) throw new Error(`replay bonus roll rejected: ${error.message}`);
+      break;
+    }
+
     case 'stood': {
       const engine = requireEngine(room, event.type);
       // Skip if the roll replay already auto-stood (cap reached / all dice kept).
@@ -150,6 +157,7 @@ function applyReplayEvent(room: Room, event: RoomEvent): void {
     case 'straightPaid':
     case 'classicDonated':
     case 'classicWon':
+    case 'yahtzeeBonusPaid':
     case 'roundEnded':
       break;
 

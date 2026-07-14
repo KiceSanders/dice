@@ -49,6 +49,18 @@ describe('clampSettings / sanitizeName', () => {
     expect(clamped.maxBuyIn).toBe(50);
   });
 
+  it('defaults a missing yahtzeeBonus and clamps a negative amount', () => {
+    const { yahtzeeBonus: _omitted, ...withoutBonus } = DEFAULT_SETTINGS;
+    const defaulted = clampSettings(withoutBonus as typeof DEFAULT_SETTINGS);
+    expect(defaulted.yahtzeeBonus).toEqual(DEFAULT_SETTINGS.yahtzeeBonus);
+
+    const clamped = clampSettings({
+      ...DEFAULT_SETTINGS,
+      yahtzeeBonus: { enabled: false, amountPerPlayer: -3 },
+    });
+    expect(clamped.yahtzeeBonus).toEqual({ enabled: false, amountPerPlayer: 0 });
+  });
+
   it('strips control characters and length-limits names', () => {
     expect(sanitizeName('  Kice\u0000\u001f  ')).toBe('Kice');
     expect(sanitizeName('x'.repeat(50))).toHaveLength(24);
@@ -296,7 +308,7 @@ describe('Room ante broadcasts', () => {
 
     for (const [index, playerId] of [host.id, player.id].entries()) {
       expect(engine.beginThrow(playerId, [])).toBeNull();
-      expect(engine.commitThrow(playerId, [6, 6, 6, 6, 6])).toBeNull();
+      expect(engine.commitThrow(playerId, [5, 5, 4, 3, 2])).toBeNull();
       // The second player auto-stands at the first player's one-roll cap.
       if (index === 0) expect(engine.stand(playerId)).toBeNull();
     }

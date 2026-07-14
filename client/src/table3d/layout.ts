@@ -108,9 +108,11 @@ export function viewRotationY(mySeat: number): number {
   return Math.PI / 2 - seatAngle(mySeat, TABLE_SEAT_COUNT);
 }
 
-/** Fixed front-seat camera — not interactive. Target sits on the near felt so the table fills 16:9 vertically. */
+/** Fixed front-seat camera — not interactive. Pulled back enough that far-seat
+ *  docked koozies clear the top of the 16:9 frame; target stays on the near
+ *  felt so the table still fills the view vertically. */
 export const SEAT_VIEW = {
-  position: [0, 2.596, 4.004] as const,
+  position: [0, 2.7, 4.2] as const,
   target: [0, 0.04, 1.05] as const,
   fov: 37,
 } as const;

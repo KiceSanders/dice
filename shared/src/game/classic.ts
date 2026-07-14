@@ -5,7 +5,10 @@ export function isClassicDonation(score: HandScore): boolean {
   return score.count === 4;
 }
 
-/** Classic win: three 6s (wilds OK) — only paid out while roll-to-beat is unset. */
+/**
+ * Classic win: three 6s on the first roll of the turn (wilds OK).
+ * Engine only pays out while roll-to-beat is still unset.
+ */
 export function isClassicWin(score: HandScore): boolean {
-  return score.count === 3 && score.face === 6;
+  return score.rollsUsed === 1 && score.count === 3 && score.face === 6;
 }

@@ -20,6 +20,7 @@ const knownTypes: Record<RoomEvent['type'], true> = {
   gameStarted: true,
   roundStarted: true,
   rolled: true,
+  bonusRolled: true,
   stood: true,
   forfeited: true,
   gameEnded: true,
@@ -27,6 +28,7 @@ const knownTypes: Record<RoomEvent['type'], true> = {
   straightPaid: true,
   classicDonated: true,
   classicWon: true,
+  yahtzeeBonusPaid: true,
   roundEnded: true,
   chat: true,
 };
