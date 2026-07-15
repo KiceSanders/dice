@@ -212,12 +212,33 @@ export function seatAnchorOffset(angle: number): { tx: number; ty: number } {
   return { tx: -0.5, ty: -0.5 };
 }
 
-/** Default seat-card size used by collision tests (matches `.table-3d .seat`). */
-export const SEAT_CARD_SIZE_PX = { width: 118, height: 62 } as const;
+/** Default seat-card size used by collision tests (matches `.seat`: max-width × one-row height). */
+export const SEAT_CARD_SIZE_PX = { width: 190, height: 30 } as const;
+
+/** Minimum gap between a card edge and the frame edge after clamping. */
+export const SEAT_CARD_CLAMP_PAD_PX = 4;
+
+/**
+ * Clamp a card's left edge so the card stays horizontally inside the frame:
+ * side-gutter cards grow outward, so a wide card (long name) would otherwise
+ * leave the frame and clip at the window edge. Shared by SeatOverlay and
+ * seatCardRect so render and tests can't drift.
+ */
+export function clampCardLeftPx(
+  cardLeftPx: number,
+  cardWidthPx: number,
+  frameWidthPx: number,
+): number {
+  return Math.min(
+    Math.max(cardLeftPx, SEAT_CARD_CLAMP_PAD_PX),
+    frameWidthPx - cardWidthPx - SEAT_CARD_CLAMP_PAD_PX,
+  );
+}
 
 /**
  * Axis-aligned seat-card rect in frame % for a display slot — pure mirror of
- * SeatOverlay placement for collision tests without a DOM.
+ * SeatOverlay placement (anchor + horizontal clamp) for collision tests
+ * without a DOM.
  */
 export function seatCardRect(
   displaySlot: number,
@@ -230,8 +251,9 @@ export function seatCardRect(
   const { tx, ty } = seatAnchorOffset(angle);
   const w = (sizePx.width / frame.width) * 100;
   const h = (sizePx.height / frame.height) * 100;
+  const leftPx = ((leftPct + tx * w) / 100) * frame.width;
   return {
-    left: leftPct + tx * w,
+    left: (clampCardLeftPx(leftPx, sizePx.width, frame.width) / frame.width) * 100,
     top: topPct + ty * h,
     width: w,
     height: h,

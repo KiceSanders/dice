@@ -628,7 +628,6 @@ export default function Playground() {
       <Table
         snapshot={snapshot}
         myId={myId}
-        onKick={() => {}}
         dice={tableDice}
         heldPose={showHeldPose ? heldPose : null}
         parkedKoozieAngle={parkedKoozieAngle}

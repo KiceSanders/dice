@@ -10,6 +10,8 @@
   --accent: #f2b441;
   --danger: #e0564b;
   --ok: #4bc06a;
+  /* "Currently rolling" signal — orange, distinct from the gold accent. */
+  --rolling: #ef8a3c;
   --radius: 12px;
   /** Primary game layout width — tuned for large screens. */
   --layout-max: 1400px;
@@ -538,26 +540,6 @@ code {
   min-width: 6rem;
 }
 
-.table-3d .seat {
-  width: 118px;
-  min-height: 62px;
-  padding: 0.38rem 0.5rem;
-  font-size: 0.82rem;
-}
-
-.table-3d .seat-chips {
-  font-size: 0.82rem;
-}
-
-.table-3d .seat-name {
-  font-size: 0.86rem;
-}
-
-.table-3d .kick-button {
-  font-size: 0.72rem;
-  padding: 0.1rem 0.35rem;
-}
-
 /* Stacked table — small screens only (Table.tsx applies this class when
    SEAT_STACK_QUERY in useMediaQuery.ts matches; keep the two in sync).
    Seats leave the overlay ellipse and flow below the canvas. */
@@ -588,10 +570,7 @@ code {
 
 .table-3d .seat-strip .seat {
   width: 100%;
-  min-height: 0;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
+  max-width: none;
   font-size: 0.85rem;
 }
 
@@ -614,29 +593,25 @@ code {
   transform: translate(-50%, -50%);
 }
 
+/* One-row player card: name · chips, no border; the background tint is the
+   player's in-hand status. Kick lives in HostPanel below the table. */
 .seat {
-  width: 122px;
-  min-height: 64px;
-  background: var(--surface);
-  border: 1px solid var(--surface-2);
-  border-radius: 10px;
-  padding: 0.4rem 0.55rem;
-  font-size: 0.85rem;
+  width: auto;
+  max-width: 190px;
+  padding: 0.26rem 0.55rem;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border-radius: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  align-items: flex-start;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
 }
 
 .seat-empty {
+  border: 1px dashed var(--surface-2);
   opacity: 0.55;
-  border-style: dashed;
   justify-content: center;
-}
-
-.seat-me {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  min-width: 110px;
 }
 
 .seat-number {
@@ -648,26 +623,88 @@ code {
   color: var(--muted);
 }
 
-.seat-name-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  width: 100%;
-}
-
 .seat-name {
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 1em;
   white-space: nowrap;
+  min-width: 0;
+}
+
+/* Full-name tiers — longer names step the font down instead of ellipsizing
+   (server caps names at 24 chars). Em-based so responsive card shrink scales
+   them too. */
+.seat-name--sm {
+  font-size: 0.88em;
+}
+
+.seat-name--xs {
+  font-size: 0.78em;
+}
+
+.seat-name--xxs {
+  font-size: 0.69em;
 }
 
 .seat-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-left: auto;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+  font-size: 0.96em;
+  font-weight: 600;
+}
+
+.seat-chip-icon {
+  width: 0.9em;
+  height: 0.9em;
+  flex-shrink: 0;
+}
+
+/* Status tints: green = holds the roll to beat, orange (pulsing) = rolling
+   now, red = out of this hand; neutral dark while waiting to act. */
+.seat--to-beat {
+  background: color-mix(in srgb, var(--ok) 26%, var(--surface));
+}
+
+.seat--rolling {
+  background: color-mix(in srgb, var(--rolling) 30%, var(--surface));
+  animation: seat-tint-pulse 1.4s ease-in-out infinite;
+}
+
+.seat--out {
+  background: color-mix(in srgb, var(--danger) 22%, var(--surface));
+}
+
+@keyframes seat-tint-pulse {
+  0%,
+  100% {
+    background: color-mix(in srgb, var(--rolling) 34%, var(--surface));
+  }
+  50% {
+    background: color-mix(in srgb, var(--rolling) 12%, var(--surface));
+  }
+}
+
+/* You / round winner / disconnected */
+.seat--me .seat-name {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 1px;
+}
+
+.seat--winner {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 18px rgba(242, 180, 65, 0.55);
+}
+
+.seat--offline {
+  opacity: 0.5;
 }
 
 .conn-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -870,29 +907,6 @@ code {
 .game-area {
   max-width: 720px;
   margin: 0 auto 1rem;
-}
-
-.seat-active {
-  border-color: var(--ok);
-  box-shadow:
-    0 0 0 1px var(--ok),
-    0 0 14px rgba(75, 192, 106, 0.4);
-}
-
-.seat-winner {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 2px var(--accent),
-    0 0 18px rgba(242, 180, 65, 0.55);
-}
-
-.seat-turn-marker {
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 7px solid var(--ok);
-  flex-shrink: 0;
 }
 
 /* -- HUD -- */
@@ -1363,23 +1377,15 @@ button.die:hover {
 
 @media (max-width: 1024px) {
   .table-3d .seat {
-    width: 104px;
-    padding: 0.32rem 0.45rem;
-    font-size: 0.76rem;
-  }
-
-  .table-3d .seat-name {
-    font-size: 0.8rem;
-  }
-
-  .table-3d .seat-chips {
-    font-size: 0.76rem;
+    max-width: 156px;
+    font-size: 0.78rem;
   }
 }
 
 @media (max-width: 820px) {
   .table-3d .seat {
-    width: 92px;
+    max-width: 136px;
+    font-size: 0.72rem;
   }
 
   .table-stand {

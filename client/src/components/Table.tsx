@@ -28,7 +28,6 @@ export interface StandControl {
 interface Props {
   snapshot: RoomSnapshot;
   myId: string | null;
-  onKick: (playerId: string) => void;
   winnerId?: string | null;
   dice?: TableDiceProps;
   /** Streamed pose feed of another player's throw (ADR 004). */
@@ -132,7 +131,6 @@ function useTableViewportFit(stacked: boolean): CSSProperties | undefined {
 export default function Table({
   snapshot,
   myId,
-  onKick,
   winnerId = null,
   dice,
   remoteFeed,
@@ -190,13 +188,12 @@ export default function Table({
       {connection && <ConnectionDot status={connection} />}
       {stand && <StandControlView stand={stand} />}
       {stacked ? (
-        <SeatStrip snapshot={snapshot} myId={myId} onKick={onKick} winnerId={winnerId} />
+        <SeatStrip snapshot={snapshot} myId={myId} winnerId={winnerId} />
       ) : (
         layout && (
           <SeatOverlay
             snapshot={snapshot}
             myId={myId}
-            onKick={onKick}
             winnerId={winnerId}
             frame={layout.frame}
             viewport={layout.viewport}

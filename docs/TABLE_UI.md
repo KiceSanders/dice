@@ -202,6 +202,17 @@ values in mesh components.
   the cap to stacked mode, whose seats intentionally flow below the canvas.
 - Seat cards are positioned by **live measurement** (`useLayoutRects` + 
   `seatOverlayPosition`) — they self-adjust to any size; don't add fixed offsets.
+  Cards are one row (full name · chip count), auto-sized up to a max width; long
+  names step the font down (`seat-name--*` tiers) instead of ellipsizing. Because
+  side-gutter cards grow outward, `ClampedSeatAnchor` (SeatOverlay) measures each
+  card and clamps it horizontally inside the frame via `clampCardLeftPx`
+  (layout.ts) — `seatCardRect` mirrors the same clamp for the layout tests, and
+  `SEAT_CARD_SIZE_PX` must match the `.seat` CSS max size.
+- The card's background tint is the player's in-hand status: green = holds the
+  roll to beat (all tied holders), orange (pulsing) = rolling now, red = out of
+  this hand, neutral = waiting to act. Your own name is gold-underlined (the
+  local player is always the 6 o'clock card). Cards carry **no actions** — host
+  controls (kick) live in `HostPanel` below the table.
 - Room capacity is a fixed eight logical seats. The lobby displays all eight slots; during
   play and round end, `visibleSeatIndices` supplies occupied slots only. `seatDisplayOrder`
   rotates that list around the local player, and adding/removing a player reflows the cards.

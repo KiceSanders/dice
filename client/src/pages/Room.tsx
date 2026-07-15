@@ -178,7 +178,6 @@ export default function Room() {
         connection={state.connection}
         snapshot={snapshot}
         myId={myId}
-        onKick={(playerId) => send({ type: 'player:kick', playerId })}
         winnerId={state.roundEnd?.winnerId ?? null}
         dice={roll3d.tableDice}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}

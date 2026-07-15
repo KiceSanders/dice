@@ -1,7 +1,8 @@
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
-import { type CSSProperties, Fragment } from 'react';
-import Seat from '../components/Seat';
+import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import Seat, { type SeatStatus } from '../components/Seat';
 import {
+  clampCardLeftPx,
   type OverlayRect,
   seatAnchorOffset,
   seatDisplayOrder,
@@ -10,18 +11,61 @@ import {
   visibleSeatIndices,
 } from './layout';
 
-/** Anchor the inner edge of the card toward the table center. */
-function seatAnchorStyle(angle: number): CSSProperties {
+/**
+ * Positions a seat card with its inner edge anchored toward the table center,
+ * then clamps it horizontally inside the frame: side-gutter cards grow outward,
+ * so a wide card (long name) would otherwise leave the frame and clip at the
+ * window edge. Measured live like the rest of the seat layout — the card
+ * slides inward over the canvas edge only as far as it must.
+ */
+function ClampedSeatAnchor({
+  leftPct,
+  topPct,
+  angle,
+  frameWidth,
+  children,
+}: {
+  leftPct: number;
+  topPct: number;
+  angle: number;
+  frameWidth: number;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shiftPx, setShiftPx] = useState(0);
+
+  // No dep array on purpose: re-measure after every render (name/chip/status
+  // changes resize the card); the state update bails out when unchanged.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || frameWidth <= 0) return;
+    const { tx } = seatAnchorOffset(angle);
+    const width = el.offsetWidth; // unaffected by the translate transform
+    const cardLeft = (leftPct / 100) * frameWidth + tx * width;
+    setShiftPx(clampCardLeftPx(cardLeft, width, frameWidth) - cardLeft);
+  });
+
   const { tx, ty } = seatAnchorOffset(angle);
-  const x = tx === 0 ? '0' : tx === -1 ? '-100%' : '-50%';
+  const x = tx === 0 ? '0px' : tx === -1 ? '-100%' : '-50%';
   const y = ty === 0 ? '0' : ty === -1 ? '-100%' : '-50%';
-  return { transform: `translate(${x}, ${y})` };
+  return (
+    <div
+      ref={ref}
+      className="seat-overlay-anchor"
+      style={{
+        left: `${leftPct}%`,
+        top: `${topPct}%`,
+        transform: `translate(calc(${x} + ${shiftPx}px), ${y})`,
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 interface SeatsProps {
   snapshot: RoomSnapshot;
   myId: string | null;
-  onKick: (playerId: string) => void;
   winnerId: string | null;
 }
 
@@ -30,9 +74,17 @@ interface Props extends SeatsProps {
   viewport: OverlayRect;
 }
 
+/** Color signal for a seated player during play (null = waiting to act / no game). */
+function seatStatus(snapshot: RoomSnapshot, playerId: string): SeatStatus | null {
+  const game = snapshot.game;
+  if (!game || snapshot.phase !== 'playing') return null;
+  if (game.currentTurn?.playerId === playerId) return 'rolling';
+  if (game.rollToBeat?.playerIds.includes(playerId)) return 'toBeat';
+  if (game.turnQueue.includes(playerId)) return null;
+  return 'out';
+}
+
 function deriveSeats(snapshot: RoomSnapshot, myId: string | null) {
-  const isHost = myId !== null && snapshot.hostId === myId;
-  const activeId = snapshot.game?.currentTurn?.playerId ?? null;
   const bySeat = new Map<number, PlayerPublic>();
   for (const p of snapshot.players) {
     if (p.seat !== null) bySeat.set(p.seat, p);
@@ -40,12 +92,12 @@ function deriveSeats(snapshot: RoomSnapshot, myId: string | null) {
   const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? null;
   const visibleSeats = visibleSeatIndices(snapshot.phase, [...bySeat.keys()]);
   const displaySeats = seatDisplayOrder(visibleSeats, mySeat);
-  return { isHost, activeId, bySeat, mySeat, visibleSeats, displaySeats };
+  return { bySeat, mySeat, visibleSeats, displaySeats };
 }
 
 function seatCard(
   seatIndex: number,
-  { myId, onKick, winnerId }: SeatsProps,
+  { snapshot, myId, winnerId }: SeatsProps,
   derived: ReturnType<typeof deriveSeats>,
 ) {
   const player = derived.bySeat.get(seatIndex) ?? null;
@@ -54,10 +106,8 @@ function seatCard(
       seatIndex={seatIndex}
       player={player}
       isMe={player !== null && player.id === myId}
-      isActive={player !== null && player.id === derived.activeId}
       isWinner={player !== null && player.id === winnerId}
-      canKick={derived.isHost && player !== null && player.id !== myId}
-      onKick={onKick}
+      status={player === null ? null : seatStatus(snapshot, player.id)}
     />
   );
 }
@@ -77,17 +127,15 @@ export default function SeatOverlay(props: Props) {
           viewport,
         );
         return (
-          <div
+          <ClampedSeatAnchor
             key={seatIndex}
-            className="seat-overlay-anchor"
-            style={{
-              left: `${leftPct}%`,
-              top: `${topPct}%`,
-              ...seatAnchorStyle(angle),
-            }}
+            leftPct={leftPct}
+            topPct={topPct}
+            angle={angle}
+            frameWidth={frame.width}
           >
             {seatCard(seatIndex, props, derived)}
-          </div>
+          </ClampedSeatAnchor>
         );
       })}
     </div>
