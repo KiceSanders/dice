@@ -339,7 +339,7 @@ describe('turn and round messages', () => {
     });
   });
 
-  it('clears cached lastRoll on room join and new round boundaries', () => {
+  it('clears cached round presentation on room join and new round boundaries', () => {
     const stale = {
       playerId: 'p1',
       dice: [1, 2, 3, 4, 5] as Die[],
@@ -348,7 +348,11 @@ describe('turn and round messages', () => {
       restPose: null,
       receivedAt: 1,
     };
-    const withStaleRoll: AppState = { ...initialState, lastRoll: stale };
+    const withStalePresentation: AppState = {
+      ...initialState,
+      lastRoll: stale,
+      roundEnd: { winnerId: 'p1', potWon: 2, scores: [], receivedAt: 2 },
+    };
 
     expect(
       receive(
@@ -358,12 +362,15 @@ describe('turn and round messages', () => {
           rejoinToken: 'token',
           snapshot: snapshot({ players: [player('p1')] }),
         },
-        withStaleRoll,
+        withStalePresentation,
       ).lastRoll,
     ).toBeNull();
-    expect(
-      receive({ type: 'round:started', roundNumber: 2, antes: [] }, withStaleRoll).lastRoll,
-    ).toBeNull();
+    const nextRound = receive(
+      { type: 'round:started', roundNumber: 2, antes: [] },
+      withStalePresentation,
+    );
+    expect(nextRound.lastRoll).toBeNull();
+    expect(nextRound.roundEnd).toBeNull();
     expect(
       receive(
         {
@@ -373,7 +380,7 @@ describe('turn and round messages', () => {
           depth: 1,
           antes: [],
         },
-        withStaleRoll,
+        withStalePresentation,
       ).lastRoll,
     ).toBeNull();
   });

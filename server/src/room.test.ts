@@ -372,7 +372,7 @@ describe('Room mid-game settings', () => {
     // Second player auto-stands at the one-roll cap.
 
     expect(room.phase).toBe('roundEnd');
-    vi.advanceTimersByTime(5_000);
+    vi.advanceTimersByTime(8_000);
     expect(room.phase).toBe('playing');
 
     const round2 = link.ofType('round:started').at(-1)!;

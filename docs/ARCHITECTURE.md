@@ -60,7 +60,8 @@ the five authoritative hand dice stay railed, a sixth die is created in the cup,
 its face is sent in `turn:bonusThrowResult`. The sixth die is then removed, the original
 five-die rest pose remains authoritative, and the engine stands the roller automatically.
 
-Round-end delay: 5s (`ROUND_END_DELAY_MS`) → next round auto-starts. Disconnect/kick
+Round-end delay: 8s (`ROUND_END_DELAY_MS`) → next round auto-starts; the client reserves
+the first 5s for an unobstructed view of the final settled dice. Disconnect/kick
 during a turn calls `forceStand` (stand on settled dice, or forfeit if none).
 
 ## Seat/view transform

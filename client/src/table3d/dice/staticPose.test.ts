@@ -190,6 +190,99 @@ describe('pickHeldRollInput', () => {
     });
   });
 
+  it('keeps the latest losing hand visible after the turn advances', () => {
+    const losingDice = [2, 3, 4, 5, 6] as Die[];
+    const losingPose = makeRestPose(losingDice);
+    const latestLosingRoll: LiveRollInput = {
+      playerId: 'p0',
+      rollNumber: 1,
+      dice: losingDice,
+      kept: [],
+      restPose: losingPose,
+    };
+    const leaderDice = [6, 6, 3, 4, 5] as Die[];
+    const game = makeGame({
+      currentTurn: {
+        playerId: 'p1',
+        dice: [],
+        keptIndices: [],
+        rollsUsed: 0,
+        rollCap: 1,
+        throwing: false,
+        bonusPending: null,
+        restPose: null,
+      },
+      rollToBeat: {
+        playerIds: ['leader'],
+        score: { count: 2, face: 6, rollsUsed: 1, straight: 'none' },
+        dice: leaderDice,
+        restPose: makeRestPose(leaderDice),
+      },
+    });
+
+    expect(pickHeldRollInput(latestLosingRoll, game)).toEqual({
+      dice: losingDice,
+      kept: [],
+      restPose: losingPose,
+    });
+  });
+
+  it('keeps the latest tied hand instead of the first holder stored in rollToBeat', () => {
+    const tiedDice = [3, 3, 2, 4, 6] as Die[];
+    const tiedPose = makeRestPose(tiedDice);
+    const latestTiedRoll: LiveRollInput = {
+      playerId: 'later-tie',
+      rollNumber: 1,
+      dice: tiedDice,
+      kept: [],
+      restPose: tiedPose,
+    };
+    const firstHolderDice = [3, 3, 4, 5, 6] as Die[];
+    const game = makeGame({
+      currentTurn: null,
+      rollToBeat: {
+        playerIds: ['first-holder', 'later-tie'],
+        score: { count: 2, face: 3, rollsUsed: 1, straight: 'none' },
+        dice: firstHolderDice,
+        restPose: makeRestPose(firstHolderDice),
+      },
+    });
+
+    expect(pickHeldRollInput(latestTiedRoll, game)).toEqual({
+      dice: tiedDice,
+      kept: [],
+      restPose: tiedPose,
+    });
+  });
+
+  it('keeps the final losing hand visible when the round ends', () => {
+    const losingDice = [2, 3, 4, 5, 6] as Die[];
+    const losingPose = makeRestPose(losingDice);
+    const finalRoll: LiveRollInput = {
+      playerId: 'last-player',
+      rollNumber: 1,
+      dice: losingDice,
+      kept: [],
+      restPose: losingPose,
+    };
+    const leaderDice = [6, 6, 3, 4, 5] as Die[];
+    const game = makeGame({
+      currentTurn: null,
+      rollToBeat: {
+        playerIds: ['leader'],
+        score: { count: 2, face: 6, rollsUsed: 1, straight: 'none' },
+        dice: leaderDice,
+        restPose: makeRestPose(leaderDice),
+      },
+    });
+
+    expect(pickHeldRollInput(finalRoll, game)).toEqual({
+      dice: losingDice,
+      kept: [],
+      restPose: losingPose,
+    });
+  });
+
   it('returns null when nothing has been rolled', () => {
     expect(pickHeldRollInput(null, makeGame())).toBeNull();
     expect(pickHeldRollInput(null, null)).toBeNull();

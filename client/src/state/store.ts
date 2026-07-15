@@ -297,6 +297,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       return {
         ...state,
         lastRoll: null,
+        roundEnd: null,
         lastAnte: {
           kind: 'round',
           roundNumber: msg.roundNumber,

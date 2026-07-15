@@ -133,7 +133,7 @@ export interface EngineOptions {
   roundEndDelayMs?: number;
 }
 
-export const ROUND_END_DELAY_MS = 5_000;
+export const ROUND_END_DELAY_MS = 8_000;
 /** Beyond this sub-round depth, antes stop and sudden-death single rolls decide it. */
 export const MAX_SUBROUND_DEPTH = 10;
 

@@ -16,7 +16,8 @@ import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import TableAudio from '../table3d/audio/TableAudio';
 
-const ROUND_END_REVEAL_DELAY_MS = 3_000;
+/** Leave the final settled hand unobstructed before the round recap appears. */
+const ROUND_END_REVEAL_DELAY_MS = 5_000;
 
 export default function Room() {
   const { roomId = '' } = useParams();

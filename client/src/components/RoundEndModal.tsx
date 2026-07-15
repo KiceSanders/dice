@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 import type { RoundEndInfo } from '../state/store';
 import { describeScore } from './GameHud';
 
-/** Mounted after a 3s reveal delay; clear just before the server's 5s next-round timer. */
-const AUTO_DISMISS_MS = 1_800;
+/** Mounted after a 5s dice-view window; clear just before the server's 8s next-round timer. */
+const AUTO_DISMISS_MS = 2_800;
 
 interface Props {
   roundEnd: RoundEndInfo;

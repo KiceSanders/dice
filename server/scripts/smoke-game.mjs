@@ -171,11 +171,11 @@ const totalChips =
   (state.snapshot.game?.classicPot ?? 0);
 assert(totalChips === 200, `chips conserved (${totalChips})`);
 
-// Next round auto-starts after ~5s.
+// Next round auto-starts after ~8s; leave scheduling/network headroom.
 state = await host.stateWhere(
   (s) => s.phase === 'playing' && s.game?.roundNumber === 2,
   'round 2 auto-started',
-  8000,
+  11000,
 );
 assert(state.snapshot.game.roundNumber === 2, 'round 2 started automatically');
 

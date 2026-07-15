@@ -59,16 +59,23 @@ function isLiveTurnRoll(
 ): boolean {
   if (!turn || turn.playerId !== lastRoll.playerId) return false;
   // `turn:rolled` can arrive one snapshot before `currentTurn.rollsUsed`
-  // catches up. Once the turn advances, the snapshot's rollToBeat/currentTurn
-  // pose is authoritative and the local cache must not win.
+  // catches up.
   return lastRoll.rollNumber === turn.rollsUsed || lastRoll.rollNumber === turn.rollsUsed + 1;
 }
 
+function heldRoll(lastRoll: LiveRollInput): HeldRollInput {
+  return { dice: lastRoll.dice, kept: lastRoll.kept, restPose: lastRoll.restPose };
+}
+
+function stoodRoll(rollToBeat: NonNullable<GameStatePublic['rollToBeat']>): HeldRollInput {
+  return { dice: rollToBeat.dice, kept: [], restPose: rollToBeat.restPose };
+}
+
 /**
- * Which roll the felt should show between throws, in priority order: the live
- * `turn:rolled` state, else the current turn from a snapshot (rejoin mid-turn),
- * else the roll to beat (rejoin between turns). Null when nothing has been
- * rolled yet.
+ * Which roll the felt should show between throws. A live `turn:rolled` remains
+ * the visible hand across a turn/round handoff, including when it lost. If that
+ * player stood as a leader, prefer rollToBeat because it carries the refined
+ * stand-click pose. Snapshot sources cover rejoiners that have no live cache.
  */
 export function pickHeldRollInput(
   lastRoll: LiveRollInput | null,
@@ -76,13 +83,19 @@ export function pickHeldRollInput(
 ): HeldRollInput | null {
   const turn = game?.currentTurn;
   if (lastRoll && isLiveTurnRoll(lastRoll, turn)) {
-    return { dice: lastRoll.dice, kept: lastRoll.kept, restPose: lastRoll.restPose };
+    return heldRoll(lastRoll);
+  }
+  const rollToBeat = game?.rollToBeat ?? null;
+  if (lastRoll) {
+    // rollToBeat stores the first holder's dice/pose; later tied player IDs are
+    // appended without replacing that hand, so only index 0 owns this pose.
+    if (rollToBeat?.playerIds[0] === lastRoll.playerId) return stoodRoll(rollToBeat);
+    return heldRoll(lastRoll);
   }
   if (turn && turn.dice.length >= DICE_COUNT) {
     return { dice: turn.dice, kept: turn.keptIndices, restPose: turn.restPose };
   }
-  const rollToBeat = game?.rollToBeat ?? null;
-  if (rollToBeat) return { dice: rollToBeat.dice, kept: [], restPose: rollToBeat.restPose };
+  if (rollToBeat) return stoodRoll(rollToBeat);
   return null;
 }
 

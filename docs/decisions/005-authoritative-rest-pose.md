@@ -40,6 +40,10 @@ of them, and did, repeatedly.
   `console.warn` + `window.__diceDebug.slotFallbackCount`). It deliberately does **not**
   re-read faces from the pose — the server already guaranteed the match, and client-side
   re-checking was itself a fallback trigger.
+- Live source selection keeps the newest `turn:rolled` hand on the felt across turn and
+  round-end handoffs, even when it lost or tied. If that roller owns the hand stored in
+  `rollToBeat` (the first listed holder), the stood snapshot pose takes priority so keep
+  moves made after settlement are preserved; later tied IDs do not own that stored pose.
 - Both opportunistic capture paths (`useTableRoll` held-pose capture, `useRemoteRoll`
   stream capture) are **deleted**. Adding a new pose source means adding a tier to the
   resolver, never a new capture path.
@@ -62,8 +66,9 @@ odd but legal arrangement."
 ## Consequences
 
 - Every viewer (including rejoiners and late joiners) sees the dice **where they landed**
-  and, after a voluntary stand, where the hand was stood; the slot layout remains only for
-  turns with no roll yet or an intentionally dropped pose.
+  and, after a voluntary stand, where the hand was stood. A live viewer continues to see
+  the newest losing hand rather than reverting to the earlier leader; the slot layout
+  remains only for turns with no roll yet or an intentionally dropped pose.
 - Kept dice render at the *roller's* rail for every viewer (matching live streaming); the
   old fallback railed them viewer-locally.
 - ~600 B per `turn:rolled` / ~1.2 KB per snapshot — negligible next to the frame stream.

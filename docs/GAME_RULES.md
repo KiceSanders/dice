@@ -179,7 +179,8 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
-- Round-end delay: 5s before the next round auto-starts.
+- Round-end delay: 8s before the next round auto-starts. The client leaves the final
+  settled hand unobstructed for the first 5s, then shows the winner recap.
 
 ## Room settings
 

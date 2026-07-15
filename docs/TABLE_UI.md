@@ -17,6 +17,11 @@ possible; where code stays complex for a reason, that reason is documented here.
 
 **Last-roll dice on the felt:** the most recent `turn:rolled` stays visible for every
 viewer until the next roller grabs/releases the koozie (or a streamed throw is in flight).
+That includes a losing hand after its turn advances and the final losing hand throughout
+round end; it must never be replaced by the earlier leader's `rollToBeat` hand. When the
+latest roller owns the hand stored in `rollToBeat` (the first listed holder), that stood
+pose wins so post-settle keep moves remain visible; later tied players keep their latest
+settled pose because `rollToBeat` still stores the first holder's dice.
 Spectators and the incoming roller see it through `StaticDiceView`, fed by **one resolver**:
 `resolveTableRestPose` in `staticPose.ts` (ADR 005). Its priority is the server-validated
 `restPose` carried on `turn:rolled`, optionally refined by `turn:stand`, and every snapshot
