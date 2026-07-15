@@ -133,6 +133,20 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ---
 
+## Touchscreen koozie drag — 2 tabs
+
+1. Use a touch device (or DevTools touch emulation) for the active roller in Tab A and
+   keep a spectator open in Tab B.
+2. In Tab A, swipe vertically on an empty part of the table and confirm the room page
+   scrolls normally.
+3. Touch the koozie and drag vertically. Confirm the koozie follows the finger while the
+   page stays fixed, then release to throw.
+4. After release, swipe the empty table again and confirm page scrolling is restored.
+5. Touch near—but outside—the koozie and drag. Confirm the page scrolls and the koozie
+   does not move. Check both tabs for console errors and confirm Tab B sees the throw.
+
+---
+
 ## Forcing straights — payout + celebration glow
 
 Dice come only from client physics (no server RNG), so the settle override in

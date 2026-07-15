@@ -930,10 +930,32 @@ export default function DicePhysics({
   }, [active, camera, canDrag, gl]);
 
   useEffect(() => {
+    if (!active || !canDrag) return;
+
+    // The canvas must remain vertically scrollable until the koozie is
+    // actually grabbed. Once a cup drag starts, cancel touch movement at the
+    // window boundary so the same gesture moves the cup instead of the page.
+    // This must be non-passive: passive touch listeners cannot prevent scroll.
+    const lockScrollDuringKoozieDrag = (event: TouchEvent) => {
+      if (!draggingRef.current) return;
+      event.preventDefault();
+    };
+
+    window.addEventListener('touchmove', lockScrollDuringKoozieDrag, {
+      capture: true,
+      passive: false,
+    });
+    return () => {
+      window.removeEventListener('touchmove', lockScrollDuringKoozieDrag, { capture: true });
+    };
+  }, [active, canDrag]);
+
+  useEffect(() => {
     if (!dragging) return;
 
     const onMove = (e: PointerEvent) => {
       if (!draggingRef.current || rollingRef.current) return;
+      if (e.cancelable) e.preventDefault();
       clientXRef.current = e.clientX;
       clientYRef.current = e.clientY;
       recordSample(e.clientX, e.clientY);

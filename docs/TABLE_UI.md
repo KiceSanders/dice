@@ -269,6 +269,10 @@ add unit tests next to them. Geometry constants are also re-exported from
   `setTranslation` on a fixed body (rapier skips mesh sync — invisible desync).
 - The window-level capture `pointerdown` handler must `return` (no `stopPropagation`)
   on rejected cup grabs, or die clicks die with it.
+- Touch scrolling stays enabled until a koozie grab succeeds. While the cup is
+  actively dragged, the window-level non-passive `touchmove` guard cancels page
+  scrolling; it must stop canceling as soon as the drag ends so ordinary table
+  touches can still scroll the room page.
 - Every reactive RigidBody prop must be a **stable value** — a per-render computed
   position/rotation teleports bodies on unrelated re-renders (historical jitter bug).
 
