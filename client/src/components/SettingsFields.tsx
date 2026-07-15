@@ -1,5 +1,6 @@
 import type {
   ClassicPotConfig,
+  FirstRollYahtzeePayoutConfig,
   RoomSettings,
   StraightPayoutConfig,
   YahtzeeBonusConfig,
@@ -24,6 +25,11 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
     onChange?.({ ...value, classicPot: { ...value.classicPot, ...patch } });
   const setYahtzee = (patch: Partial<YahtzeeBonusConfig>) =>
     onChange?.({ ...value, yahtzeeBonus: { ...value.yahtzeeBonus, ...patch } });
+  const setFirstRollYahtzee = (patch: Partial<FirstRollYahtzeePayoutConfig>) =>
+    onChange?.({
+      ...value,
+      firstRollYahtzeePayout: { ...value.firstRollYahtzeePayout, ...patch },
+    });
 
   const num = (raw: string, fallback: number): number => {
     const n = Number(raw);
@@ -97,6 +103,47 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
       <small className="field-help">
         Players pick their own starting chips within these bounds.
       </small>
+
+      <div className="settings-bonus">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={value.firstRollYahtzeePayout.enabled}
+            onChange={(e) => setFirstRollYahtzee({ enabled: e.target.checked })}
+          />
+          First-roll Yahtzee payout
+        </label>
+        <small>
+          A Yahtzee on the first roll, including one made with wilds, makes every other seated
+          player pay the roller immediately.
+        </small>
+
+        {value.firstRollYahtzeePayout.enabled && (
+          <div className="bonus-grid">
+            <div className="field">
+              <label htmlFor="set-first-roll-yahtzee-amount">Chips per player</label>
+              <input
+                id="set-first-roll-yahtzee-amount"
+                type="number"
+                min={0}
+                value={value.firstRollYahtzeePayout.amountPerPlayer}
+                onChange={(e) =>
+                  setFirstRollYahtzee({
+                    amountPerPlayer: num(
+                      e.target.value,
+                      value.firstRollYahtzeePayout.amountPerPlayer,
+                    ),
+                  })
+                }
+              />
+            </div>
+            <small className="field-help">
+              This instant payout is separate from the Yahtzee bonus throw. Payments are capped by
+              what a player has.
+            </small>
+          </div>
+        )}
+      </div>
 
       <div className="settings-bonus">
         <label className="check">

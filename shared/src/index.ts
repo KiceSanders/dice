@@ -2,6 +2,7 @@ export * from './assert.js';
 export * from './game/classic.js';
 export * from './game/compare.js';
 export * from './game/dice.js';
+export * from './game/firstRollYahtzee.js';
 export * from './game/resolve.js';
 export * from './game/restPose.js';
 export * from './game/score.js';

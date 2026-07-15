@@ -1,6 +1,7 @@
 import type {
   ClassicPotConfig,
   ClientMessage,
+  FirstRollYahtzeePayoutConfig,
   RoomSettings,
   StraightPayoutConfig,
   YahtzeeBonusConfig,
@@ -32,6 +33,10 @@ function isYahtzeeBonusConfig(v: unknown): v is YahtzeeBonusConfig {
   return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.amountPerPlayer);
 }
 
+function isFirstRollYahtzeePayoutConfig(v: unknown): v is FirstRollYahtzeePayoutConfig {
+  return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.amountPerPlayer);
+}
+
 /** Structural check only; range clamping happens in the room layer (Phase 3.2). */
 function isRoomSettings(v: unknown): v is RoomSettings {
   return (
@@ -43,7 +48,8 @@ function isRoomSettings(v: unknown): v is RoomSettings {
     isFiniteNumber(v.maxBuyIn) &&
     isStraightPayoutConfig(v.straightPayout) &&
     isClassicPotConfig(v.classicPot) &&
-    isYahtzeeBonusConfig(v.yahtzeeBonus)
+    isYahtzeeBonusConfig(v.yahtzeeBonus) &&
+    isFirstRollYahtzeePayoutConfig(v.firstRollYahtzeePayout)
   );
 }
 

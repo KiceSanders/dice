@@ -29,6 +29,7 @@ const knownTypes: Record<RoomEvent['type'], true> = {
   classicDonated: true,
   classicWon: true,
   yahtzeeBonusPaid: true,
+  firstRollYahtzeePaid: true,
   roundEnded: true,
   chat: true,
 };

@@ -148,5 +148,14 @@ export type ServerMessage =
       /** Actual per-payer transfers; min(amount, payer, roller) for short stacks. */
       payments: { playerId: PlayerId; amount: number }[];
     }
+  /** First-roll Yahtzee instant payment (wild-composed Yahtzees count). */
+  | {
+      type: 'yahtzee:first-roll-paid';
+      playerId: PlayerId;
+      amountPerPlayer: number;
+      total: number;
+      /** Actual per-payer transfers; min(amount, payer, roller) for short stacks. */
+      payments: { playerId: PlayerId; amount: number }[];
+    }
   | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }
   | { type: 'error'; code: ErrorCode; message: string };

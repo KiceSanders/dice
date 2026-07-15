@@ -92,6 +92,13 @@ const validators: Record<ServerMessage['type'], Validator> = {
     Array.isArray(m.payments)
       ? null
       : 'yahtzee:paid missing fields',
+  'yahtzee:first-roll-paid': (m) =>
+    isNonEmptyString(m.playerId) &&
+    isFiniteNumber(m.amountPerPlayer) &&
+    isFiniteNumber(m.total) &&
+    Array.isArray(m.payments)
+      ? null
+      : 'yahtzee:first-roll-paid missing fields',
   'chat:message': (m) =>
     isNonEmptyString(m.playerId) &&
     isNonEmptyString(m.playerName) &&

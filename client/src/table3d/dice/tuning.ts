@@ -84,8 +84,9 @@ const DEFAULT_CUP_FLOAT_Y = DICE_FELT_Y + 0.72;
 export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
   world: {
     gravityY: PHYSICS.gravity[1],
-    // Fixed 60 Hz keeps simulation behavior deterministic. Chromebook profiling
-    // traced the held-cup stalls to CCD TOI searches, not this step rate.
+    // Current fixed-step default. The failed 120 → 60 Hz Chromebook experiment
+    // provides no evidence this rate is a performance fix or required setting;
+    // profiling traced the held-cup stalls to hard-CCD TOI searches instead.
     timeStep: 1 / 60,
     timeScale: 1,
     debug: false,

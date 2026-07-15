@@ -136,6 +136,13 @@ export type RoomEvent =
       total: number;
       payments: { playerId: PlayerId; amount: number }[];
     }
+  | {
+      type: 'firstRollYahtzeePaid';
+      playerId: PlayerId;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
+    }
   | { type: 'roundEnded'; winnerId: PlayerId | null; potWon: number }
   // -- chat (Phase 10) ---------------------------------------------------------
   | { type: 'chat'; playerId: PlayerId; playerName: string; text: string; ts: number };

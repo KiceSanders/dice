@@ -21,6 +21,7 @@ import {
   scoreHand,
   yahtzeeBonusTarget,
 } from '@dice/shared';
+import { applyFirstRollYahtzeePayout } from './firstRollYahtzeePayout.js';
 import {
   softGateRestPose,
   validateCommitDice,
@@ -102,6 +103,14 @@ export type EngineEvent =
   /** Yahtzee bonus hit: every other seated player paid the roller. */
   | {
       type: 'yahtzeeBonusPaid';
+      playerId: PlayerId;
+      amountPerPlayer: number;
+      total: number;
+      payments: { playerId: PlayerId; amount: number }[];
+    }
+  /** First-roll Yahtzee instant payout: every other seated player paid the roller. */
+  | {
+      type: 'firstRollYahtzeePaid';
       playerId: PlayerId;
       amountPerPlayer: number;
       total: number;
@@ -459,6 +468,14 @@ export class GameEngine {
     this.applyStraightPayout(turn);
     this.applyClassicDonation(turn);
     this.applyClassicPayout(turn);
+    const firstRollYahtzeePayout = applyFirstRollYahtzeePayout(
+      this.settings.firstRollYahtzeePayout,
+      this.scoreFor(turn),
+      this.participantById(turn.playerId),
+      this.getSeated(),
+    );
+    if (firstRollYahtzeePayout)
+      this.emit({ type: 'firstRollYahtzeePaid', ...firstRollYahtzeePayout });
 
     // A fresh Yahtzee bonus defers standing until the bonus die resolves;
     // commitBonusThrow always stands the player immediately afterward.

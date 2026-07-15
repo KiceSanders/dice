@@ -183,6 +183,22 @@ export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext):
         payments: event.payments,
       });
       break;
+    case 'firstRollYahtzeePaid':
+      ctx.recorder?.append({
+        type: 'firstRollYahtzeePaid',
+        playerId: event.playerId,
+        amountPerPlayer: event.amountPerPlayer,
+        total: event.total,
+        payments: event.payments,
+      });
+      ctx.broadcast({
+        type: 'yahtzee:first-roll-paid',
+        playerId: event.playerId,
+        amountPerPlayer: event.amountPerPlayer,
+        total: event.total,
+        payments: event.payments,
+      });
+      break;
     case 'roundEnded':
       ctx.setPhaseRoundEnd();
       ctx.recorder?.append({

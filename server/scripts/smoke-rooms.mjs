@@ -80,6 +80,10 @@ const settings = {
     enabled: true,
     amountPerPlayer: 10,
   },
+  firstRollYahtzeePayout: {
+    enabled: true,
+    amountPerPlayer: 10,
+  },
 };
 
 const host = client('host');

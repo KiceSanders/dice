@@ -53,6 +53,17 @@ describe('parseClientMessage', () => {
     });
   });
 
+  it('rejects malformed or missing firstRollYahtzeePayout settings', () => {
+    const bad = { ...DEFAULT_SETTINGS, firstRollYahtzeePayout: { enabled: true } };
+    expect(parse({ type: 'room:create', playerName: 'a', settings: bad })).toMatchObject({
+      ok: false,
+    });
+    const { firstRollYahtzeePayout: _omitted, ...missing } = DEFAULT_SETTINGS;
+    expect(parse({ type: 'room:create', playerName: 'a', settings: missing })).toMatchObject({
+      ok: false,
+    });
+  });
+
   it('validates room:join with optional rejoinToken', () => {
     expect(parse({ type: 'room:join', roomId: 'ABC234', playerName: 'p' })).toMatchObject({
       ok: true,

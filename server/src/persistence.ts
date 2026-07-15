@@ -158,6 +158,7 @@ function applyReplayEvent(room: Room, event: RoomEvent): void {
     case 'classicDonated':
     case 'classicWon':
     case 'yahtzeeBonusPaid':
+    case 'firstRollYahtzeePaid':
     case 'roundEnded':
       break;
 

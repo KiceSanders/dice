@@ -10,6 +10,7 @@ function bonusSettings(over: Partial<YahtzeeBonusConfig>): RoomSettings {
   return {
     ...DEFAULT_SETTINGS,
     yahtzeeBonus: { ...DEFAULT_SETTINGS.yahtzeeBonus, ...over },
+    firstRollYahtzeePayout: { ...DEFAULT_SETTINGS.firstRollYahtzeePayout, enabled: false },
   };
 }
 
@@ -55,7 +56,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('wild-composed quints trigger too, targeting the scored face', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', WILD_QUINT)).toBeNull();
@@ -66,7 +67,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('a bonus die of 1 is NOT wild — no match, no payout', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
@@ -78,7 +79,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('all-wild quint (1,1,1,1,1) scores five 6s, so the target is 6', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', [1, 1, 1, 1, 1])).toBeNull();
@@ -87,7 +88,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('rerolling and voluntary standing are rejected while pending; resolving auto-stands', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
@@ -107,7 +108,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('offers exactly once, then ends the turn after the bonus throw', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
@@ -132,7 +133,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('forceStand mid-bonus stands on the quint with no payout', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
@@ -181,7 +182,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('disabling between offer and commit announces the match but pays nothing', () => {
     const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players);
+    const { engine, events } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(roll(engine, 'p0', QUINT)).toBeNull();
@@ -195,7 +196,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
 
   it('rejects bonus throws with no bonus pending or already in flight', () => {
     const players = makePlayers([100, 100]);
-    const { engine } = makeEngine(players);
+    const { engine } = makeEngine(players, { settings: bonusSettings({}) });
     engine.start();
 
     expect(engine.beginBonusThrow('p0')).toMatchObject({

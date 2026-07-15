@@ -64,6 +64,16 @@ export interface YahtzeeBonusConfig {
   amountPerPlayer: number;
 }
 
+/**
+ * Instant side payment for scoring a Yahtzee on the first roll of a turn.
+ * Wild-composed Yahtzees count. Separate from the Yahtzee bonus throw.
+ */
+export interface FirstRollYahtzeePayoutConfig {
+  enabled: boolean;
+  /** Chips each other seated player pays the roller. */
+  amountPerPlayer: number;
+}
+
 export interface RoomSettings {
   chipsPerRound: number;
   /** Absolute max rolls for the round's first player. */
@@ -75,6 +85,7 @@ export interface RoomSettings {
   straightPayout: StraightPayoutConfig;
   classicPot: ClassicPotConfig;
   yahtzeeBonus: YahtzeeBonusConfig;
+  firstRollYahtzeePayout: FirstRollYahtzeePayoutConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -92,6 +103,10 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     donationAmount: 1,
   },
   yahtzeeBonus: {
+    enabled: true,
+    amountPerPlayer: 10,
+  },
+  firstRollYahtzeePayout: {
     enabled: true,
     amountPerPlayer: 10,
   },

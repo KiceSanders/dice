@@ -49,6 +49,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:bonusThrowStarted` | `{ playerId }` | A bonus throw is in flight |
 | `turn:bonusRolled` | `{ playerId, die, face, matched }` | The bonus die settled; `matched = die === face` (a rolled 1 is NOT wild here) |
 | `yahtzee:paid` | `{ playerId, amountPerPlayer, total, payments }` | Yahtzee bonus hit: every other seated player paid the roller |
+| `yahtzee:first-roll-paid` | `{ playerId, amountPerPlayer, total, payments }` | First-roll Yahtzee instant payment (wild-composed quints count) |
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
 | `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual equal-floor payments (may be below `anteAmount`) |
@@ -85,6 +86,7 @@ to any column, update this table.**
 | `bonusThrowStarted` | — (not recorded) | `turn:bonusThrowStarted` | ignored by reducer; 3D table consumes off the socket |
 | `bonusRolled` | `bonusRolled` ✓ (die only; replayed via `replayBonusRolled`) | `turn:bonusRolled` | chat line on a miss; never touches `lastRoll` |
 | `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
+| `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |
 

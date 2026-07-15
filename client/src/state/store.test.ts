@@ -37,6 +37,7 @@ function snapshot(
       straightPayout: { enabled: true, amountPerPlayer: 2 },
       classicPot: { enabled: true, donationAmount: 1 },
       yahtzeeBonus: { enabled: true, amountPerPlayer: 10 },
+      firstRollYahtzeePayout: { enabled: true, amountPerPlayer: 10 },
     },
     players: partial.players,
     seatRequests: partial.seatRequests ?? [],
@@ -164,6 +165,30 @@ describe('instant transfers', () => {
         { playerId: 'p3', amount: 4 },
       ],
       receivedAt: 5_678,
+    });
+    expect(state.toasts).toHaveLength(1);
+  });
+
+  it('retains first-roll Yahtzee payments as a player-to-player transfer', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(6_789);
+    const state = receive({
+      type: 'yahtzee:first-roll-paid',
+      playerId: 'roller',
+      amountPerPlayer: 10,
+      total: 14,
+      payments: [
+        { playerId: 'p2', amount: 10 },
+        { playerId: 'p3', amount: 4 },
+      ],
+    });
+
+    expect(state.lastTransfer).toEqual({
+      toPlayerId: 'roller',
+      payments: [
+        { playerId: 'p2', amount: 10 },
+        { playerId: 'p3', amount: 4 },
+      ],
+      receivedAt: 6_789,
     });
     expect(state.toasts).toHaveLength(1);
   });

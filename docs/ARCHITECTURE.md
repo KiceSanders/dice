@@ -38,7 +38,7 @@ pointer release on the koozie
   → engine.settleRoll     (single entry point shared with log replay; sets turn.restPose
                            before the roll-cap auto-stand so rollToBeat inherits it)
       → emit 'rolled' → persisted + broadcast turn:rolled { …, restPose }
-      → applyStraightPayout (instant zero-sum side payment)
+      → applyStraightPayout / applyFirstRollYahtzeePayout (instant zero-sum side payments)
       → applyClassicDonation / applyClassicPayout (Classic Pot side pool)
       → auto-stand at rollCap
   → roomGameBridge.handleEngineEvent

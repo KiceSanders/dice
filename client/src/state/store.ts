@@ -432,6 +432,20 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       };
     }
 
+    case 'yahtzee:first-roll-paid': {
+      const text = `${playerName(state, msg.playerId)} rolled a first-roll Yahtzee — collects ${msg.total} chips (${msg.amountPerPlayer} each)`;
+      return {
+        ...state,
+        lastTransfer: {
+          toPlayerId: msg.playerId,
+          payments: msg.payments,
+          receivedAt: Date.now(),
+        },
+        toasts: pushToast(state.toasts, 'info', text),
+        chat: pushChat(state.chat, [systemLine(text)]),
+      };
+    }
+
     default: {
       // Compile error here = a new ServerMessage is missing a case above.
       // At runtime an unknown message (newer server) is ignored, never a crash.

@@ -176,19 +176,24 @@ same override; switch **View as** to check the passive glow.
 
 ---
 
-## Yahtzee bonus sixth die — 2 tabs
+## First-roll Yahtzee payout + bonus sixth die — 2 tabs
 
-1. Confirm Yahtzee bonus is enabled. In the roller tab, force a first-throw quint with
+1. Confirm **First-roll Yahtzee payout** and Yahtzee bonus are enabled. In the roller tab, force
+   a first-throw quint with
    `window.__forceSettleFaces = [6, 6, 6, 6, 6]`, then throw the koozie.
-2. When the bonus is offered, confirm **all five** Yahtzee dice move to/stay on the rail
+2. On settlement, every other seated player's chips fall by the configured first-roll amount,
+   the roller's chips rise by the same total, and both tabs show the transfer toast/chat line.
+   Repeat with `[6, 6, 6, 1, 1]` to confirm wild-composed Yahtzees qualify; a Yahtzee made on a
+   second roll must not pay this rule.
+3. When the bonus is offered, confirm **all five** Yahtzee dice move to/stay on the rail
    and a separate sixth die is inside the koozie. No hand die may disappear or move into
    the cup.
-3. Throw the bonus die. The spectator must see all five railed dice plus the streamed
+4. Throw the bonus die. The spectator must see all five railed dice plus the streamed
    sixth die during the throw.
-4. On settle (match or miss), confirm the sixth die disappears, the original five-die
+5. On settle (match or miss), confirm the sixth die disappears, the original five-die
    Yahtzee remains as the last hand, and the roller stands automatically without clicking
    **Stand**. The next player's turn should begin (or the round should resolve).
-5. Repeat from the other player seat and check both consoles for errors or
+6. Repeat from the other player seat and check both consoles for errors or
    `[dice] slot-layout fallback` warnings. Then `delete window.__forceSettleFaces`.
 
 ---

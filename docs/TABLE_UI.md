@@ -254,7 +254,8 @@ add unit tests next to them. Geometry constants are also re-exported from
   transitions happen in exactly one place each; search `setCupPhase` before adding one.
 - While `held`, unkept dice stay dynamic for slosh but are **velocity-clamped every
   frame** (`heldMaxLinVel` / `heldMaxAngVel` in tuning) so a laggy kinematic cup
-  cannot explode in-cup contacts (ADR 002).
+  cannot explode in-cup contacts. This is an energy backstop, not the Chromebook
+  performance fix; the earlier timestep/clamp experiment did not help (ADR 002).
 - Hard CCD must stay off on the local dice and koozie. Chromebook profiling traced
   86–121 ms steps to hard-CCD TOI searches; `SOFT_CCD_PREDICTION` supplies the needed
   predictive contacts while preserving dynamic slosh. Read ADR 002's measured test

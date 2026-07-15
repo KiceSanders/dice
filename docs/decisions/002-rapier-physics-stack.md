@@ -51,13 +51,13 @@ Hard nonlinear CCD is replaced with a one-die-width **soft CCD prediction distan
 - [`KoozieBody`](../../client/src/table3d/dice/KoozieBody.tsx) keeps hard `ccd={false}` and applies soft prediction while it is kinematic (held/pouring).
 - Dice remain dynamic. No collision groups, solver contacts, damping, cup motion, or audio behavior were removed.
 
-The world remains at a fixed 60 Hz for stable, deterministic simulation behavior; 60 Hz is not considered the Chromebook performance fix.
+The world currently remains at a fixed 60 Hz, but this investigation does not establish 60 Hz as necessary or preferable. Treat timestep selection as an independent behavior/fidelity decision; it is not part of the Chromebook performance fix.
 
 Chromebook verification after the soft-CCD change recorded 2,670 Rapier steps with only one step over 8 ms (11.2 ms in ordinary collision detection) and zero time in CCD TOI computation. Dragging was reported playable with natural shaking restored. One rare die-wall penetration/stick was still observed; that is a contained follow-up geometry/prediction-tuning issue, not the former sustained CPU stall.
 
 #### Attempts and rejected alternatives
 
-- **120 → 60 Hz and held velocity clamps:** an earlier mitigation, not a fix. The Chromebook still became very laggy. Keep 60 Hz for behavior, but do not cite it as resolving this issue.
+- **120 → 60 Hz and held velocity clamps:** an earlier failed experiment, not a fix. It did not help the Chromebook lag and provides no evidence that 60 Hz or those clamps are required for performance. The clamps remain only as an in-cup energy backstop; evaluate timestep and clamp tuning independently.
 - **30 Hz:** made the koozie barely reactive and obscured rather than solved the cost; rejected.
 - **Disable all prediction while held:** reduced CPU cost and confirmed the diagnosis, but dice mostly slid side-to-side and penetrated/stuck through the koozie wall; rejected.
 - **Static/kinematically carried dice:** never acceptable—the dynamic slosh is required behavior and was not the expensive stage.

@@ -91,6 +91,7 @@ const settings = {
   straightPayout: { enabled: false, amountPerPlayer: 5 },
   classicPot: { enabled: false, donationAmount: 1 },
   yahtzeeBonus: { enabled: false, amountPerPlayer: 10 },
+  firstRollYahtzeePayout: { enabled: false, amountPerPlayer: 10 },
 };
 
 // One physics roll (ADR 004): throwStart locks keeps, throwResult reports the faces.

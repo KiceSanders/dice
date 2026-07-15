@@ -37,7 +37,7 @@ describe('GameEngine: full scripted round', () => {
     const end = lastRoundEnd(events);
     expect(end.winnerId).toBe('p2');
     expect(end.potWon).toBe(3);
-    expect(players[2]!.chips).toBe(102);
+    expect(players[2]!.chips).toBe(122); // 20 first-roll Yahtzee payout + 3-chip pot
     expect(engine.phase).toBe('roundEnd');
   });
 

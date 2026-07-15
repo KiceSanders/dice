@@ -11,8 +11,10 @@ turn rolling 5 dice — keeping and re-rolling to build the best hand — trying
 current roll-to-beat. Best stood hand wins the pot. Ties spawn sub-rounds with doubled antes.
 Rolling a straight triggers an instant side payment from every other seated player.
 A first-roll four-of-a-kind donates into a separate Classic Pot; a first-roll
-three 6s while roll-to-beat is unset wins that pot. A Yahtzee earns a one-die
-bonus throw — matching the quint's face makes every other seated player pay the roller.
+three 6s while roll-to-beat is unset wins that pot. A first-roll Yahtzee
+(wilds count) triggers an instant side payment from every other seated player.
+A Yahtzee also earns a one-die bonus throw — matching the quint's face makes
+every other seated player pay the roller.
 
 ## Turn structure
 
@@ -91,6 +93,24 @@ Side pool separate from the round-winner ante pot. Detection lives in
   on the next roll settlement. Disabling freezes the pool (no donations, no
   wins) until re-enabled — any balance stays until claimed after re-enable.
 
+## First-roll Yahtzee payout
+
+Instant side payment for scoring a Yahtzee on the **first roll of a turn**.
+Detection lives in `shared/src/game/firstRollYahtzee.ts` (`isFirstRollYahtzee`);
+the payout fires in `engine.settleRoll` via `applyFirstRollYahtzeePayout`
+(same settlement moment as the straight payout / Classic Pot rules).
+
+- **Trigger** (`settings.firstRollYahtzeePayout`): the settled hand scores five
+  of a kind with `rollsUsed === 1`. **Wilds count** (`6,6,6,1,1` and
+  `1,1,1,1,1` both qualify). Later-roll Yahtzees do not.
+- **Payout**: every other seated player immediately pays the roller
+  `min(amountPerPlayer, payer.chips, roller.chips)` — the same reciprocal cap
+  as the straight payout. Zero-sum, pot untouched.
+- **Independent of the Yahtzee bonus**: a first-roll Yahtzee still offers the
+  sixth-die bonus throw afterward; both payouts can fire in the same turn.
+- **Settings**: `settings.firstRollYahtzeePayout = { enabled, amountPerPlayer }`.
+  Takes effect on the next roll settlement.
+
 ## Yahtzee bonus
 
 Instant side bet on rolling a Yahtzee. Detection lives in
@@ -153,9 +173,9 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 - The **host** (room creator) approves/denies seat requests, kicks (kicked → banned
   spectator), edits settings anytime (including mid-round), and starts the game (≥2 seated).
   Chip amounts take effect at the next natural point: `chipsPerRound` on the next round /
-  sub-round ante, `straightPayout` / `classicPot` / `yahtzeeBonus` on the next roll
-  settlement, buy-in bounds and `maxPlayers` on the next seat request, `maxRolls` on the
-  next turn that reads the ceiling.
+  sub-round ante, `straightPayout` / `classicPot` / `yahtzeeBonus` /
+  `firstRollYahtzeePayout` on the next roll settlement, buy-in bounds and `maxPlayers`
+  on the next seat request, `maxRolls` on the next turn that reads the ceiling.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
@@ -171,6 +191,7 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
 | `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
 | `classicPot` | `{ enabled: true, donationAmount: 1 }` | See Classic Pot |
+| `firstRollYahtzeePayout` | `{ enabled: true, amountPerPlayer: 10 }` | See First-roll Yahtzee payout |
 | `yahtzeeBonus` | `{ enabled: true, amountPerPlayer: 10 }` | See Yahtzee bonus |
 
 Defaults: `DEFAULT_SETTINGS` in `shared/src/types.ts`. Server-side clamping:

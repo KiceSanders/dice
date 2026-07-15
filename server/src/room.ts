@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   ClassicPotConfig,
+  FirstRollYahtzeePayoutConfig,
   PlayerId,
   PlayerPublic,
   RoomId,
@@ -52,9 +53,11 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   const sp: Partial<StraightPayoutConfig> = s.straightPayout ?? {};
   const cp: Partial<ClassicPotConfig> = s.classicPot ?? {};
   const yb: Partial<YahtzeeBonusConfig> = s.yahtzeeBonus ?? {};
+  const fry: Partial<FirstRollYahtzeePayoutConfig> = s.firstRollYahtzeePayout ?? {};
   const dSp = DEFAULT_SETTINGS.straightPayout;
   const dCp = DEFAULT_SETTINGS.classicPot;
   const dYb = DEFAULT_SETTINGS.yahtzeeBonus;
+  const dFry = DEFAULT_SETTINGS.firstRollYahtzeePayout;
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
@@ -72,6 +75,10 @@ export function clampSettings(s: RoomSettings): RoomSettings {
     yahtzeeBonus: {
       enabled: yb.enabled === undefined ? dYb.enabled : Boolean(yb.enabled),
       amountPerPlayer: clampInt(yb.amountPerPlayer ?? dYb.amountPerPlayer, 0, 100_000),
+    },
+    firstRollYahtzeePayout: {
+      enabled: fry.enabled === undefined ? dFry.enabled : Boolean(fry.enabled),
+      amountPerPlayer: clampInt(fry.amountPerPlayer ?? dFry.amountPerPlayer, 0, 100_000),
     },
   };
 }
@@ -202,6 +209,7 @@ export class Room {
       case 'classicDonated':
       case 'classicWon':
       case 'yahtzeeBonusPaid':
+      case 'firstRollYahtzeePaid':
       case 'roundEnded':
         // Engine-driven and audit-only events are not applied here: replay
         // routes them through the engine (persistence.ts) or skips them.
