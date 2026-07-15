@@ -6,6 +6,9 @@
 export type PlayerId = string;
 export type RoomId = string;
 
+/** Fixed room capacity. Player count is not configurable per room. */
+export const MAX_SEATED_PLAYERS = 8;
+
 /** A single die face. */
 export type Die = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -78,8 +81,6 @@ export interface RoomSettings {
   chipsPerRound: number;
   /** Absolute max rolls for the round's first player. */
   maxRolls: number;
-  /** 2–3 seats. */
-  maxPlayers: number;
   minBuyIn: number;
   maxBuyIn: number;
   straightPayout: StraightPayoutConfig;
@@ -91,7 +92,6 @@ export interface RoomSettings {
 export const DEFAULT_SETTINGS: RoomSettings = {
   chipsPerRound: 1,
   maxRolls: 5,
-  maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: {
@@ -132,7 +132,7 @@ export interface PlayerPublic {
   name: string;
   connected: boolean;
   isHost: boolean;
-  /** null = spectator; otherwise seat index 0–2 (TABLE_SEAT_COUNT seats). */
+  /** null = spectator; otherwise seat index 0–7. */
   seat: number | null;
   chips: number;
   /** Banned from requesting a seat (was kicked). */

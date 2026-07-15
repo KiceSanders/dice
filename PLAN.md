@@ -1,6 +1,6 @@
 # Multiplayer Dice Game — Development Phase Log
 
-A real-time, browser-based dice game for 2–3 seated players per room (plus spectators).
+A real-time, browser-based dice game for 2–8 seated players per room (plus spectators).
 Players roll 5 dice per turn via a physics-simulated cup, keeping and re-rolling to beat the
 roll-to-beat; the round winner takes the pot. Ties trigger doubled-bet sub-rounds; straights
 trigger an instant side payment from every other seated player.
@@ -66,7 +66,7 @@ dice3/
 ## Canonical Game Rules
 
 **Moved to [docs/GAME_RULES.md](./docs/GAME_RULES.md)** — that file is now canonical
-(straight payout, wilds, voluntary-stand rule, forfeits, 2–3 seats).
+(straight payout, wilds, voluntary-stand rule, forfeits, 2–8 seats).
 
 ---
 
@@ -141,7 +141,7 @@ Conventions for all phases:
 - [x] **3.1 RoomManager** — create/get/destroy rooms. Room IDs: 6-char unambiguous alphanumerics (no `0/O/1/l`). Empty-room reaper: destroy after 30 min with no connections (interval check is fine).
 - [x] **3.2 `room:create`** — creates room with validated settings (clamp to allowed ranges from the settings table), creates host player, replies `room:created`, logs nothing yet (persistence is Phase 6).
 - [x] **3.3 `room:join` / rejoin** — adds spectator, or reclaims identity when `rejoinToken` matches (restores seat/chips, marks connected). Reply `room:joined` with full snapshot; broadcast `room:state` to others. Unknown `roomId` → `error { code: 'ROOM_NOT_FOUND' }`.
-- [x] **3.4 Seat requests** — `seat:request` (validate buy-in bounds, room not full, not banned) → notify host via `seat:requested`; `seat:approve` seats the player with their buy-in chips; `seat:deny` notifies the requester. Host's own seat request auto-approves.
+- [x] **3.4 Seat requests** — `seat:request` (validate buy-in bounds, fixed eight-seat room not full, not banned) → notify host via `seat:requested`; `seat:approve` seats the player with their buy-in chips, including during play; `seat:deny` notifies the requester. Host's own seat request auto-approves.
 - [x] **3.5 Kick & ban** — `player:kick` (host only, not self): seated → spectator, marked banned from seat requests. Mid-turn kick: treat their turn as an immediate stand (will matter in Phase 4; stub a hook for now).
 - [x] **3.6 Host transfer & disconnect handling** — on host disconnect, promote the longest-seated connected player (else longest-connected spectator). On any disconnect, mark player disconnected; start the 2-minute seat-forfeit timer for seated players.
 - [x] **3.7 Snapshot builder** — `buildSnapshot(room, forPlayerId)`: serializes the room per the protocol, stripping other players' tokens. Broadcast helper `broadcastState(room)` that sends each connection its own snapshot.

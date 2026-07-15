@@ -72,6 +72,16 @@ scene never rotates). Seat identity is applied to pose data **at the wire bounda
 incoming frames into the local view. If dice appear in the wrong place for one seat only,
 look there.
 
+Two angle systems are intentionally separate. The eight logical seats form a uniform
+full-circle `seatRingAngle` used for canonical live dice/cup pose rotations and the local
+physics dock; uniform spacing is what makes every viewer-to-viewer rotation compose. HTML
+seat cards use `seatAngle` instead: the lobby shows all eight, while play and round-end show
+occupied seats only and reflow them across the lower 2→10 o'clock arc. Never use the
+reflowing card angle for pose canonicalization. One presentation-only exception is the
+spectator `ParkedKoozie`: `seatDisplayAngle` gives it the active occupied card's angle, and
+`koozieRestPositionAtAngle` pins it directly in front of that card. This angle is never
+streamed, persisted, or applied to dice poses.
+
 ## Audio
 
 `client/src/table3d/audio/` — one Web Audio graph (`audioEngine.ts`, the only impure

@@ -13,7 +13,7 @@ interface Props {
   onKick: (playerId: string) => void;
 }
 
-/** One of the 8 positions around the table: a player card or an empty seat. */
+/** A logical table seat: a player card or, in the lobby, an empty slot. */
 export default function Seat({
   seatIndex,
   player,

@@ -155,8 +155,9 @@ is in frame at every browser size (the viewport is always 16:9 — see Layout be
   `projectToNdc` from `client/src/table3d/project.ts` if you must test a bespoke point
   (see the koozie framing tests in `diceLayout.test.ts` for the pattern).
 - The camera is fixed (`SEAT_VIEW` in `layout.ts`) and the frame is tight at the
-  edges — the parked koozie at every display seat is framing-tested. Assume there
-  is **no slack** near edges; the tests will tell you.
+  edges — both the fixed physics docks and the spectator koozie at every supported
+  occupied-card angle are framing-tested. Assume there is **no slack** near edges;
+  the tests will tell you.
 - Physics props (knockable chips etc.) are a deliberate escalation: prefer non-physics
   meshes/animations first. Anything entering the rapier world must follow ADR 001/002
   (procedural colliders from layout constants, `liveBody()` guards).
@@ -174,12 +175,15 @@ values in mesh components.
   Streamed poses are localized per viewer by rotating around Y in seat-angle steps
   (`seatTransform.ts`); only a rotationally symmetric table maps onto itself under that
   rotation. Re-ovalizing the table puts other players' dice on the rail.
-- **The parked koozie docks outside the containment wall** at the active player's
-  display seat (`koozieRestPosition`); dice cannot reach it. A screen-space **grab
-  guard** (`pointerBelowNearDockGuard`) ensures keep-clicks on the near rail always
-  go to the die. Framing + guard geometry is pinned by `diceLayout.test.ts`. See
-  ADR 003 for placement history. Spectators see a non-interactive `ParkedKoozie`
-  whenever they are not the roller and no remote throw is streaming.
+- **The parked koozie docks outside the containment wall**; dice cannot reach it.
+  The roller's interactive cup uses the fixed local physics dock
+  (`koozieRestPosition`, display seat 0). A screen-space **grab guard**
+  (`pointerBelowNearDockGuard`) ensures keep-clicks on the near rail always go to
+  the die. Spectators instead see a non-interactive `ParkedKoozie` whenever they
+  are not the roller and no remote throw is streaming. That presentation-only cup
+  must use the active card's `seatDisplayAngle` and `koozieRestPositionAtAngle`, so
+  it stays directly in front of the player who is throwing after occupied seats
+  reflow. Framing + guard geometry is pinned by `diceLayout.test.ts`; see ADR 003.
 - **The rail apron** (in `PokerTableMesh`) is the occluder that hides the docked
   cup's sunken body on side seats — remove it and the cup floats through the table
   edge. Seat 0 only needs the rim band in frame.
@@ -198,6 +202,9 @@ values in mesh components.
   the cap to stacked mode, whose seats intentionally flow below the canvas.
 - Seat cards are positioned by **live measurement** (`useLayoutRects` + 
   `seatOverlayPosition`) — they self-adjust to any size; don't add fixed offsets.
+- Room capacity is a fixed eight logical seats. The lobby displays all eight slots; during
+  play and round end, `visibleSeatIndices` supplies occupied slots only. `seatDisplayOrder`
+  rotates that list around the local player, and adding/removing a player reflows the cards.
 - At ≤640px seats stack below the canvas. The breakpoint exists twice on purpose:
   `SEAT_STACK_QUERY` in `useMediaQuery.ts` and the `@media` block in `index.css` — keep
   them identical.
@@ -210,9 +217,11 @@ Think of the table frame as a clock face:
 
 - **Seats occupy only the lower arc, 2 → 10 o'clock (through 6).** `seatAngle`
   (`layout.ts`) distributes any seat count evenly along that arc
-  (`SEAT_ARC_START`/`SEAT_ARC_SPAN`), local player nearest the bottom. For the shipping
-  3-seat table this is identical to the historical layout (6, 10, 2 o'clock). Layout
-  tests pin the arc bounds for counts 2–10, so the top of the frame is provably
+  (`SEAT_ARC_START`/`SEAT_ARC_SPAN`), with the local player fixed at 6 o'clock and
+  later throwing-order seats proceeding clockwise up the left side, wrapping across the
+  reserved gap, then continuing down the right. Sparse tables use the full arc: two
+  players sit at 6 and 10 o'clock, while three match the historical 6/10/2 layout. Layout
+  tests pin the arc bounds for counts 1–8, so the top of the frame is provably
   seat-free at any count.
 - **The top arc, 10 → 2, belongs to game-state widgets** (ante pot, roll-to-beat, and
   Classic Pot). They render inside `.table-top-band` — a three-lane grid overlaying the
@@ -238,9 +247,14 @@ Think of the table frame as a clock face:
   camera stays `manual` (r3f's responsive resize would overwrite the pinned aspect and
   view offset), and the fog color (`theme.background`) must equal the page `--bg` or a
   visible horizon seam appears where the felt fades into the page.
-- Raising the seat cap past 3 is a bigger change than the arc math: the pose
-  seat-transform assumes evenly spaced display angles, and every koozie dock needs a
-  framing re-check (`diceLayout.test.ts`) — treat that as its own task.
+- **Card angles are not pose angles.** The fixed eight logical seats use the uniform
+  full-circle `seatRingAngle` for live dice/cup pose canonicalization and the roller's
+  physics dock; the occupied card list independently reflows on the lower arc. Never
+  use the card angle to canonicalize streamed poses. The deliberate exception is the
+  read-only spectator `ParkedKoozie`: it is seat-card chrome, not a live pose, and must
+  use `seatDisplayAngle` plus `koozieRestPositionAtAngle`. Never derive it from
+  `displaySeatIndex`/`seatRingAngle`, or it will sit beside the throwing player's card
+  on sparse tables. `diceLayout.test.ts` framing-checks both angle systems.
 
 Room chrome: the table frame sits at the very top of the page (no header above it —
 vertical space is play space). The room code / invite link / connection text live in a

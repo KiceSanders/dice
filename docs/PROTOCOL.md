@@ -10,12 +10,12 @@ is authoritative over state; dice values come exclusively from the roller's phys
 
 | Type | Payload | Notes |
 |---|---|---|
-| `room:create` | `{ playerName, settings }` | Replies `room:created` |
+| `room:create` | `{ playerName, settings }` | Replies `room:created`; capacity is always 8 and is not a setting |
 | `room:join` | `{ roomId, playerName, rejoinToken? }` | Join as spectator; token reclaims identity |
 | `seat:request` | `{ buyIn }` | Spectator asks for a seat |
 | `seat:approve` / `seat:deny` | `{ playerId }` | Host only |
 | `player:kick` | `{ playerId }` | Host only |
-| `settings:update` | `{ settings }` | Host only (anytime; chip amounts apply at next ante / payout) |
+| `settings:update` | `{ settings }` | Host only (anytime; chip amounts apply at next ante / payout; capacity is fixed) |
 | `game:start` | `{}` | Host only, ≥2 seated |
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
@@ -95,6 +95,10 @@ Membership events (`playerJoined`, `seated`, `kicked`, `settingsUpdated`, `hostC
 through `room:state` snapshots (plus `chat:message` for chat). Replay path:
 `server/src/persistence.ts` `applyReplayEvent` re-drives game events through the engine
 (`replayRolled` re-applies straight payouts and Classic Pot transfers) and everything else through `room.applyEvent`.
+
+`RoomSettings` deliberately has no player-cap field. The server always enforces
+`MAX_SEATED_PLAYERS = 8`; an extra legacy `maxPlayers` JSON key is ignored rather than
+allowed to change room capacity.
 
 ## Ephemeral vs persisted
 

@@ -12,7 +12,7 @@ import type {
   StraightPayoutConfig,
   YahtzeeBonusConfig,
 } from '@dice/shared';
-import { assertNever, DEFAULT_SETTINGS } from '@dice/shared';
+import { assertNever, DEFAULT_SETTINGS, MAX_SEATED_PLAYERS } from '@dice/shared';
 import { type EngineOptions, GameEngine } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
 import { handleEngineEvent } from './roomGameBridge.js';
@@ -61,7 +61,6 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
-    maxPlayers: clampInt(s.maxPlayers, 2, 3),
     minBuyIn,
     maxBuyIn: clampInt(s.maxBuyIn, minBuyIn, 10_000_000),
     straightPayout: {
@@ -292,7 +291,7 @@ export class Room {
     if (!player) return err('BAD_REQUEST', 'unknown player');
     if (player.banned) return err('BANNED', 'you were kicked from this table');
     if (player.seat !== null) return err('BAD_REQUEST', 'already seated');
-    if (this.seatedPlayers().length >= this.settings.maxPlayers) {
+    if (this.seatedPlayers().length >= MAX_SEATED_PLAYERS) {
       return err('ROOM_FULL', 'all seats are taken');
     }
     if (buyIn < this.settings.minBuyIn || buyIn > this.settings.maxBuyIn) {
@@ -318,7 +317,7 @@ export class Room {
     const player = this.players.get(playerId);
     const buyIn = this.seatRequests.get(playerId);
     if (!player || buyIn === undefined) return err('BAD_REQUEST', 'no pending seat request');
-    if (this.seatedPlayers().length >= this.settings.maxPlayers) {
+    if (this.seatedPlayers().length >= MAX_SEATED_PLAYERS) {
       this.seatRequests.delete(playerId);
       return err('ROOM_FULL', 'all seats are taken');
     }
@@ -359,7 +358,7 @@ export class Room {
 
   private firstFreeSeat(): number {
     const taken = new Set(this.seatedPlayers().map((p) => p.seat));
-    for (let i = 0; i < this.settings.maxPlayers; i++) {
+    for (let i = 0; i < MAX_SEATED_PLAYERS; i++) {
       if (!taken.has(i)) return i;
     }
     throw new Error('no free seat'); // guarded by callers

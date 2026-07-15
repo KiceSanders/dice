@@ -25,24 +25,24 @@ function SceneContent({
   dice,
   remoteFeed,
   heldPose,
-  parkedKoozieDisplaySeat,
+  parkedKoozieAngle,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
-  /** Active turn's display seat for the spectator parked cup; null to hide. */
-  parkedKoozieDisplaySeat?: number | null;
+  /** Active turn card's occupied-seat angle for the spectator cup; null to hide. */
+  parkedKoozieAngle?: number | null;
 }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
   // Roller owns the interactive cup in DicePhysics. Spectators get a
-  // read-only dock at the active seat whenever Room passes a display seat —
+  // read-only dock at the active card's reflowed angle whenever Room passes
+  // one —
   // including mid-turn while selecting-phase pose frames keep remoteFeed
   // "live" (those frames have cupVisible:false, so RemoteDiceView would
-  // otherwise leave the cup missing). Room nulls the seat once the roller
+  // otherwise leave the cup missing). Room nulls the angle once the roller
   // grabs (cupInPlay) or throws, so the streamed cup is the only one on screen.
-  const showParkedKoozie =
-    !dice && parkedKoozieDisplaySeat !== null && parkedKoozieDisplaySeat !== undefined;
+  const showParkedKoozie = !dice && parkedKoozieAngle !== null && parkedKoozieAngle !== undefined;
 
   return (
     <>
@@ -95,7 +95,7 @@ function SceneContent({
           the roller is dragging, rolling, or has dice of their own. */}
       {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
       {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} />}
-      {showParkedKoozie && <ParkedKoozie displaySeat={parkedKoozieDisplaySeat} />}
+      {showParkedKoozie && <ParkedKoozie displayAngle={parkedKoozieAngle} />}
     </>
   );
 }
@@ -104,7 +104,7 @@ interface Props {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
-  parkedKoozieDisplaySeat?: number | null;
+  parkedKoozieAngle?: number | null;
 }
 
 /** Cap pixel ratio on high-DPR displays so Chromebook-class GPUs keep frame budget. */
@@ -118,7 +118,7 @@ export default function TableCanvas({
   dice,
   remoteFeed,
   heldPose = null,
-  parkedKoozieDisplaySeat = null,
+  parkedKoozieAngle = null,
 }: Props) {
   return (
     <Canvas
@@ -145,7 +145,7 @@ export default function TableCanvas({
           dice={dice}
           remoteFeed={remoteFeed}
           heldPose={heldPose}
-          parkedKoozieDisplaySeat={parkedKoozieDisplaySeat}
+          parkedKoozieAngle={parkedKoozieAngle}
         />
       </Suspense>
     </Canvas>

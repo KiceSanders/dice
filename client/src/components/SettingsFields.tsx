@@ -65,19 +65,6 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         </small>
       </div>
 
-      <div className="field">
-        <label htmlFor="set-maxplayers">Max players</label>
-        <input
-          id="set-maxplayers"
-          type="number"
-          min={2}
-          max={3}
-          value={value.maxPlayers}
-          onChange={(e) => set({ maxPlayers: num(e.target.value, value.maxPlayers) })}
-        />
-        <small>Seats at the table (2–3). Extra joiners spectate.</small>
-      </div>
-
       <div className="field-row">
         <div className="field">
           <label htmlFor="set-minbuyin">Min buy-in</label>

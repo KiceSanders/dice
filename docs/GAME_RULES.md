@@ -6,7 +6,7 @@ a rule seems wrong, flag it — do not silently change either side. Rule logic l
 
 ## The game in one paragraph
 
-2–3 seated players per room. Each round every seated player antes into a pot, then takes one
+2–8 seated players per room. Each round every seated player antes into a pot, then takes one
 turn rolling 5 dice — keeping and re-rolling to build the best hand — trying to beat the
 current roll-to-beat. Best stood hand wins the pot. Ties spawn sub-rounds with doubled antes.
 Rolling a straight triggers an instant side payment from every other seated player.
@@ -169,13 +169,18 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 
 ## Players, seats, host
 
-- **2–3 seats** (`TABLE_SEAT_COUNT = 3`); everyone else spectates and may chat.
+- **Up to 8 seats** (`MAX_SEATED_PLAYERS = 8`), fixed for every room; capacity is not a
+  game setting. Everyone else spectates and may chat.
+- In the lobby, all eight logical slots are available. Once play starts, clients render only
+  occupied seat cards. Spectators may request a seat during play; approval seats them
+  immediately, and the table reflows the occupied cards along the lower arc. They enter the
+  turn order and pay an ante at the next round boundary.
 - The **host** (room creator) approves/denies seat requests, kicks (kicked → banned
   spectator), edits settings anytime (including mid-round), and starts the game (≥2 seated).
   Chip amounts take effect at the next natural point: `chipsPerRound` on the next round /
   sub-round ante, `straightPayout` / `classicPot` / `yahtzeeBonus` /
-  `firstRollYahtzeePayout` on the next roll settlement, buy-in bounds and `maxPlayers`
-  on the next seat request, `maxRolls` on the next turn that reads the ceiling.
+  `firstRollYahtzeePayout` on the next roll settlement, buy-in bounds on the next seat
+  request, `maxRolls` on the next turn that reads the ceiling.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
@@ -188,7 +193,6 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 |---|---|---|
 | `chipsPerRound` | 1 | Ante per player per round |
 | `maxRolls` | 5 | Roll ceiling for the round's first player |
-| `maxPlayers` | 3 | Clamped to 2–3 |
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
 | `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
 | `classicPot` | `{ enabled: true, donationAmount: 1 }` | See Classic Pot |

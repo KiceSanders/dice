@@ -24,12 +24,14 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
+  /** Room capacity is fixed at MAX_SEATED_PLAYERS and is not part of settings. */
   | { type: 'room:create'; playerName: string; settings: RoomSettings }
   | { type: 'room:join'; roomId: RoomId; playerName: string; rejoinToken?: string }
   | { type: 'seat:request'; buyIn: number }
   | { type: 'seat:approve'; playerId: PlayerId }
   | { type: 'seat:deny'; playerId: PlayerId }
   | { type: 'player:kick'; playerId: PlayerId }
+  /** Room capacity is fixed and cannot be changed through settings. */
   | { type: 'settings:update'; settings: RoomSettings }
   | { type: 'game:start' }
   /** Physics roll, phase 1: koozie released. Locks the keep set (ADR 004). */

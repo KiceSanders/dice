@@ -29,6 +29,19 @@ describe('parseClientMessage', () => {
     expect(result).toMatchObject({ ok: true, message: { type: 'room:create' } });
   });
 
+  it('does not require a player-cap setting and tolerates the legacy field', () => {
+    expect(
+      parse({ type: 'room:create', playerName: 'Kice', settings: DEFAULT_SETTINGS }),
+    ).toMatchObject({ ok: true });
+    expect(
+      parse({
+        type: 'room:create',
+        playerName: 'Kice',
+        settings: { ...DEFAULT_SETTINGS, maxPlayers: 2 },
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
   it('rejects room:create with missing fields', () => {
     expect(parse({ type: 'room:create', playerName: 'Kice' })).toMatchObject({ ok: false });
     expect(parse({ type: 'room:create', settings: DEFAULT_SETTINGS })).toMatchObject({ ok: false });

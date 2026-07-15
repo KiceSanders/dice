@@ -117,7 +117,8 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ### Settings
 
-13. Tab B: **Room settings** → all fields disabled (read-only).
+13. Tab B: **Room settings** → all fields disabled (read-only), with no configurable
+    max-player field in either tab.
 14. Tab A: change **Chips per round** (e.g. 2) → **Save settings** → Tab B read-only panel shows updated value.
 14b. After the game has started (mid-round): Tab A host opens **Room settings**, changes **Chips per round** (e.g. 4) → **Save** → Tab B shows the new value immediately; the **current** pot is unchanged. On the **next** round, both players ante the new amount.
 
@@ -130,6 +131,31 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 16. Check browser console in Tabs B and C — no errors.
 
 **Pass criteria:** All checkpoints pass; layout readable (seats not overlapping); no console errors.
+
+---
+
+## Eight-seat capacity + in-game reflow — 3 tabs
+
+1. In Tab A, create a room and seat Alice. In Tab B, join and seat Bob. Before starting,
+   confirm the table exposes all eight logical slots and settings have no max-player field.
+2. Start the game. In each player's own tab, confirm their card is directly below the
+   koozie at 6 o'clock and the opponent is far away at 10 o'clock. The six empty cards
+   disappear immediately, and no card enters the reserved top band.
+3. During play, join in Tab C as Carol and request a seat. Tab A approves it. Confirm Carol's
+   card appears immediately in all tabs and the three occupied cards reflow without overlap.
+   Carol must not interrupt the current turn; she joins turn order at the next round.
+4. Kick Carol (or let a disconnected seat forfeit) and confirm her card disappears and the
+   remaining cards reflow. At ≤640px, repeat steps 2–3 and confirm only occupied cards appear
+   in the stacked strip.
+5. Check all consoles for errors. Before each throw, confirm every non-roller tab pins the
+   parked koozie directly in front of the active player's card (including the sparse
+   two-player 6/10 layout). While the cup is in play, confirm its live stream moves normally;
+   after it parks, it returns in front of that same card. Confirm every tab agrees on the
+   settled dice position and the koozie remains in frame.
+
+**Pass criteria:** Lobby capacity is eight, active play shows occupied cards only, mid-game
+approval/removal reflows correctly, the spectator koozie follows the active card, and the
+top HUD arc stays seat-free.
 
 ---
 

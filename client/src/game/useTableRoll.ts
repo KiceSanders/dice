@@ -5,7 +5,7 @@ import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
 import { BONUS_DIE_INDEX, DICE_COUNT } from '../table3d/dice/constants';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
-import { displaySeatIndex } from '../table3d/layout';
+import { seatDisplayAngle } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
 import {
   bonusThrowResultMessage,
@@ -80,12 +80,16 @@ export function useTableRoll(
   const bonusMode = bonusPending !== null;
   const bonusModeRef = useRef(bonusMode);
   bonusModeRef.current = bonusMode;
-  const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
+  const myDisplaySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
+  const mySeat = myDisplaySeat ?? 0;
   const activeSeat =
     turn !== null ? (snapshot?.players.find((p) => p.id === turn.playerId)?.seat ?? null) : null;
-  const parkedKoozieDisplaySeat =
+  const occupiedSeats = snapshot?.players.flatMap((player) =>
+    player.seat === null ? [] : [player.seat],
+  );
+  const parkedKoozieAngle =
     snapshot?.phase === 'playing' && activeSeat !== null && !isMyTurn
-      ? displaySeatIndex(activeSeat, mySeat)
+      ? seatDisplayAngle(occupiedSeats ?? [], myDisplaySeat, activeSeat)
       : null;
 
   const onRelease = useCallback(
@@ -201,6 +205,6 @@ export function useTableRoll(
     onTablePointer: setPointerOnTable,
     rolling,
     dragging,
-    parkedKoozieDisplaySeat,
+    parkedKoozieAngle,
   };
 }

@@ -1,6 +1,13 @@
 import { REST_POSE_BOUNDS } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
-import { FELT_SCALE, RAIL_OUTER_WORLD, TABLE, TABLE_SEAT_COUNT, TABLE_WALL_OUTER } from '../layout';
+import {
+  FELT_SCALE,
+  RAIL_OUTER_WORLD,
+  seatAngle,
+  TABLE,
+  TABLE_SEAT_COUNT,
+  TABLE_WALL_OUTER,
+} from '../layout';
 import { projectToNdc } from '../project';
 import {
   DICE_COUNT,
@@ -17,6 +24,7 @@ import {
   keepSlotForIndex,
   keptDieRailPosition,
   koozieRestPosition,
+  koozieRestPositionAtAngle,
   resolveUnkeepPose,
 } from './diceLayout';
 
@@ -57,6 +65,19 @@ describe('diceLayout', () => {
       const radial = Math.hypot(x, z);
       expect(radial - KOOZIE.radius, `seat ${seat} near edge`).toBeGreaterThan(wallOuterRadius());
       expect(isOutsidePlayBounds(x, z, KOOZIE.radius), `seat ${seat} outside play`).toBe(true);
+    }
+  });
+
+  it('spectator koozie docks at the exact occupied-card angle', () => {
+    for (let count = 1; count <= TABLE_SEAT_COUNT; count++) {
+      for (let slot = 0; slot < count; slot++) {
+        const angle = seatAngle(slot, count);
+        const [x, , z] = koozieRestPositionAtAngle(KOOZIE, angle);
+        const radial = Math.hypot(x, z);
+        expect(x / radial, `slot ${slot}/${count} x`).toBeCloseTo(Math.cos(angle), 10);
+        expect(z / radial, `slot ${slot}/${count} z`).toBeCloseTo(Math.sin(angle), 10);
+        expect(radial - KOOZIE.radius).toBeGreaterThan(wallOuterRadius());
+      }
     }
   });
 
@@ -136,7 +157,7 @@ describe('table framing (fixed SEAT_VIEW camera)', () => {
     }
   });
 
-  for (const seat of [1, 2]) {
+  for (const seat of Array.from({ length: TABLE_SEAT_COUNT - 1 }, (_, index) => index + 1)) {
     it(`display seat ${seat} docked koozie is inside the camera frame`, () => {
       const [x, y, z] = koozieRestPosition(KOOZIE, seat);
       expectOnScreen([x, y, z], `seat ${seat} cup center`);
@@ -150,6 +171,20 @@ describe('table framing (fixed SEAT_VIEW camera)', () => {
       expectOnScreen([x + ox, y + KOOZIE.height / 2, z + oz], `seat ${seat} cup outward rim edge`);
     });
   }
+
+  it('keeps spectator cup rims on-screen at every occupied-card angle', () => {
+    for (let count = 1; count <= TABLE_SEAT_COUNT; count++) {
+      for (let slot = 0; slot < count; slot++) {
+        const [x, y, z] = koozieRestPositionAtAngle(KOOZIE, seatAngle(slot, count));
+        expectOnScreen([x, y + KOOZIE.height / 2, z], `slot ${slot}/${count} rim`);
+        expectOnScreen([x - KOOZIE.radius, y + KOOZIE.height / 2, z], `slot ${slot}/${count} left`);
+        expectOnScreen(
+          [x + KOOZIE.radius, y + KOOZIE.height / 2, z],
+          `slot ${slot}/${count} right`,
+        );
+      }
+    }
+  });
 
   it('a full kept-dice row on the near rail is inside the camera frame', () => {
     for (let slot = 0; slot < 5; slot++) {
@@ -187,7 +222,7 @@ describe('koozie near-dock grab guard (fixed SEAT_VIEW camera)', () => {
     // Side docks sit behind the rail from the camera; the rim must clear the
     // apron silhouette or the cup vanishes. (Seat 0 is in front of the near
     // rail — apron occlusion does not apply the same way.)
-    for (const seat of [1, 2]) {
+    for (const seat of Array.from({ length: TABLE_SEAT_COUNT - 1 }, (_, index) => index + 1)) {
       const [x, y, z] = koozieRestPosition(KOOZIE, seat);
       const radial = Math.hypot(x, z) || 1;
       const railEdge: [number, number, number] = [
@@ -196,8 +231,15 @@ describe('koozie near-dock grab guard (fixed SEAT_VIEW camera)', () => {
         (z / radial) * FELT_SCALE.z * RAIL_OUTER_WORLD,
       ];
       const railTopEdgeNdcY = projectToNdc(railEdge).y;
-      const rimTopNdcY = projectToNdc([x, y + KOOZIE.height / 2, z]).y;
-      expect(rimTopNdcY, `seat ${seat} rim above apron`).toBeGreaterThan(railTopEdgeNdcY);
+      // The inward rim edge is the first visible part of a cup parked behind
+      // the apron; its center may remain occluded while this band still makes
+      // the active-seat marker readable.
+      const rimTopNdcY = projectToNdc([
+        x - (x / radial) * KOOZIE.radius,
+        y + KOOZIE.height / 2,
+        z - (z / radial) * KOOZIE.radius,
+      ]).y;
+      expect(rimTopNdcY, `seat ${seat} inward rim above apron`).toBeGreaterThan(railTopEdgeNdcY);
     }
   });
 });

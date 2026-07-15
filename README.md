@@ -1,6 +1,6 @@
 # Multiplayer Dice
 
-Real-time, browser-based dice game for 2–3 seated players per room (plus spectators). Roll 5 dice from a physics-simulated cup, keep and re-roll to beat the roll-to-beat, win the pot. Ties spawn doubled-bet sub-rounds; rolling a straight makes every other seated player pay you on the spot.
+Real-time, browser-based dice game for 2–8 seated players per room (plus spectators). Roll 5 dice from a physics-simulated cup, keep and re-roll to beat the roll-to-beat, win the pot. Ties spawn doubled-bet sub-rounds; rolling a straight makes every other seated player pay you on the spot.
 
 **→ Rules: [docs/GAME_RULES.md](./docs/GAME_RULES.md) · Protocol: [docs/PROTOCOL.md](./docs/PROTOCOL.md) · Architecture: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) · Progress log: [PLAN.md](./PLAN.md)**
 
@@ -48,4 +48,3 @@ WebSockets on the same port — everything on `http://localhost:3001`.
 - `PORT` — listen port (default `3001`)
 - `LOG_DIR` — room event-log directory (default `server/logs/`); logs let
   in-progress rooms survive a restart, so persist this directory in production
-

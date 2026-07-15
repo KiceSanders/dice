@@ -56,7 +56,6 @@ function client(name) {
 const settings = {
   chipsPerRound: 2,
   maxRolls: 3,
-  maxPlayers: 3,
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: {

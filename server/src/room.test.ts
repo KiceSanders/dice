@@ -1,5 +1,5 @@
 import type { ServerMessage } from '@dice/shared';
-import { DEFAULT_SETTINGS } from '@dice/shared';
+import { DEFAULT_SETTINGS, MAX_SEATED_PLAYERS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { restPoseFor } from './engine.testkit.js';
 import { type ClientLink, clampSettings, Room, sanitizeName } from './room.js';
@@ -39,13 +39,11 @@ describe('clampSettings / sanitizeName', () => {
       ...DEFAULT_SETTINGS,
       chipsPerRound: -5,
       maxRolls: 99,
-      maxPlayers: 20,
       minBuyIn: 50,
       maxBuyIn: 10, // below min → raised to min
     });
     expect(clamped.chipsPerRound).toBe(1);
     expect(clamped.maxRolls).toBe(10);
-    expect(clamped.maxPlayers).toBe(3);
     expect(clamped.maxBuyIn).toBe(50);
   });
 
@@ -117,13 +115,24 @@ describe('Room membership & seats', () => {
     });
   });
 
-  it('rejects seat requests when full', () => {
+  it('uses a fixed eight-player capacity and rejects a ninth seat request', () => {
     const { room } = makeRoom();
-    room.settings = { ...room.settings, maxPlayers: 2 };
-    seatPlayer(room, 'A');
-    seatPlayer(room, 'B');
+    for (let i = 0; i < MAX_SEATED_PLAYERS; i++) seatPlayer(room, `P${i}`);
     const p = room.addPlayer('Late', new FakeLink());
     expect(room.requestSeat(p.id, 100)).toMatchObject({ code: 'ROOM_FULL' });
+  });
+
+  it('allows a player to request and receive a seat while a game is playing', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    seatPlayer(room, 'Second');
+    expect(room.startGame(host.id)).toBeNull();
+
+    const late = room.addPlayer('Late', new FakeLink());
+    expect(room.requestSeat(late.id, 100)).toBeNull();
+    expect(room.approveSeat(late.id)).toBeNull();
+    expect(room.phase).toBe('playing');
+    expect(late.seat).toBe(2);
   });
 
   it('assigns the first free seat index', () => {

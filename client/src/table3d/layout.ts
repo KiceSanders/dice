@@ -1,3 +1,5 @@
+import { MAX_SEATED_PLAYERS, type RoomPhase } from '@dice/shared';
+
 /**
  * Table felt scale (X × Z). MUST stay isotropic (x === z, a circle): streamed
  * pose frames are localized per viewer by rotating them around Y in seat-angle
@@ -58,44 +60,85 @@ export const SEAT_ARC_START = -Math.PI / 6; // 2 o'clock (screen Y grows downwar
 export const SEAT_ARC_SPAN = (4 * Math.PI) / 3; // → 10 o'clock, through 6 o'clock
 
 /**
- * Display-slot angle: seatCount positions evenly spaced along the seat arc,
- * endpoints inclusive. Slot 0 (the local player) takes the position nearest
- * 6 o'clock — exact bottom for odd counts, which includes the shipping
- * 3-seat table (90°/210°/-30°, identical to the historical full-circle
- * spacing). Seating order continues around the arc with the wrap falling in
- * the reserved top gap.
+ * Display-slot angle: slot 0 (the local player) is always exactly 6 o'clock.
+ * Later slots follow clockwise throwing order up the left side to 10 o'clock,
+ * wrap across the reserved top gap, then continue from 2 o'clock down the
+ * right side. The remote seats use the full lower arc so sparse tables stay
+ * broadly spaced (two players render at 6 and 10, never side by side).
  */
 export function seatAngle(seatIndex: number, seatCount: number): number {
+  const bottom = Math.PI / 2;
+  if (seatCount <= 1 || seatIndex === 0) return bottom;
   const n = Math.max(seatCount, 2);
-  const step = SEAT_ARC_SPAN / (n - 1);
-  const nearBottomIndex = Math.round((Math.PI / 2 - SEAT_ARC_START) / step);
-  const arcIndex = (seatIndex + nearBottomIndex) % n;
-  return SEAT_ARC_START + arcIndex * step;
+  const remoteCount = n - 1;
+  const leftCount = Math.ceil(remoteCount / 2);
+  const arcEnd = SEAT_ARC_START + SEAT_ARC_SPAN;
+
+  if (seatIndex <= leftCount) {
+    return bottom + ((arcEnd - bottom) * seatIndex) / leftCount;
+  }
+
+  const rightCount = remoteCount - leftCount;
+  const rightIndex = seatIndex - leftCount - 1;
+  return SEAT_ARC_START + ((bottom - SEAT_ARC_START) * rightIndex) / rightCount;
 }
 
-export function clampSeatCount(maxPlayers: number): number {
-  return Math.min(Math.max(maxPlayers, 2), 3);
-}
+/** Fixed logical seat capacity for membership and pose transforms. */
+export const TABLE_SEAT_COUNT = MAX_SEATED_PLAYERS;
 
-/** Fixed seat count for the 3-player table. */
-export const TABLE_SEAT_COUNT = 3;
+/**
+ * Physical angle on the full-circle pose ring. Unlike the occupied-card arc,
+ * this must stay uniformly spaced so canonical pose rotations compose across
+ * every pair of viewers.
+ */
+export function seatRingAngle(seatIndex: number, seatCount = TABLE_SEAT_COUNT): number {
+  return Math.PI / 2 + (seatIndex * Math.PI * 2) / seatCount;
+}
 
 /** Rotate a server seat index so the local player always maps to display slot 0 (bottom). */
 export function displaySeatIndex(seatIndex: number, mySeat: number): number {
   return (seatIndex - mySeat + TABLE_SEAT_COUNT) % TABLE_SEAT_COUNT;
 }
 
+/** Logical seat ids shown in each phase: all slots in the lobby, occupied only in play. */
+export function visibleSeatIndices(phase: RoomPhase, occupiedSeatIndices: number[]): number[] {
+  if (phase === 'lobby') {
+    return Array.from({ length: TABLE_SEAT_COUNT }, (_, seat) => seat);
+  }
+  return [...new Set(occupiedSeatIndices)].sort((a, b) => a - b);
+}
+
+/** Rotate visible logical seats so the local player occupies display slot 0. */
+export function seatDisplayOrder(seatIndices: number[], mySeat: number | null): number[] {
+  const sorted = [...new Set(seatIndices)].sort((a, b) => a - b);
+  if (mySeat === null) return sorted;
+  const pivot = sorted.indexOf(mySeat);
+  if (pivot < 0) return sorted;
+  return [...sorted.slice(pivot), ...sorted.slice(0, pivot)];
+}
+
+/**
+ * DOM angle for one logical seat in the viewer's current occupied-card layout.
+ * Use this for visuals pinned to a seat card (not canonical/live pose data).
+ */
+export function seatDisplayAngle(
+  seatIndices: number[],
+  mySeat: number | null,
+  targetSeat: number,
+): number | null {
+  const displaySeats = seatDisplayOrder(seatIndices, mySeat);
+  const displaySlot = displaySeats.indexOf(targetSeat);
+  return displaySlot < 0 ? null : seatAngle(displaySlot, displaySeats.length);
+}
+
 /**
  * Seat order for the stacked small-screen strip: remote seats by display slot,
  * the local player last (adjacent to their controls below the table).
  */
-export function seatStripOrder(mySeat: number): number[] {
-  return Array.from({ length: TABLE_SEAT_COUNT }, (_, i) => i).sort((a, b) => {
-    // Display slot 0 is the local player — sort it past everyone else.
-    const da = displaySeatIndex(a, mySeat) || TABLE_SEAT_COUNT;
-    const db = displaySeatIndex(b, mySeat) || TABLE_SEAT_COUNT;
-    return da - db;
-  });
+export function seatStripOrder(seatIndices: number[], mySeat: number | null): number[] {
+  const displayOrder = seatDisplayOrder(seatIndices, mySeat);
+  if (mySeat === null || displayOrder[0] !== mySeat) return displayOrder;
+  return [...displayOrder.slice(1), mySeat];
 }
 
 /**
@@ -105,16 +148,16 @@ export function seatStripOrder(mySeat: number): number[] {
  * rendered scene, camera, and physics all stay in view-local space.
  */
 export function viewRotationY(mySeat: number): number {
-  return Math.PI / 2 - seatAngle(mySeat, TABLE_SEAT_COUNT);
+  return Math.PI / 2 - seatRingAngle(mySeat);
 }
 
-/** Fixed front-seat camera — not interactive. Pulled back enough that far-seat
- *  docked koozies clear the top of the 16:9 frame; target stays on the near
- *  felt so the table still fills the view vertically. */
+/** Fixed front-seat camera — not interactive. Pulled back enough that all eight
+ * docked koozies clear the 16:9 frame; target stays slightly toward the near
+ * felt so the table still fills the view vertically. */
 export const SEAT_VIEW = {
-  position: [0, 2.7, 4.2] as const,
-  target: [0, 0.04, 1.05] as const,
-  fov: 37,
+  position: [0, 2.8, 4.45] as const,
+  target: [0, 0.04, 0.9] as const,
+  fov: 39,
 } as const;
 
 export const SEAT_LABEL = {

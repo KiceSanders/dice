@@ -7,11 +7,14 @@ import {
   seatAnchorOffset,
   seatAngle,
   seatCardRect,
+  seatDisplayAngle,
+  seatDisplayOrder,
   seatOverlayPosition,
   seatStripOrder,
   TABLE_SEAT_COUNT,
   topBandLaneRects,
   topBandRect,
+  visibleSeatIndices,
 } from './layout';
 
 /** Normalize an angle to [0, 2π). */
@@ -48,6 +51,11 @@ describe('seatAngle — reserved-arc distribution', () => {
     expect(seatAngle(2, 3)).toBeCloseTo(-Math.PI / 6, 10);
   });
 
+  it('keeps a two-player table broadly spaced at 6 and 10 o’clock', () => {
+    expect(seatAngle(0, 2)).toBeCloseTo(Math.PI / 2, 10);
+    expect(seatAngle(1, 2)).toBeCloseTo((7 * Math.PI) / 6, 10);
+  });
+
   it('keeps every seat on the 2→10 o’clock arc at any seat count', () => {
     // The top arc (10→2 o'clock) is reserved for the game-state band.
     for (let n = 2; n <= 10; n++) {
@@ -58,11 +66,25 @@ describe('seatAngle — reserved-arc distribution', () => {
     }
   });
 
-  it('puts the local player (display slot 0) nearest the bottom', () => {
-    for (let n = 2; n <= 10; n++) {
-      const step = SEAT_ARC_SPAN / (n - 1);
-      const offBottom = Math.abs(wrap(seatAngle(0, n) - Math.PI / 2 + Math.PI) - Math.PI);
-      expect(offBottom, `count ${n}`).toBeLessThanOrEqual(step / 2 + 1e-9);
+  it('pins the local player (display slot 0) exactly at 6 o’clock', () => {
+    for (let n = 1; n <= TABLE_SEAT_COUNT; n++) {
+      expect(seatAngle(0, n), `count ${n}`).toBeCloseTo(Math.PI / 2, 10);
+    }
+  });
+
+  it('places remote seats clockwise in throwing order around the lower arc', () => {
+    for (let n = 2; n <= TABLE_SEAT_COUNT; n++) {
+      const leftCount = Math.ceil((n - 1) / 2);
+      const left = Array.from({ length: leftCount }, (_, i) => seatAngle(i + 1, n));
+      expect(left[0], `first remote/${n}`).toBeGreaterThan(Math.PI / 2);
+      expect(left.at(-1), `left endpoint/${n}`).toBeCloseTo(SEAT_ARC_START + SEAT_ARC_SPAN, 10);
+      for (let i = 1; i < left.length; i++) expect(left[i]!).toBeGreaterThan(left[i - 1]!);
+
+      const right = Array.from({ length: n - 1 - leftCount }, (_, i) =>
+        seatAngle(leftCount + i + 1, n),
+      );
+      if (right.length > 0) expect(right[0], `right endpoint/${n}`).toBeCloseTo(SEAT_ARC_START, 10);
+      for (let i = 1; i < right.length; i++) expect(right[i]!).toBeGreaterThan(right[i - 1]!);
     }
   });
 });
@@ -86,22 +108,37 @@ describe('seatOverlayPosition', () => {
         expect(seat.topPct).toBeGreaterThanOrEqual(0);
         expect(seat.topPct).toBeLessThanOrEqual(100);
       }
-      // Display slot 0 is the local player: bottom center.
+      // Display slot 0 is the local player at exact bottom-center.
       expect(seats[0]!.leftPct).toBeCloseTo(50, 5);
       expect(seats[0]!.topPct).toBeGreaterThan(50);
-      // Remote seats mirror each other above the center line.
-      expect(seats[1]!.leftPct + seats[2]!.leftPct).toBeCloseTo(100, 5);
-      expect(seats[1]!.topPct).toBeCloseTo(seats[2]!.topPct, 5);
-      expect(seats[1]!.topPct).toBeLessThan(50);
+      expect(seats[0]!.topPct).toBeCloseTo(Math.max(...seats.map((seat) => seat.topPct)), 5);
     });
   }
 });
 
-describe('seatStripOrder', () => {
+describe('phase-aware seat display', () => {
+  it('shows all eight logical slots in the lobby and occupied slots only during play', () => {
+    expect(visibleSeatIndices('lobby', [1, 6])).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(visibleSeatIndices('playing', [6, 1])).toEqual([1, 6]);
+    expect(visibleSeatIndices('roundEnd', [6, 1, 4])).toEqual([1, 4, 6]);
+  });
+
+  it('rotates occupied logical seats so the local player gets display slot 0', () => {
+    expect(seatDisplayOrder([0, 3, 7], 3)).toEqual([3, 7, 0]);
+    expect(seatDisplayOrder([0, 3, 7], null)).toEqual([0, 3, 7]);
+  });
+
+  it('maps a logical seat to the same reflowed angle used by its occupied card', () => {
+    expect(seatDisplayAngle([0, 1], 0, 1)).toBeCloseTo(seatAngle(1, 2), 10);
+    expect(seatDisplayAngle([0, 1], 1, 0)).toBeCloseTo(seatAngle(1, 2), 10);
+    expect(seatDisplayAngle([0, 3, 7], 3, 7)).toBeCloseTo(seatAngle(1, 3), 10);
+    expect(seatDisplayAngle([0, 3, 7], 3, 5)).toBeNull();
+  });
+
   it('puts the local player last, remote seats in display order', () => {
-    expect(seatStripOrder(0)).toEqual([1, 2, 0]);
-    expect(seatStripOrder(1)).toEqual([2, 0, 1]);
-    expect(seatStripOrder(2)).toEqual([0, 1, 2]);
+    expect(seatStripOrder([0, 3, 7], 0)).toEqual([3, 7, 0]);
+    expect(seatStripOrder([0, 3, 7], 3)).toEqual([7, 0, 3]);
+    expect(seatStripOrder([0, 3, 7], null)).toEqual([0, 3, 7]);
   });
 });
 
@@ -117,9 +154,9 @@ describe('seatAnchorOffset', () => {
 describe('seatCardRect', () => {
   it('produces an in-frame rect whose top edge is above center for remote seats', () => {
     const { frame, viewport } = centeredRects(1360, 766, 1120, 630);
-    const bottom = seatCardRect(0, TABLE_SEAT_COUNT, frame, viewport);
-    const left = seatCardRect(1, TABLE_SEAT_COUNT, frame, viewport);
-    const right = seatCardRect(2, TABLE_SEAT_COUNT, frame, viewport);
+    const bottom = seatCardRect(0, 3, frame, viewport);
+    const left = seatCardRect(1, 3, frame, viewport);
+    const right = seatCardRect(2, 3, frame, viewport);
     expect(bottom.top + bottom.height).toBeGreaterThan(50);
     expect(left.top).toBeLessThan(50);
     expect(right.top).toBeLessThan(50);
@@ -138,6 +175,30 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
   );
 }
 
+describe('occupied seat-card spacing', () => {
+  const layouts = [
+    { label: 'wide', ...centeredRects(1360, 766, 1120, 630), size: { width: 118, height: 62 } },
+    { label: 'compact', ...centeredRects(820, 520, 672, 378), size: { width: 92, height: 62 } },
+  ];
+
+  for (const { label, frame, viewport, size } of layouts) {
+    it(`keeps up to eight occupied cards from overlapping (${label})`, () => {
+      for (let count = 1; count <= TABLE_SEAT_COUNT; count++) {
+        const cards = Array.from({ length: count }, (_, slot) =>
+          seatCardRect(slot, count, frame, viewport, size),
+        );
+        for (let a = 0; a < cards.length; a++) {
+          for (let b = a + 1; b < cards.length; b++) {
+            expect(rectsOverlap(cards[a]!, cards[b]!), `cards ${a}/${b}, count ${count}`).toBe(
+              false,
+            );
+          }
+        }
+      }
+    });
+  }
+});
+
 describe('top game-state band', () => {
   // The reserved-arc invariant: the centered top band never touches a seat
   // card, at any seat count the arc formula supports, at any frame size the
@@ -151,7 +212,7 @@ describe('top game-state band', () => {
   for (const { label, frame, viewport } of layouts) {
     it(`clears every seat card at every seat count (${label})`, () => {
       const band = topBandRect(frame);
-      for (let n = 2; n <= 10; n++) {
+      for (let n = 1; n <= TABLE_SEAT_COUNT; n++) {
         for (let slot = 0; slot < n; slot++) {
           const card = seatCardRect(slot, n, frame, viewport);
           expect(rectsOverlap(band, card), `seat ${slot}/${n} (${label})`).toBe(false);

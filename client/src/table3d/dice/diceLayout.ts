@@ -2,7 +2,7 @@ import {
   FELT_SCALE,
   RAIL_MESH_SCALE,
   RAIL_OUTER,
-  seatAngle,
+  seatRingAngle,
   TABLE,
   TABLE_SEAT_COUNT,
   TABLE_WALL_OUTER,
@@ -32,17 +32,17 @@ const KOOZIE_DOCK_GAP = 0.02;
  * Seat-0 framing only requires the rim band on-screen — the body may sit
  * just under NDC −1, same “peek” idea as the old far dock.
  */
-const KOOZIE_DOCK_RIM_ABOVE_RAIL = 0.12;
+const KOOZIE_DOCK_RIM_ABOVE_RAIL = 0.18;
 
 /**
  * Koozie rest/park spot: docked fully OUTSIDE the containment wall at the
- * active player's display seat, sunken so only the rim band peeks over the
- * rail. Display seat 0 is the local viewer (+Z / bottom of screen); seats 1
- * and 2 are the side docks for spectators. The wall keeps dice inside the
- * felt, so a settled die can never touch or hide behind the parked cup. The
- * roller's sim always docks at display seat 0 (view-local). Clicking the dock
- * teleports the cup back onto the felt. Framing tests in diceLayout.test.ts
- * project every seat dock through SEAT_VIEW.
+ * roller's view-local display seat, sunken so only the rim band peeks over the
+ * rail. Display seat 0 is the local viewer (+Z / bottom of screen); other fixed
+ * display seats follow the full-circle pose ring. The wall keeps dice inside
+ * the felt, so a settled die can never touch or hide behind the parked cup.
+ * The roller's sim always docks at display seat 0. Clicking the dock teleports
+ * the cup back onto the felt. Spectators must use koozieRestPositionAtAngle so
+ * their read-only cup follows the active player's reflowed card instead.
  */
 export function koozieRestPosition(
   cup: {
@@ -51,7 +51,17 @@ export function koozieRestPosition(
   },
   displaySeat = 0,
 ): [number, number, number] {
-  const angle = seatAngle(displaySeat, TABLE_SEAT_COUNT);
+  return koozieRestPositionAtAngle(cup, seatRingAngle(displaySeat, TABLE_SEAT_COUNT));
+}
+
+/** Park a read-only spectator koozie at the matching occupied seat-card angle. */
+export function koozieRestPositionAtAngle(
+  cup: {
+    radius: number;
+    height: number;
+  },
+  angle: number,
+): [number, number, number] {
   // FELT_SCALE is isotropic (circle); either axis is fine for the radial.
   const radial = FELT_SCALE.x * TABLE_WALL_OUTER + cup.radius + KOOZIE_DOCK_GAP;
   return [

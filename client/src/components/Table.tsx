@@ -36,10 +36,10 @@ interface Props {
   /** Frozen last hand pose shown until the next throw starts. */
   heldPose?: PoseFrame | null;
   /**
-   * Active turn's display seat for the spectator parked koozie. Null hides it
-   * (roller / remote throw own the cup instead).
+   * Active turn card's reflowed angle for the spectator parked koozie. Null
+   * hides it (roller / remote throw own the cup instead).
    */
-  parkedKoozieDisplaySeat?: number | null;
+  parkedKoozieAngle?: number | null;
   /** Crosshair cursor while aiming a throw on the felt. */
   diceAiming?: boolean;
   /** Pointer entered or left the playing area (viewport). */
@@ -137,7 +137,7 @@ export default function Table({
   dice,
   remoteFeed,
   heldPose = null,
-  parkedKoozieDisplaySeat = null,
+  parkedKoozieAngle = null,
   diceAiming = false,
   onTablePointer,
   stand,
@@ -165,7 +165,7 @@ export default function Table({
           dice={dice}
           remoteFeed={remoteFeed}
           heldPose={heldPose}
-          parkedKoozieDisplaySeat={parkedKoozieDisplaySeat}
+          parkedKoozieAngle={parkedKoozieAngle}
         />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>

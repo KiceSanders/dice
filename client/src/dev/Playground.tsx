@@ -20,7 +20,7 @@ import {
   subscribeDicePhysicsTuning,
   updateDicePhysicsTuning,
 } from '../table3d/dice/tuning';
-import { displaySeatIndex } from '../table3d/layout';
+import { seatDisplayAngle } from '../table3d/layout';
 import { tableEvents } from '../table3d/tableEvents';
 import {
   DEV_BOB,
@@ -403,12 +403,15 @@ export default function Playground() {
     },
   });
   const isMyTurn = turn !== null && turn.playerId === myId;
-  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
+  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? null;
   const activeSeat =
     turn !== null ? (snapshot.players.find((p) => p.id === turn.playerId)?.seat ?? null) : null;
-  const parkedKoozieDisplaySeat =
+  const occupiedSeats = snapshot.players.flatMap((player) =>
+    player.seat === null ? [] : [player.seat],
+  );
+  const parkedKoozieAngle =
     snapshot.phase === 'playing' && activeSeat !== null && !isMyTurn
-      ? displaySeatIndex(activeSeat, mySeat)
+      ? seatDisplayAngle(occupiedSeats, mySeat, activeSeat)
       : null;
 
   useEffect(() => {
@@ -628,7 +631,7 @@ export default function Playground() {
         onKick={() => {}}
         dice={tableDice}
         heldPose={showHeldPose ? heldPose : null}
-        parkedKoozieDisplaySeat={parkedKoozieDisplaySeat}
+        parkedKoozieAngle={parkedKoozieAngle}
         diceAiming={dragging || (pointerOnTable && isMyTurn && !rolling)}
         onTablePointer={onTablePointer}
         stand={

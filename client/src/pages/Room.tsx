@@ -183,9 +183,7 @@ export default function Room() {
         dice={roll3d.tableDice}
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
         heldPose={showHeldPose ? heldPose : null}
-        parkedKoozieDisplaySeat={
-          turn?.throwing || remoteRoll.cupInPlay ? null : roll3d.parkedKoozieDisplaySeat
-        }
+        parkedKoozieAngle={turn?.throwing || remoteRoll.cupInPlay ? null : roll3d.parkedKoozieAngle}
         diceAiming={roll3d.diceAiming}
         onTablePointer={roll3d.onTablePointer}
         stand={standControl}

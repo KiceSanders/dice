@@ -31,7 +31,6 @@ function snapshot(
     settings: partial.settings ?? {
       chipsPerRound: 1,
       maxRolls: 3,
-      maxPlayers: 3,
       minBuyIn: 5,
       maxBuyIn: 50,
       straightPayout: { enabled: true, amountPerPlayer: 2 },

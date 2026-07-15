@@ -1,7 +1,7 @@
 import type { BodyPose, PoseFrame } from '@dice/shared';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { displaySeatIndex, seatAngle, TABLE_SEAT_COUNT } from './layout';
+import { displaySeatIndex, seatRingAngle, TABLE_SEAT_COUNT } from './layout';
 import { poseFrameFromCanonical, poseFrameToCanonical, rotateBodyPoseY } from './seatTransform';
 
 const frame = (x: number, z: number): PoseFrame => ({
@@ -14,19 +14,19 @@ describe('layout seat helpers', () => {
   it('displaySeatIndex rotates so my seat is 0', () => {
     expect(displaySeatIndex(1, 1)).toBe(0);
     expect(displaySeatIndex(2, 1)).toBe(1);
-    expect(displaySeatIndex(0, 1)).toBe(2);
+    expect(displaySeatIndex(0, 1)).toBe(TABLE_SEAT_COUNT - 1);
   });
 
-  it('seatAngle spaces three seats 120° apart', () => {
-    // Angles are arc positions and may wrap (seat 2 is -π/6, not 11π/6);
-    // compare direction, not raw values.
+  it('seatRingAngle spaces all eight logical seats uniformly around the pose ring', () => {
     const tau = Math.PI * 2;
     const wrap = (a: number) => ((a % tau) + tau) % tau;
-    const a0 = seatAngle(0, 3);
-    const a1 = seatAngle(1, 3);
-    const a2 = seatAngle(2, 3);
-    expect(wrap(a1 - a0)).toBeCloseTo((2 * Math.PI) / 3, 5);
-    expect(wrap(a2 - a1)).toBeCloseTo((2 * Math.PI) / 3, 5);
+    for (let seat = 0; seat < TABLE_SEAT_COUNT; seat++) {
+      const next = (seat + 1) % TABLE_SEAT_COUNT;
+      expect(wrap(seatRingAngle(next) - seatRingAngle(seat))).toBeCloseTo(
+        (2 * Math.PI) / TABLE_SEAT_COUNT,
+        5,
+      );
+    }
   });
 });
 
@@ -94,7 +94,7 @@ describe('seatTransform', () => {
     for (let seat = 0; seat < TABLE_SEAT_COUNT; seat++) {
       const r = 1.8;
       const canonical = poseFrameToCanonical(frame(0, r), seat);
-      const dir = seatAngle(seat, TABLE_SEAT_COUNT);
+      const dir = seatRingAngle(seat);
       expect(canonical.bodies[0]![0]).toBeCloseTo(r * Math.cos(dir), 3);
       expect(canonical.bodies[0]![2]).toBeCloseTo(r * Math.sin(dir), 3);
     }
@@ -108,7 +108,7 @@ describe('seatTransform', () => {
       const canonical = poseFrameToCanonical(frame(0, r), rollerSeat);
       for (let viewerSeat = 0; viewerSeat < TABLE_SEAT_COUNT; viewerSeat++) {
         const view = poseFrameFromCanonical(canonical, viewerSeat);
-        const displayAngle = seatAngle(displaySeatIndex(rollerSeat, viewerSeat), TABLE_SEAT_COUNT);
+        const displayAngle = seatRingAngle(displaySeatIndex(rollerSeat, viewerSeat));
         expect(view.bodies[0]![0]).toBeCloseTo(r * Math.cos(displayAngle), 3);
         expect(view.bodies[0]![2]).toBeCloseTo(r * Math.sin(displayAngle), 3);
       }

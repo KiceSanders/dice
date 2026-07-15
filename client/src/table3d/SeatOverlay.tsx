@@ -2,12 +2,12 @@ import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
 import { type CSSProperties, Fragment } from 'react';
 import Seat from '../components/Seat';
 import {
-  displaySeatIndex,
   type OverlayRect,
   seatAnchorOffset,
+  seatDisplayOrder,
   seatOverlayPosition,
   seatStripOrder,
-  TABLE_SEAT_COUNT,
+  visibleSeatIndices,
 } from './layout';
 
 /** Anchor the inner edge of the card toward the table center. */
@@ -37,8 +37,10 @@ function deriveSeats(snapshot: RoomSnapshot, myId: string | null) {
   for (const p of snapshot.players) {
     if (p.seat !== null) bySeat.set(p.seat, p);
   }
-  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? 0;
-  return { isHost, activeId, bySeat, mySeat };
+  const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? null;
+  const visibleSeats = visibleSeatIndices(snapshot.phase, [...bySeat.keys()]);
+  const displaySeats = seatDisplayOrder(visibleSeats, mySeat);
+  return { isHost, activeId, bySeat, mySeat, visibleSeats, displaySeats };
 }
 
 function seatCard(
@@ -67,16 +69,16 @@ export default function SeatOverlay(props: Props) {
 
   return (
     <div className="seat-overlay">
-      {Array.from({ length: TABLE_SEAT_COUNT }, (_, i) => {
+      {derived.displaySeats.map((seatIndex, displaySlot) => {
         const { leftPct, topPct, angle } = seatOverlayPosition(
-          displaySeatIndex(i, derived.mySeat),
-          TABLE_SEAT_COUNT,
+          displaySlot,
+          derived.displaySeats.length,
           frame,
           viewport,
         );
         return (
           <div
-            key={i}
+            key={seatIndex}
             className="seat-overlay-anchor"
             style={{
               left: `${leftPct}%`,
@@ -84,7 +86,7 @@ export default function SeatOverlay(props: Props) {
               ...seatAnchorStyle(angle),
             }}
           >
-            {seatCard(i, props, derived)}
+            {seatCard(seatIndex, props, derived)}
           </div>
         );
       })}
@@ -97,7 +99,7 @@ export function SeatStrip(props: SeatsProps) {
   const derived = deriveSeats(props.snapshot, props.myId);
   return (
     <div className="seat-strip">
-      {seatStripOrder(derived.mySeat).map((i) => (
+      {seatStripOrder(derived.visibleSeats, derived.mySeat).map((i) => (
         <Fragment key={i}>{seatCard(i, props, derived)}</Fragment>
       ))}
     </div>

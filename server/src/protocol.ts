@@ -43,7 +43,6 @@ function isRoomSettings(v: unknown): v is RoomSettings {
     isRecord(v) &&
     isFiniteNumber(v.chipsPerRound) &&
     isFiniteNumber(v.maxRolls) &&
-    isFiniteNumber(v.maxPlayers) &&
     isFiniteNumber(v.minBuyIn) &&
     isFiniteNumber(v.maxBuyIn) &&
     isStraightPayoutConfig(v.straightPayout) &&
