@@ -284,6 +284,9 @@ code {
      The top row (--table-top-band-h) hosts the top-band HUD widgets, but it is
      still playing field: the transparent canvas bleeds up over it (see
      .table-canvas) so a raised koozie draws over the widgets. */
+  /* Keep these tracks and side-gutter values synchronized with
+     table3d/viewportFit.ts; it uses them to fit the whole frame to the live
+     browser height without changing the canvas's 16:9 ratio. */
   --table-top-band-h: 4.75rem;
   grid-template-columns: clamp(4.25rem, 9%, 7.5rem) 1fr clamp(4.25rem, 9%, 7.5rem);
   grid-template-rows: var(--table-top-band-h) auto 4.25rem;

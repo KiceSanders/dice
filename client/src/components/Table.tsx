@@ -1,5 +1,5 @@
 import type { PoseFrame, RoomSnapshot } from '@dice/shared';
-import { type RefObject, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react';
 import ClassicPotOverlay from '../table3d/ClassicPotOverlay';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
@@ -10,6 +10,7 @@ import SeatOverlay, { SeatStrip } from '../table3d/SeatOverlay';
 import TableCanvas from '../table3d/TableCanvas';
 import TableCenterOverlay from '../table3d/TableCenterOverlay';
 import { SEAT_STACK_QUERY, useMediaQuery } from '../table3d/useMediaQuery';
+import { tableFrameMaxWidth } from '../table3d/viewportFit';
 import type { ConnectionStatus } from '../ws/client';
 import { ConnectionDot } from './ConnectionStatus';
 
@@ -102,6 +103,31 @@ function StandControlView({ stand }: { stand: StandControl }) {
   );
 }
 
+function visualViewportHeight(): number {
+  return window.visualViewport?.height ?? window.innerHeight;
+}
+
+/** Recomputes when browser chrome, display scaling, zoom, or window size changes. */
+function useTableViewportFit(stacked: boolean): CSSProperties | undefined {
+  const [height, setHeight] = useState(visualViewportHeight);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const update = () => setHeight(visualViewportHeight());
+    window.addEventListener('resize', update);
+    viewport?.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      viewport?.removeEventListener('resize', update);
+    };
+  }, []);
+
+  if (stacked) return undefined;
+  const remPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const heightLimitedWidth = tableFrameMaxWidth(height, remPx);
+  return { maxWidth: `min(var(--layout-max), ${heightLimitedWidth}px)` };
+}
+
 /** 3D poker table with 2D player overlays that stay off the felt. */
 export default function Table({
   snapshot,
@@ -121,9 +147,14 @@ export default function Table({
   const viewportRef = useRef<HTMLDivElement>(null);
   const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
   const stacked = useMediaQuery(SEAT_STACK_QUERY);
+  const viewportFitStyle = useTableViewportFit(stacked);
 
   return (
-    <div ref={frameRef} className={`table table-3d${stacked ? ' table-3d--stacked' : ''}`}>
+    <div
+      ref={frameRef}
+      className={`table table-3d${stacked ? ' table-3d--stacked' : ''}`}
+      style={viewportFitStyle}
+    >
       <div
         ref={viewportRef}
         className={`table-3d-viewport${diceAiming ? ' table-3d-viewport--aiming' : ''}`}

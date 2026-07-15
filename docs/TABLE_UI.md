@@ -190,6 +190,12 @@ values in mesh components.
   min-height or a different aspect: the camera, `project.ts`, the center overlay, and
   every framing test assume 16:9, and intrinsic min-widths regress horizontal scrolling
   (Chrome) / shrink-to-fit (Safari).
+- On non-stacked layouts, the **whole table frame is capped by the live visual viewport
+  height** (`viewportFit.ts` + `Table.tsx`). This accounts for browser chrome, display
+  scaling, zoom, and window resizing: when height is scarcer than width, the frame gets
+  narrower while the viewport stays exactly 16:9. Keep the mirrored border, band, and
+  gutter dimensions in `viewportFit.ts` synchronized with `.table-3d` CSS. Do not apply
+  the cap to stacked mode, whose seats intentionally flow below the canvas.
 - Seat cards are positioned by **live measurement** (`useLayoutRects` + 
   `seatOverlayPosition`) — they self-adjust to any size; don't add fixed offsets.
 - At ≤640px seats stack below the canvas. The breakpoint exists twice on purpose:

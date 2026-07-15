@@ -147,6 +147,21 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ---
 
+## Short desktop viewport / Chromebook — 2 tabs
+
+1. Use a desktop-width viewport with reduced usable height (for example 1366×650 CSS
+   pixels). Start a game with one player in each tab.
+2. Without scrolling, confirm the complete table frame is visible: all three seat cards
+   include their chip counts, and the Pot / Roll to beat / Classic Pot band is visible.
+3. Resize the browser shorter and taller. The complete frame should narrow and widen while
+   the table remains circular, the canvas remains 16:9, and no seat overlaps the top band.
+4. Roll once from each player. Confirm the roller, spectator, and between-turn static view
+   keep the same framing and that koozie/die pointer interaction still aligns visually.
+5. At 640px wide or below, confirm the existing stacked seat strip still flows below the
+   canvas and scrolls normally; the height-fit cap must not apply there.
+
+---
+
 ## Forcing straights — payout + celebration glow
 
 Dice come only from client physics (no server RNG), so the settle override in
