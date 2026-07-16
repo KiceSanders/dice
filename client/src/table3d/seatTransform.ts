@@ -1,5 +1,5 @@
 import type { BodyPose, PoseFrame } from '@dice/shared';
-import { viewRotationY } from './layout';
+import { type SeatDisplayPlacement, seatRingAngle, viewRotationY } from './layout';
 
 const _scratch = { x: 0, z: 0 };
 
@@ -41,11 +41,17 @@ export function poseFrameToCanonical(frame: PoseFrame, seat: number): PoseFrame 
 }
 
 /**
- * Canonical wire pose → the viewing player's view-local space (viewer at +Z).
- * Applied once when receiving frames; the rendered scene itself never rotates.
+ * Canonical wire/rest pose → the shared occupied-card placement for its
+ * originating player. The fixed ring remains the canonical transport space;
+ * this viewer-specific presentation rotation makes the whole throw (cup,
+ * scattered dice, and kept rail) line up with that player's reflowed card.
  */
-export function poseFrameFromCanonical(frame: PoseFrame, seat: number): PoseFrame {
-  const angle = -viewRotationY(seat);
+export function poseFrameForSeatDisplay(
+  frame: PoseFrame,
+  placement: SeatDisplayPlacement,
+): PoseFrame {
+  // rotateBodyPoseY subtracts its angle from the position's XZ polar angle.
+  const angle = seatRingAngle(placement.seatIndex) - placement.angle;
   if (angle === 0) return frame;
   return {
     ...frame,

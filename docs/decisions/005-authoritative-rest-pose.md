@@ -36,7 +36,9 @@ of them, and did, repeatedly.
   and persists it on the `stood` event (optional so old logs parse).
 - Clients render settled dice through **one resolver** — `resolveTableRestPose`
   ([`staticPose.ts`](../../client/src/table3d/dice/staticPose.ts)): authoritative pose
-  (rotated per viewer seat) → slot layout as an observable last resort (dev
+  (rotated to the originating player's shared occupied-card placement) → slot layout,
+  canonicalized for the same player and given the same presentation transform, as an
+  observable last resort (dev
   `console.warn` + `window.__diceDebug.slotFallbackCount`). It deliberately does **not**
   re-read faces from the pose — the server already guaranteed the match, and client-side
   re-checking was itself a fallback trigger.
@@ -69,8 +71,9 @@ odd but legal arrangement."
   and, after a voluntary stand, where the hand was stood. A live viewer continues to see
   the newest losing hand rather than reverting to the earlier leader; the slot layout
   remains only for turns with no roll yet or an intentionally dropped pose.
-- Kept dice render at the *roller's* rail for every viewer (matching live streaming); the
-  old fallback railed them viewer-locally.
+- Kept dice render at the roller's reflowed card edge for every viewer, matching live
+  streaming and the spectator koozie; authoritative and fallback poses use the same
+  `SeatDisplayPlacement`.
 - ~600 B per `turn:rolled` / ~1.2 KB per snapshot — negligible next to the frame stream.
 - `PersistedGame` is unchanged: compaction happens at round boundaries where no pose
   outlives the round; mid-round recovery replays `rolled { restPose? }`.

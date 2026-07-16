@@ -5,7 +5,7 @@ import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
 import { BONUS_DIE_INDEX, DICE_COUNT } from '../table3d/dice/constants';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
-import { seatDisplayAngle } from '../table3d/layout';
+import { seatDisplayPlacement } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
 import {
   bonusThrowResultMessage,
@@ -87,9 +87,9 @@ export function useTableRoll(
   const occupiedSeats = snapshot?.players.flatMap((player) =>
     player.seat === null ? [] : [player.seat],
   );
-  const parkedKoozieAngle =
+  const activePlacement =
     snapshot?.phase === 'playing' && activeSeat !== null && !isMyTurn
-      ? seatDisplayAngle(occupiedSeats ?? [], myDisplaySeat, activeSeat)
+      ? seatDisplayPlacement(occupiedSeats ?? [], myDisplaySeat, activeSeat)
       : null;
 
   const onRelease = useCallback(
@@ -205,6 +205,6 @@ export function useTableRoll(
     onTablePointer: setPointerOnTable,
     rolling,
     dragging,
-    parkedKoozieAngle,
+    parkedKoozieAngle: activePlacement?.angle ?? null,
   };
 }

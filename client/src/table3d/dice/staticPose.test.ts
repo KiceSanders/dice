@@ -1,6 +1,6 @@
 import type { BodyPose, Die, GameStatePublic, PoseFrame } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
-import { viewRotationY } from '../layout';
+import { seatDisplayPlacement, TABLE_SEAT_COUNT } from '../layout';
 import { poseFrameToCanonical } from '../seatTransform';
 import { DICE_COUNT } from './constants';
 import { quaternionForFace } from './faceValue';
@@ -34,6 +34,12 @@ function makeGame(overrides: Partial<GameStatePublic> = {}): GameStatePublic {
     subRound: null,
     ...overrides,
   };
+}
+
+function placementFor(occupied: number[], viewerSeat: number | null, playerSeat: number) {
+  const placement = seatDisplayPlacement(occupied, viewerSeat, playerSeat);
+  if (!placement) throw new Error('expected seat display placement');
+  return placement;
 }
 
 describe('staticPoseFromDice', () => {
@@ -82,6 +88,7 @@ describe('pickHeldRollInput', () => {
       },
     });
     expect(pickHeldRollInput(lastRoll, game)).toEqual({
+      playerId: 'p1',
       dice: DICE,
       kept: [0],
       restPose: lastRoll.restPose,
@@ -102,6 +109,7 @@ describe('pickHeldRollInput', () => {
       },
     });
     expect(pickHeldRollInput(lastRoll, game)).toEqual({
+      playerId: 'p1',
       dice: DICE,
       kept: [0],
       restPose: lastRoll.restPose,
@@ -122,7 +130,12 @@ describe('pickHeldRollInput', () => {
         restPose,
       },
     });
-    expect(pickHeldRollInput(null, game)).toEqual({ dice: DICE, kept: [2], restPose });
+    expect(pickHeldRollInput(null, game)).toEqual({
+      playerId: 'p1',
+      dice: DICE,
+      kept: [2],
+      restPose,
+    });
   });
 
   it('skips a current turn that has not rolled yet and uses rollToBeat', () => {
@@ -146,6 +159,7 @@ describe('pickHeldRollInput', () => {
       },
     });
     expect(pickHeldRollInput(null, game)).toEqual({
+      playerId: 'px',
       dice: [2, 2, 1, 3, 4],
       kept: [],
       restPose,
@@ -184,6 +198,7 @@ describe('pickHeldRollInput', () => {
     });
 
     expect(pickHeldRollInput(staleLastRoll, game)).toEqual({
+      playerId: 'p0',
       dice: DICE,
       kept: [],
       restPose: standPose,
@@ -221,6 +236,7 @@ describe('pickHeldRollInput', () => {
     });
 
     expect(pickHeldRollInput(latestLosingRoll, game)).toEqual({
+      playerId: 'p0',
       dice: losingDice,
       kept: [],
       restPose: losingPose,
@@ -249,6 +265,7 @@ describe('pickHeldRollInput', () => {
     });
 
     expect(pickHeldRollInput(latestTiedRoll, game)).toEqual({
+      playerId: 'later-tie',
       dice: tiedDice,
       kept: [],
       restPose: tiedPose,
@@ -277,6 +294,7 @@ describe('pickHeldRollInput', () => {
     });
 
     expect(pickHeldRollInput(finalRoll, game)).toEqual({
+      playerId: 'last-player',
       dice: losingDice,
       kept: [],
       restPose: losingPose,
@@ -291,7 +309,8 @@ describe('pickHeldRollInput', () => {
 
 describe('restPoseToFrame', () => {
   it('round-trips a view-local settle frame through canonical space for every seat', () => {
-    for (let seat = 0; seat < 3; seat++) {
+    const occupied = Array.from({ length: TABLE_SEAT_COUNT }, (_, seat) => seat);
+    for (let seat = 0; seat < TABLE_SEAT_COUNT; seat++) {
       // The roller samples view-local, sends canonical (poseFrameToCanonical);
       // a viewer at the same seat must see the identical layout back.
       const viewLocal: PoseFrame = {
@@ -300,7 +319,7 @@ describe('restPoseToFrame', () => {
         cupVisible: false,
       };
       const canonical = poseFrameToCanonical(viewLocal, seat);
-      const frame = restPoseToFrame(canonical.bodies.slice(1), seat);
+      const frame = restPoseToFrame(canonical.bodies.slice(1), placementFor(occupied, seat, seat));
       expect(frame.cupVisible).toBe(false);
       for (let i = 0; i < DICE_COUNT; i++) {
         const original = viewLocal.bodies[i + 1]!;
@@ -312,11 +331,10 @@ describe('restPoseToFrame', () => {
     }
   });
 
-  it('rotates canonical poses into the viewer seat frame', () => {
+  it('rotates canonical poses into the player’s reflowed card placement', () => {
     const restPose = makeRestPose(DICE);
-    const seat = 1;
-    const frame = restPoseToFrame(restPose, seat);
-    expect(viewRotationY(seat)).not.toBe(0);
+    const placement = placementFor([0, 3, 7], 3, 7);
+    const frame = restPoseToFrame(restPose, placement);
     // Same layout, different orientation: positions move, heights do not.
     expect(frame.bodies[1]![0]).not.toBeCloseTo(restPose[0]![0]!, 3);
     expect(frame.bodies[1]![1]).toBeCloseTo(restPose[0]![1]!, 10);
@@ -324,6 +342,31 @@ describe('restPoseToFrame', () => {
 });
 
 describe('resolveTableRestPose', () => {
+  it('aligns authoritative and fallback kept rails with the same remote player card', () => {
+    const placement = placementFor([0, 1], 0, 1);
+    const local = staticPoseFromDice(DICE, [2]);
+    if (!local) throw new Error('expected local fallback pose');
+    const canonical = poseFrameToCanonical(local, placement.seatIndex);
+    const restPose = canonical.bodies.slice(1);
+
+    const authoritative = resolveTableRestPose(
+      { playerId: 'p1', dice: DICE, kept: [2], restPose },
+      placement,
+    ).frame;
+    const fallback = resolveTableRestPose(
+      { playerId: 'p1', dice: DICE, kept: [2], restPose: null },
+      placement,
+    ).frame;
+
+    for (const resolved of [authoritative, fallback]) {
+      const keptPose = resolved?.bodies[3];
+      if (!keptPose) throw new Error('expected kept die pose');
+      const angle = Math.atan2(keptPose[2], keptPose[0]);
+      expect(Math.cos(angle)).toBeCloseTo(Math.cos(placement.angle), 6);
+      expect(Math.sin(angle)).toBeCloseTo(Math.sin(placement.angle), 6);
+    }
+  });
+
   it('uses the authoritative rest pose without re-checking faces', () => {
     // Tilted quats (norm-preserving) must NOT knock us into the fallback —
     // the server already validated the pose; re-reading faces here was the
@@ -332,7 +375,11 @@ describe('resolveTableRestPose', () => {
       (p): BodyPose => [p[0], p[1], p[2], 0.19, 0.02, 0.03, 0.981],
     );
     const before = diceDebug.slotFallbackCount;
-    const { frame, source } = resolveTableRestPose({ dice: DICE, kept: [], restPose }, 0);
+    const placement = placementFor([0, 1], 0, 1);
+    const { frame, source } = resolveTableRestPose(
+      { playerId: 'p1', dice: DICE, kept: [], restPose },
+      placement,
+    );
     expect(source).toBe('authoritative');
     expect(frame).not.toBeNull();
     expect(frame!.bodies).toHaveLength(DICE_COUNT + 1);
@@ -341,7 +388,11 @@ describe('resolveTableRestPose', () => {
 
   it('falls back to the slot layout and counts it when no pose exists', () => {
     const before = diceDebug.slotFallbackCount;
-    const { frame, source } = resolveTableRestPose({ dice: DICE, kept: [1], restPose: null }, 0);
+    const placement = placementFor([0, 1], 0, 0);
+    const { frame, source } = resolveTableRestPose(
+      { playerId: 'p0', dice: DICE, kept: [1], restPose: null },
+      placement,
+    );
     expect(source).toBe('slot-fallback');
     expect(frame).toEqual(staticPoseFromDice(DICE, [1]));
     expect(diceDebug.slotFallbackCount).toBe(before + 1);
@@ -349,7 +400,10 @@ describe('resolveTableRestPose', () => {
 
   it('treats a malformed (short) pose as missing', () => {
     const restPose = makeRestPose(DICE).slice(0, 3);
-    const { source } = resolveTableRestPose({ dice: DICE, kept: [], restPose }, 0);
+    const { source } = resolveTableRestPose(
+      { playerId: 'p0', dice: DICE, kept: [], restPose },
+      placementFor([0, 1], 0, 0),
+    );
     expect(source).toBe('slot-fallback');
   });
 });

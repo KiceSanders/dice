@@ -7,8 +7,8 @@ import {
   seatAnchorOffset,
   seatAngle,
   seatCardRect,
-  seatDisplayAngle,
-  seatDisplayOrder,
+  seatDisplayPlacement,
+  seatDisplayPlacements,
   seatOverlayPosition,
   seatStripOrder,
   TABLE_SEAT_COUNT,
@@ -25,7 +25,7 @@ function wrap(angle: number): number {
 
 describe('table symmetry', () => {
   it('felt scale is isotropic — seat-angle pose rotation requires a circular table', () => {
-    // Streamed poses are localized by rotating around Y (seatTransform.ts);
+    // Canonical poses rotate to occupied-card display angles (seatTransform.ts);
     // an anisotropic oval does not map onto itself under that rotation, so
     // other players' dice would land on or past the rail.
     expect(FELT_SCALE.x).toBe(FELT_SCALE.z);
@@ -124,15 +124,24 @@ describe('phase-aware seat display', () => {
   });
 
   it('rotates occupied logical seats so the local player gets display slot 0', () => {
-    expect(seatDisplayOrder([0, 3, 7], 3)).toEqual([3, 7, 0]);
-    expect(seatDisplayOrder([0, 3, 7], null)).toEqual([0, 3, 7]);
+    expect(seatDisplayPlacements([0, 3, 7], 3).map((placement) => placement.seatIndex)).toEqual([
+      3, 7, 0,
+    ]);
+    expect(seatDisplayPlacements([0, 3, 7], null).map((placement) => placement.seatIndex)).toEqual([
+      0, 3, 7,
+    ]);
   });
 
-  it('maps a logical seat to the same reflowed angle used by its occupied card', () => {
-    expect(seatDisplayAngle([0, 1], 0, 1)).toBeCloseTo(seatAngle(1, 2), 10);
-    expect(seatDisplayAngle([0, 1], 1, 0)).toBeCloseTo(seatAngle(1, 2), 10);
-    expect(seatDisplayAngle([0, 3, 7], 3, 7)).toBeCloseTo(seatAngle(1, 3), 10);
-    expect(seatDisplayAngle([0, 3, 7], 3, 5)).toBeNull();
+  it('provides the slot, count, and angle for every player-relative visual', () => {
+    expect(seatDisplayPlacement([0, 1], 0, 1)).toEqual({
+      seatIndex: 1,
+      displaySlot: 1,
+      displayCount: 2,
+      angle: seatAngle(1, 2),
+    });
+    expect(seatDisplayPlacement([0, 1], 1, 0)?.angle).toBeCloseTo(seatAngle(1, 2), 10);
+    expect(seatDisplayPlacement([0, 3, 7], 3, 7)?.angle).toBeCloseTo(seatAngle(1, 3), 10);
+    expect(seatDisplayPlacement([0, 3, 7], 3, 5)).toBeNull();
   });
 
   it('puts the local player last, remote seats in display order', () => {

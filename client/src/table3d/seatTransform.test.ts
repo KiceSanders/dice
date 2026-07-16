@@ -1,8 +1,14 @@
 import type { BodyPose, PoseFrame } from '@dice/shared';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { displaySeatIndex, seatRingAngle, TABLE_SEAT_COUNT } from './layout';
-import { poseFrameFromCanonical, poseFrameToCanonical, rotateBodyPoseY } from './seatTransform';
+import { koozieRestPositionAtAngle } from './dice/diceLayout';
+import {
+  seatDisplayPlacement,
+  seatDisplayPlacements,
+  seatRingAngle,
+  TABLE_SEAT_COUNT,
+} from './layout';
+import { poseFrameForSeatDisplay, poseFrameToCanonical, rotateBodyPoseY } from './seatTransform';
 
 const frame = (x: number, z: number): PoseFrame => ({
   t: 0,
@@ -11,12 +17,6 @@ const frame = (x: number, z: number): PoseFrame => ({
 });
 
 describe('layout seat helpers', () => {
-  it('displaySeatIndex rotates so my seat is 0', () => {
-    expect(displaySeatIndex(1, 1)).toBe(0);
-    expect(displaySeatIndex(2, 1)).toBe(1);
-    expect(displaySeatIndex(0, 1)).toBe(TABLE_SEAT_COUNT - 1);
-  });
-
   it('seatRingAngle spaces all eight logical seats uniformly around the pose ring', () => {
     const tau = Math.PI * 2;
     const wrap = (a: number) => ((a % tau) + tau) % tau;
@@ -78,13 +78,16 @@ describe('rotateBodyPoseY', () => {
 });
 
 describe('seatTransform', () => {
-  it('round-trips canonical ↔ view for each seat', () => {
-    const original = frame(0.5, -1.2);
+  it('round-trips each player’s local pose through canonical space to their own card', () => {
+    const original = frame(0.5, 1.2);
+    const occupied = Array.from({ length: TABLE_SEAT_COUNT }, (_, seat) => seat);
     for (let seat = 0; seat < TABLE_SEAT_COUNT; seat++) {
-      const view = poseFrameFromCanonical(original, seat);
-      const back = poseFrameToCanonical(view, seat);
-      expect(back.bodies[0]![0]).toBeCloseTo(original.bodies[0]![0]!, 3);
-      expect(back.bodies[0]![2]).toBeCloseTo(original.bodies[0]![2]!, 3);
+      const placement = seatDisplayPlacement(occupied, seat, seat);
+      if (!placement) throw new Error('expected self placement');
+      const canonical = poseFrameToCanonical(original, seat);
+      const displayed = poseFrameForSeatDisplay(canonical, placement);
+      expect(displayed.bodies[0]![0]).toBeCloseTo(original.bodies[0]![0]!, 3);
+      expect(displayed.bodies[0]![2]).toBeCloseTo(original.bodies[0]![2]!, 3);
     }
   });
 
@@ -100,18 +103,38 @@ describe('seatTransform', () => {
     }
   });
 
-  it('shows a roller’s dice at their seat position on every viewer’s screen', () => {
-    // End-to-end wire path: roller S canonicalizes, viewer V localizes. The
-    // result must sit at the same display slot the 2D seat overlay uses for S.
+  it('aligns every remote throw with its occupied card for 2–8 players and spectators', () => {
     const r = 1.8;
-    for (let rollerSeat = 0; rollerSeat < TABLE_SEAT_COUNT; rollerSeat++) {
-      const canonical = poseFrameToCanonical(frame(0, r), rollerSeat);
-      for (let viewerSeat = 0; viewerSeat < TABLE_SEAT_COUNT; viewerSeat++) {
-        const view = poseFrameFromCanonical(canonical, viewerSeat);
-        const displayAngle = seatRingAngle(displaySeatIndex(rollerSeat, viewerSeat));
-        expect(view.bodies[0]![0]).toBeCloseTo(r * Math.cos(displayAngle), 3);
-        expect(view.bodies[0]![2]).toBeCloseTo(r * Math.sin(displayAngle), 3);
+    const occupiedSets = [
+      ...Array.from({ length: TABLE_SEAT_COUNT - 1 }, (_, index) =>
+        Array.from({ length: index + 2 }, (__, seat) => seat),
+      ),
+      [0, 3, 7],
+    ];
+    for (const occupied of occupiedSets) {
+      for (const viewerSeat of [...occupied, null]) {
+        for (const placement of seatDisplayPlacements(occupied, viewerSeat)) {
+          const canonical = poseFrameToCanonical(frame(0, r), placement.seatIndex);
+          const displayed = poseFrameForSeatDisplay(canonical, placement);
+          expect(displayed.bodies[0]![0]).toBeCloseTo(r * Math.cos(placement.angle), 3);
+          expect(displayed.bodies[0]![2]).toBeCloseTo(r * Math.sin(placement.angle), 3);
+        }
       }
     }
+  });
+
+  it('uses the same radial angle for the displayed throw and spectator koozie', () => {
+    const placement = seatDisplayPlacement([0, 3, 7], 3, 7);
+    if (!placement) throw new Error('expected player placement');
+    const displayed = poseFrameForSeatDisplay(
+      poseFrameToCanonical(frame(0, 1.8), placement.seatIndex),
+      placement,
+    );
+    const [cupX, , cupZ] = koozieRestPositionAtAngle(
+      { radius: 0.42, height: 0.95 },
+      placement.angle,
+    );
+    const diePose = displayed.bodies[0]!;
+    expect(Math.atan2(diePose[2], diePose[0])).toBeCloseTo(Math.atan2(cupZ, cupX), 10);
   });
 });

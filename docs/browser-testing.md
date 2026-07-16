@@ -149,9 +149,10 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
    in the stacked strip.
 5. Check all consoles for errors. Before each throw, confirm every non-roller tab pins the
    parked koozie directly in front of the active player's card (including the sparse
-   two-player 6/10 layout). While the cup is in play, confirm its live stream moves normally;
-   after it parks, it returns in front of that same card. Confirm every tab agrees on the
-   settled dice position and the koozie remains in frame.
+   two-player 6/10 layout). Keep a die, then grab and reroll: the kept rail, parked cup,
+   live streamed cup/dice, and settled static hand must all stay on that same player's side
+   with no jump when the cup is picked up. Repeat from an unseated spectator view. Confirm
+   every tab agrees on the settled dice position and the koozie remains in frame.
 
 **Pass criteria:** Lobby capacity is eight, active play shows occupied cards only, mid-game
 approval/removal reflows correctly, the spectator koozie follows the active card, and the

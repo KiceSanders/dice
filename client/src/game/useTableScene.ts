@@ -10,6 +10,7 @@ import type {
   TransferInfo,
 } from '../state/store';
 import { pickHeldRollInput, resolveTableRestPose } from '../table3d/dice/staticPose';
+import { seatDisplayPlacement } from '../table3d/layout';
 import { tableEvents } from '../table3d/tableEvents';
 import type { WsClient } from '../ws/client';
 import { useRemoteRoll } from './useRemoteRoll';
@@ -28,11 +29,19 @@ export function useTableScene(
 ) {
   const roll3d = useTableRoll(snapshot, myId, send, connected);
   const remoteRoll = useRemoteRoll(ws, snapshot, myId);
-  const mySeatForPose = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
+  const viewerSeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
   const heldPose = useMemo(() => {
     const input = pickHeldRollInput(lastRoll, snapshot?.game ?? null);
-    return input ? resolveTableRestPose(input, mySeatForPose).frame : null;
-  }, [lastRoll, snapshot?.game, mySeatForPose]);
+    if (!input) return null;
+    const playerSeat =
+      snapshot?.players.find((player) => player.id === input.playerId)?.seat ?? null;
+    if (playerSeat === null) return null;
+    const occupiedSeats = snapshot?.players.flatMap((player) =>
+      player.seat === null ? [] : [player.seat],
+    );
+    const placement = seatDisplayPlacement(occupiedSeats ?? [], viewerSeat, playerSeat);
+    return placement ? resolveTableRestPose(input, placement).frame : null;
+  }, [lastRoll, snapshot?.game, snapshot?.players, viewerSeat]);
 
   useEffect(() => {
     if (!lastRoll || detectStraight(lastRoll.dice) === 'none') return;

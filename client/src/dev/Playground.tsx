@@ -20,7 +20,7 @@ import {
   subscribeDicePhysicsTuning,
   updateDicePhysicsTuning,
 } from '../table3d/dice/tuning';
-import { seatDisplayAngle } from '../table3d/layout';
+import { seatDisplayPlacement } from '../table3d/layout';
 import { tableEvents } from '../table3d/tableEvents';
 import {
   DEV_BOB,
@@ -409,10 +409,11 @@ export default function Playground() {
   const occupiedSeats = snapshot.players.flatMap((player) =>
     player.seat === null ? [] : [player.seat],
   );
-  const parkedKoozieAngle =
+  const activePlacement =
     snapshot.phase === 'playing' && activeSeat !== null && !isMyTurn
-      ? seatDisplayAngle(occupiedSeats, mySeat, activeSeat)
+      ? seatDisplayPlacement(occupiedSeats, mySeat, activeSeat)
       : null;
+  const parkedKoozieAngle = activePlacement?.angle ?? null;
 
   useEffect(() => {
     setPendingKeep(pendingKeep);
@@ -509,11 +510,16 @@ export default function Playground() {
         }
       : undefined;
 
+  const heldPlayerSeat = snapshot.players.find((player) => player.id === lastRoll?.playerId)?.seat;
+  const heldPlacement =
+    heldPlayerSeat === null || heldPlayerSeat === undefined
+      ? null
+      : seatDisplayPlacement(occupiedSeats, mySeat, heldPlayerSeat);
   // Same resolver as production (ADR 005): real rest pose when the sim
-  // provided one (single-seat, so seat 0), slot layout otherwise.
+  // provided one, slot layout otherwise, both at the player's displayed card.
   const heldPose = useMemo(
-    () => (lastRoll ? resolveTableRestPose(lastRoll, 0).frame : null),
-    [lastRoll],
+    () => (lastRoll && heldPlacement ? resolveTableRestPose(lastRoll, heldPlacement).frame : null),
+    [lastRoll, heldPlacement],
   );
   const localSimShowsLastRoll =
     isMyTurn &&

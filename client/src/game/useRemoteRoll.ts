@@ -1,8 +1,9 @@
 import type { RoomSnapshot } from '@dice/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRemotePoseAudioTap } from '../table3d/audio/remotePoseAudio';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
-import { poseFrameFromCanonical } from '../table3d/seatTransform';
+import { seatDisplayPlacement } from '../table3d/layout';
+import { poseFrameForSeatDisplay } from '../table3d/seatTransform';
 import type { WsClient } from '../ws/client';
 
 export interface RemoteRoll {
@@ -42,11 +43,21 @@ export function useRemoteRoll(
   const [cupInPlay, setCupInPlay] = useState(false);
 
   const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
-  const remote = turnPlayerId !== null && turnPlayerId !== myId;
-  const mySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? 0;
+  const viewerSeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
+  const turnPlayerSeat = snapshot?.players.find((p) => p.id === turnPlayerId)?.seat ?? null;
+  const occupiedSeats = snapshot?.players.flatMap((player) =>
+    player.seat === null ? [] : [player.seat],
+  );
+  const occupiedSeatKey = occupiedSeats?.join(',') ?? '';
+  const placement = useMemo(() => {
+    if (turnPlayerSeat === null) return null;
+    const seats = occupiedSeatKey === '' ? [] : occupiedSeatKey.split(',').map(Number);
+    return seatDisplayPlacement(seats, viewerSeat, turnPlayerSeat);
+  }, [occupiedSeatKey, viewerSeat, turnPlayerSeat]);
+  const remote = turnPlayerId !== null && turnPlayerId !== myId && placement !== null;
 
   useEffect(() => {
-    if (!remote || turnPlayerId === null) {
+    if (!remote || turnPlayerId === null || placement === null) {
       feed.clear();
       audioTap.clear();
       setLive(false);
@@ -57,9 +68,10 @@ export function useRemoteRoll(
     setCupInPlay(false);
     const off = ws.onMessage((msg) => {
       if (msg.type === 'dice:frames' && msg.playerId === turnPlayerId) {
-        // Wire frames are canonical table space; the feed (and everything
-        // rendered from it) lives in this viewer's view space.
-        const viewFrames = msg.frames.map((f) => poseFrameFromCanonical(f, mySeat));
+        // Wire frames stay on the fixed canonical ring. Presentation rotates
+        // the complete throw to the same occupied-card placement used by the
+        // seat overlay and spectator parked koozie.
+        const viewFrames = msg.frames.map((frame) => poseFrameForSeatDisplay(frame, placement));
         feed.push(viewFrames);
         audioTap.push(viewFrames);
         setLive(true);
@@ -82,7 +94,7 @@ export function useRemoteRoll(
       feed.clear();
       audioTap.clear();
     };
-  }, [ws, feed, audioTap, remote, turnPlayerId, mySeat]);
+  }, [ws, feed, audioTap, remote, turnPlayerId, placement]);
 
   return {
     feed,

@@ -5,8 +5,8 @@ import {
   clampCardLeftPx,
   type OverlayRect,
   seatAnchorOffset,
-  seatDisplayOrder,
-  seatOverlayPosition,
+  seatDisplayPlacements,
+  seatOverlayPositionAtAngle,
   seatStripOrder,
   visibleSeatIndices,
 } from './layout';
@@ -91,8 +91,8 @@ function deriveSeats(snapshot: RoomSnapshot, myId: string | null) {
   }
   const mySeat = snapshot.players.find((p) => p.id === myId)?.seat ?? null;
   const visibleSeats = visibleSeatIndices(snapshot.phase, [...bySeat.keys()]);
-  const displaySeats = seatDisplayOrder(visibleSeats, mySeat);
-  return { bySeat, mySeat, visibleSeats, displaySeats };
+  const placements = seatDisplayPlacements(visibleSeats, mySeat);
+  return { bySeat, mySeat, visibleSeats, placements };
 }
 
 function seatCard(
@@ -119,22 +119,21 @@ export default function SeatOverlay(props: Props) {
 
   return (
     <div className="seat-overlay">
-      {derived.displaySeats.map((seatIndex, displaySlot) => {
-        const { leftPct, topPct, angle } = seatOverlayPosition(
-          displaySlot,
-          derived.displaySeats.length,
+      {derived.placements.map((placement) => {
+        const { leftPct, topPct, angle } = seatOverlayPositionAtAngle(
+          placement.angle,
           frame,
           viewport,
         );
         return (
           <ClampedSeatAnchor
-            key={seatIndex}
+            key={placement.seatIndex}
             leftPct={leftPct}
             topPct={topPct}
             angle={angle}
             frameWidth={frame.width}
           >
-            {seatCard(seatIndex, props, derived)}
+            {seatCard(placement.seatIndex, props, derived)}
           </ClampedSeatAnchor>
         );
       })}

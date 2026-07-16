@@ -1,6 +1,6 @@
 import type { BodyPose, Die, GameStatePublic, PlayerId, PoseFrame } from '@dice/shared';
-import { viewRotationY } from '../layout';
-import { rotateBodyPoseY } from '../seatTransform';
+import type { SeatDisplayPlacement } from '../layout';
+import { poseFrameForSeatDisplay, poseFrameToCanonical } from '../seatTransform';
 import { DICE_COUNT, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
 import { quaternionForFace } from './faceValue';
@@ -43,6 +43,7 @@ export function staticPoseFromDice(dice: Die[], keepIndices: number[] = []): Pos
  * (canonical table space, ADR 005) when one exists.
  */
 export interface HeldRollInput {
+  playerId: PlayerId;
   dice: Die[];
   kept: number[];
   restPose: BodyPose[] | null;
@@ -64,11 +65,21 @@ function isLiveTurnRoll(
 }
 
 function heldRoll(lastRoll: LiveRollInput): HeldRollInput {
-  return { dice: lastRoll.dice, kept: lastRoll.kept, restPose: lastRoll.restPose };
+  return {
+    playerId: lastRoll.playerId,
+    dice: lastRoll.dice,
+    kept: lastRoll.kept,
+    restPose: lastRoll.restPose,
+  };
 }
 
 function stoodRoll(rollToBeat: NonNullable<GameStatePublic['rollToBeat']>): HeldRollInput {
-  return { dice: rollToBeat.dice, kept: [], restPose: rollToBeat.restPose };
+  return {
+    playerId: rollToBeat.playerIds[0]!,
+    dice: rollToBeat.dice,
+    kept: [],
+    restPose: rollToBeat.restPose,
+  };
 }
 
 /**
@@ -93,20 +104,25 @@ export function pickHeldRollInput(
     return heldRoll(lastRoll);
   }
   if (turn && turn.dice.length >= DICE_COUNT) {
-    return { dice: turn.dice, kept: turn.keptIndices, restPose: turn.restPose };
+    return {
+      playerId: turn.playerId,
+      dice: turn.dice,
+      kept: turn.keptIndices,
+      restPose: turn.restPose,
+    };
   }
   if (rollToBeat) return stoodRoll(rollToBeat);
   return null;
 }
 
-/** Canonical-space rest pose → a view-local static frame for this viewer's seat. */
-export function restPoseToFrame(restPose: BodyPose[], mySeat: number): PoseFrame {
-  const angle = -viewRotationY(mySeat);
-  return {
+/** Canonical-space rest pose → this player's shared occupied-card placement. */
+export function restPoseToFrame(restPose: BodyPose[], placement: SeatDisplayPlacement): PoseFrame {
+  const canonicalFrame: PoseFrame = {
     t: 0,
-    bodies: [HIDDEN_CUP_POSE, ...restPose.map((p) => rotateBodyPoseY(p, angle))],
+    bodies: [HIDDEN_CUP_POSE, ...restPose],
     cupVisible: false,
   };
+  return poseFrameForSeatDisplay(canonicalFrame, placement);
 }
 
 /**
@@ -131,17 +147,24 @@ if (typeof window !== 'undefined') window.__diceDebug = diceDebug;
  */
 export function resolveTableRestPose(
   input: HeldRollInput,
-  mySeat: number,
+  placement: SeatDisplayPlacement,
 ): { frame: PoseFrame | null; source: 'authoritative' | 'slot-fallback' } {
   if (input.restPose && input.restPose.length === DICE_COUNT) {
     // No face re-check here: the server already validated pose ↔ values, and
     // re-reading faces from a slightly tilted settled quaternion is exactly
     // the misread that used to knock viewers into the slot fallback.
-    return { frame: restPoseToFrame(input.restPose, mySeat), source: 'authoritative' };
+    return { frame: restPoseToFrame(input.restPose, placement), source: 'authoritative' };
   }
   diceDebug.slotFallbackCount += 1;
   if (import.meta.env.DEV) {
     console.warn('[dice] slot-layout fallback', { dice: input.dice, kept: input.kept });
   }
-  return { frame: staticPoseFromDice(input.dice, input.kept), source: 'slot-fallback' };
+  const localFallback = staticPoseFromDice(input.dice, input.kept);
+  const canonicalFallback = localFallback
+    ? poseFrameToCanonical(localFallback, placement.seatIndex)
+    : null;
+  return {
+    frame: canonicalFallback ? poseFrameForSeatDisplay(canonicalFallback, placement) : null,
+    source: 'slot-fallback',
+  };
 }

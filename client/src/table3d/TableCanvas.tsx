@@ -17,10 +17,10 @@ import TieBreakerFlames from './TieBreakerFlames';
 import { DEFAULT_TABLE_THEME } from './theme';
 
 /**
- * The scene renders in the local player's view space: the viewer is always at
- * the bottom (+Z), the camera and table never rotate. Seat identity is applied
- * to pose DATA at the wire boundary instead (seatTransform.ts) — remote frames
- * arrive here already converted to this client's view space.
+ * The scene renders in the current viewer's presentation space: a seated viewer
+ * is always at the bottom (+Z), while every remote player's complete pose is
+ * rotated to their shared occupied-card placement. The camera/table never
+ * rotate; seatTransform.ts rotates pose data before it arrives here.
  */
 function SceneContent({
   dice,

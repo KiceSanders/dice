@@ -1,11 +1,11 @@
 import { MAX_SEATED_PLAYERS, type RoomPhase } from '@dice/shared';
 
 /**
- * Table felt scale (X × Z). MUST stay isotropic (x === z, a circle): streamed
- * pose frames are localized per viewer by rotating them around Y in seat-angle
- * increments (seatTransform.ts), and only a rotationally symmetric table maps
- * onto itself under that rotation — on the earlier 1.15×0.95 oval, another
- * player's settled dice landed on or past the rail. Guarded by a layout test.
+ * Table felt scale (X × Z). MUST stay isotropic (x === z, a circle): canonical
+ * pose frames rotate to each player's occupied-card presentation angle
+ * (seatTransform.ts), and only a rotationally symmetric table maps onto itself
+ * under that rotation — on the earlier 1.15×0.95 oval, another player's settled
+ * dice landed on or past the rail. Guarded by a layout test.
  */
 export const FELT_SCALE = { x: 0.95, z: 0.95 } as const;
 
@@ -95,11 +95,6 @@ export function seatRingAngle(seatIndex: number, seatCount = TABLE_SEAT_COUNT): 
   return Math.PI / 2 + (seatIndex * Math.PI * 2) / seatCount;
 }
 
-/** Rotate a server seat index so the local player always maps to display slot 0 (bottom). */
-export function displaySeatIndex(seatIndex: number, mySeat: number): number {
-  return (seatIndex - mySeat + TABLE_SEAT_COUNT) % TABLE_SEAT_COUNT;
-}
-
 /** Logical seat ids shown in each phase: all slots in the lobby, occupied only in play. */
 export function visibleSeatIndices(phase: RoomPhase, occupiedSeatIndices: number[]): number[] {
   if (phase === 'lobby') {
@@ -108,8 +103,16 @@ export function visibleSeatIndices(phase: RoomPhase, occupiedSeatIndices: number
   return [...new Set(occupiedSeatIndices)].sort((a, b) => a - b);
 }
 
+/** One source of truth for where a logical player appears to this viewer. */
+export interface SeatDisplayPlacement {
+  seatIndex: number;
+  displaySlot: number;
+  displayCount: number;
+  angle: number;
+}
+
 /** Rotate visible logical seats so the local player occupies display slot 0. */
-export function seatDisplayOrder(seatIndices: number[], mySeat: number | null): number[] {
+function orderedSeatIndices(seatIndices: number[], mySeat: number | null): number[] {
   const sorted = [...new Set(seatIndices)].sort((a, b) => a - b);
   if (mySeat === null) return sorted;
   const pivot = sorted.indexOf(mySeat);
@@ -118,17 +121,33 @@ export function seatDisplayOrder(seatIndices: number[], mySeat: number | null): 
 }
 
 /**
- * DOM angle for one logical seat in the viewer's current occupied-card layout.
- * Use this for visuals pinned to a seat card (not canonical/live pose data).
+ * Complete occupied-card layout for this viewer. Seat cards and every
+ * player-relative spectator visual consume these same placements.
  */
-export function seatDisplayAngle(
+export function seatDisplayPlacements(
+  seatIndices: number[],
+  mySeat: number | null,
+): SeatDisplayPlacement[] {
+  const ordered = orderedSeatIndices(seatIndices, mySeat);
+  return ordered.map((seatIndex, displaySlot) => ({
+    seatIndex,
+    displaySlot,
+    displayCount: ordered.length,
+    angle: seatAngle(displaySlot, ordered.length),
+  }));
+}
+
+/** Placement for one logical player, or null when that seat is not visible. */
+export function seatDisplayPlacement(
   seatIndices: number[],
   mySeat: number | null,
   targetSeat: number,
-): number | null {
-  const displaySeats = seatDisplayOrder(seatIndices, mySeat);
-  const displaySlot = displaySeats.indexOf(targetSeat);
-  return displaySlot < 0 ? null : seatAngle(displaySlot, displaySeats.length);
+): SeatDisplayPlacement | null {
+  return (
+    seatDisplayPlacements(seatIndices, mySeat).find(
+      (placement) => placement.seatIndex === targetSeat,
+    ) ?? null
+  );
 }
 
 /**
@@ -136,7 +155,9 @@ export function seatDisplayAngle(
  * the local player last (adjacent to their controls below the table).
  */
 export function seatStripOrder(seatIndices: number[], mySeat: number | null): number[] {
-  const displayOrder = seatDisplayOrder(seatIndices, mySeat);
+  const displayOrder = seatDisplayPlacements(seatIndices, mySeat).map(
+    (placement) => placement.seatIndex,
+  );
   if (mySeat === null || displayOrder[0] !== mySeat) return displayOrder;
   return [...displayOrder.slice(1), mySeat];
 }
@@ -186,7 +207,15 @@ export function seatOverlayPosition(
   frame: OverlayRect,
   viewport: OverlayRect,
 ): { leftPct: number; topPct: number; angle: number } {
-  const angle = seatAngle(seatIndex, seatCount);
+  return seatOverlayPositionAtAngle(seatAngle(seatIndex, seatCount), frame, viewport);
+}
+
+/** Position a seat card from the shared player display placement angle. */
+export function seatOverlayPositionAtAngle(
+  angle: number,
+  frame: OverlayRect,
+  viewport: OverlayRect,
+): { leftPct: number; topPct: number; angle: number } {
   const cx = ((viewport.left + viewport.width / 2 - frame.left) / frame.width) * 100;
   const cy = ((viewport.top + viewport.height / 2 - frame.top) / frame.height) * 100;
   const rx = (viewport.width / 2 / frame.width) * 100 + OVERLAY_MARGIN_X;

@@ -67,20 +67,19 @@ during a turn calls `forceStand` (stand on settled dice, or forfeit if none).
 ## Seat/view transform
 
 The 3D scene always renders in the local player's view space (viewer at the bottom; the
-scene never rotates). Seat identity is applied to pose data **at the wire boundary**:
-`client/src/table3d/seatTransform.ts` rotates outgoing frames to canonical space and
-incoming frames into the local view. If dice appear in the wrong place for one seat only,
-look there.
+scene never rotates). Seat identity is applied to pose data **at the wire/display
+boundaries**: `client/src/table3d/seatTransform.ts` rotates outgoing frames onto the fixed
+canonical ring, then rotates incoming canonical frames to the originating player's shared
+occupied-card placement for that viewer. If dice appear in the wrong place for one seat
+only, look there.
 
-Two angle systems are intentionally separate. The eight logical seats form a uniform
-full-circle `seatRingAngle` used for canonical live dice/cup pose rotations and the local
-physics dock; uniform spacing is what makes every viewer-to-viewer rotation compose. HTML
-seat cards use `seatAngle` instead: the lobby shows all eight, while play and round-end show
-occupied seats only and reflow them across the lower 2→10 o'clock arc. Never use the
-reflowing card angle for pose canonicalization. One presentation-only exception is the
-spectator `ParkedKoozie`: `seatDisplayAngle` gives it the active occupied card's angle, and
-`koozieRestPositionAtAngle` pins it directly in front of that card. This angle is never
-streamed, persisted, or applied to dice poses.
+Two angle systems remain deliberately separate. The eight logical seats form a uniform
+full-circle `seatRingAngle` used only for canonical live/rest poses and the local physics
+dock. `seatDisplayPlacements` is the single presentation source: the lobby shows all eight,
+while play and round-end show occupied seats reflowed across the lower 2→10 o'clock arc.
+Seat cards and the spectator koozie use its angle directly; streamed and static canonical
+poses use `poseFrameForSeatDisplay` to rotate the complete player-authored frame to it.
+Presentation angles are never streamed or persisted.
 
 ## Audio
 

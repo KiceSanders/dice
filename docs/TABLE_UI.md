@@ -25,14 +25,14 @@ settled pose because `rollToBeat` still stores the first holder's dice.
 Spectators and the incoming roller see it through `StaticDiceView`, fed by **one resolver**:
 `resolveTableRestPose` in `staticPose.ts` (ADR 005). Its priority is the server-validated
 `restPose` carried on `turn:rolled`, optionally refined by `turn:stand`, and every snapshot
-(canonical space → rotated to the
-viewer's seat), with the values-only slot layout as a last resort that logs
+(canonical space → rotated to the originating player's shared occupied-card placement),
+with the values-only slot layout as a last resort that logs
 `[dice] slot-layout fallback` in dev and counts on `window.__diceDebug`. **Adding a new
 pose source means adding a tier inside that resolver — never a new per-client capture
 path**; the old opportunistic captures (roller sim / streamed-frame snapshots) were exactly
-the recurring center-line regression and were deleted. Note the kept-dice consequence: with
-an authoritative pose, kept dice render at the *roller's* rail edge for every viewer (same
-as live streaming); only the slot fallback rails them viewer-locally.
+the recurring center-line regression and were deleted. The originating player stays with
+every held-pose input, so authoritative and fallback kept dice both render at that player's
+reflowed card edge for every viewer.
 
 **Turn-handoff invariant:** while that previous hand remains visible, the incoming
 roller's idle physics dice stay hidden in the docked cup. Local pending keeps are owned by
@@ -218,18 +218,19 @@ values in mesh components.
 ## Table geometry — load-bearing invariants (all test-guarded)
 
 - **The felt is a circle** (`FELT_SCALE.x === FELT_SCALE.z`, guarded in `layout.test.ts`).
-  Streamed poses are localized per viewer by rotating around Y in seat-angle steps
-  (`seatTransform.ts`); only a rotationally symmetric table maps onto itself under that
-  rotation. Re-ovalizing the table puts other players' dice on the rail.
+  Canonical poses rotate around Y to the originating player's occupied-card presentation
+  angle (`seatTransform.ts`); only a rotationally symmetric table maps onto itself under
+  that rotation. Re-ovalizing the table puts other players' dice on the rail.
 - **The parked koozie docks outside the containment wall**; dice cannot reach it.
   The roller's interactive cup uses the fixed local physics dock
   (`koozieRestPosition`, display seat 0). A screen-space **grab guard**
   (`pointerBelowNearDockGuard`) ensures keep-clicks on the near rail always go to
   the die. Spectators instead see a non-interactive `ParkedKoozie` whenever they
   are not the roller and no remote throw is streaming. That presentation-only cup
-  must use the active card's `seatDisplayAngle` and `koozieRestPositionAtAngle`, so
-  it stays directly in front of the player who is throwing after occupied seats
-  reflow. Framing + guard geometry is pinned by `diceLayout.test.ts`; see ADR 003.
+  uses the active player's shared `SeatDisplayPlacement` angle with
+  `koozieRestPositionAtAngle`, so it stays directly in front of the player who is
+  throwing after occupied seats reflow. The same placement rotates streamed and static
+  spectator poses. Framing + guard geometry is pinned by `diceLayout.test.ts`; see ADR 003.
 - **The rail apron** (in `PokerTableMesh`) is the occluder that hides the docked
   cup's sunken body on side seats — remove it and the cup floats through the table
   edge. Seat 0 only needs the rim band in frame.
@@ -260,8 +261,10 @@ values in mesh components.
   local player is always the 6 o'clock card). Cards carry **no actions** — host
   controls (kick) live in `HostPanel` below the table.
 - Room capacity is a fixed eight logical seats. The lobby displays all eight slots; during
-  play and round end, `visibleSeatIndices` supplies occupied slots only. `seatDisplayOrder`
-  rotates that list around the local player, and adding/removing a player reflows the cards.
+  play and round end, `visibleSeatIndices` supplies occupied slots only.
+  `seatDisplayPlacements` is the single source of each player's display slot, count, and
+  angle for the current viewer. Seat cards, the spectator koozie, streamed remote throws,
+  and static/fallback poses all consume it; adding/removing a player reflows them together.
 - At ≤640px seats stack below the canvas. The breakpoint exists twice on purpose:
   `SEAT_STACK_QUERY` in `useMediaQuery.ts` and the `@media` block in `index.css` — keep
   them identical.
@@ -304,14 +307,13 @@ Think of the table frame as a clock face:
   camera stays `manual` (r3f's responsive resize would overwrite the pinned aspect and
   view offset), and the fog color (`theme.background`) must equal the page `--bg` or a
   visible horizon seam appears where the felt fades into the page.
-- **Card angles are not pose angles.** The fixed eight logical seats use the uniform
-  full-circle `seatRingAngle` for live dice/cup pose canonicalization and the roller's
-  physics dock; the occupied card list independently reflows on the lower arc. Never
-  use the card angle to canonicalize streamed poses. The deliberate exception is the
-  read-only spectator `ParkedKoozie`: it is seat-card chrome, not a live pose, and must
-  use `seatDisplayAngle` plus `koozieRestPositionAtAngle`. Never derive it from
-  `displaySeatIndex`/`seatRingAngle`, or it will sit beside the throwing player's card
-  on sparse tables. `diceLayout.test.ts` framing-checks both angle systems.
+- **Canonical angles are not presentation angles.** The fixed eight logical seats use the
+  uniform full-circle `seatRingAngle` only for outbound canonicalization, persisted rest
+  poses, and the roller's local physics dock. Spectator presentation uses the player's
+  shared occupied-card placement: `poseFrameForSeatDisplay` rotates the complete canonical
+  frame (cup, scattered dice, and kept rail) to that angle, while `ParkedKoozie` uses the
+  same angle directly. Never canonicalize outbound data with a reflowing placement, and
+  never render a player-relative spectator visual from `seatRingAngle` directly.
 
 Room chrome: the table frame sits at the very top of the page (no header above it —
 vertical space is play space). The room code / invite link / connection text live in a
