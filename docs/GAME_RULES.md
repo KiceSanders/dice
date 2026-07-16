@@ -64,10 +64,10 @@ Scoring lives in `shared/src/game/score.ts`; ordering in `compare.ts`.
 - **Straight payout** (`settings.straightPayout`, applied in `engine.applyStraightPayout`):
   the moment a roll settles showing a straight, every other seated player immediately pays
   the roller from their own pile. Each transfer is
-  `min(amountPerPlayer, payer.chips, roller.chips)` — reciprocal, so a short stack caps
-  what either side can collect from the other. Chips never go negative. Zero-sum, pot
-  untouched, at most once per turn, and it fires on the roll (the turn then continues
-  normally). Replayed rolls re-apply it identically.
+  `min(amountPerPlayer, payer.chips)` — short payers pay what they have; a short or broke
+  roller still collects the full amount from each solvent payer. Chips never go negative.
+  Zero-sum, pot untouched, at most once per turn, and it fires on the roll (the turn then
+  continues normally). Replayed rolls re-apply it identically.
 
 ## Classic Pot
 
@@ -104,8 +104,8 @@ the payout fires in `engine.settleRoll` via `applyFirstRollYahtzeePayout`
   of a kind with `rollsUsed === 1`. **Wilds count** (`6,6,6,1,1` and
   `1,1,1,1,1` both qualify). Later-roll Yahtzees do not.
 - **Payout**: every other seated player immediately pays the roller
-  `min(amountPerPlayer, payer.chips, roller.chips)` — the same reciprocal cap
-  as the straight payout. Zero-sum, pot untouched.
+  `min(amountPerPlayer, payer.chips)` — the same payer-only cap as the straight
+  payout. Zero-sum, pot untouched.
 - **Independent of the Yahtzee bonus**: a first-roll Yahtzee still offers the
   sixth-die bonus throw afterward; both payouts can fire in the same turn.
 - **Settings**: `settings.firstRollYahtzeePayout = { enabled, amountPerPlayer }`.
@@ -129,8 +129,8 @@ payout) and the payout in `engine.applyYahtzeeBonusPayout`.
 - **Match**: the bonus die must **literally equal the quint's scored face** — a
   rolled 1 is NOT wild here (quint of 6s needs a 6; a 1 misses). On a match,
   every other seated player immediately pays the roller
-  `min(amountPerPlayer, payer.chips, roller.chips)` — the same reciprocal cap
-  as the straight payout. Zero-sum, pot untouched. On a miss nothing happens.
+  `min(amountPerPlayer, payer.chips)` — the same payer-only cap as the straight
+  payout. Zero-sum, pot untouched. On a miss nothing happens.
 - **Turn flow**: while the bonus is pending, re-rolling and voluntary standing
   are rejected — throw the bonus die first. After the bonus settles (**hit or
   miss**), the roller **stands automatically** on the five-die Yahtzee. A quint

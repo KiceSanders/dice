@@ -80,8 +80,8 @@ describe('straight payout (instant zero-sum side payment)', () => {
     expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.pot).toBe(before);
   });
 
-  it('reciprocal clamp: rich and poor transfer the same max either way', () => {
-    // After ante: rich 99, poor 4. Nominal payout 5 → each direction capped at 4.
+  it('payer-only clamp: short payer pays less; short roller still collects full', () => {
+    // After ante: rich 99, poor 4. Nominal payout 5.
     const richRolls = makePlayers([100, 5]);
     const beforeRich = richRolls.reduce((sum, p) => sum + p.chips, 0);
     const { engine: e1, events: ev1 } = makeEngine(richRolls, {
@@ -90,7 +90,7 @@ describe('straight payout (instant zero-sum side payment)', () => {
     e1.start();
     expect(richRolls.map((p) => p.chips)).toEqual([99, 4]);
 
-    expect(roll(e1, 'p0', LOW_STRAIGHT)).toBeNull(); // rich rolls
+    expect(roll(e1, 'p0', LOW_STRAIGHT)).toBeNull(); // rich rolls — short payer pays 4
     expect(ofType(ev1, 'straightPaid')[0]).toMatchObject({
       total: 4,
       payments: [{ playerId: 'p1', amount: 4 }],
@@ -109,14 +109,14 @@ describe('straight payout (instant zero-sum side payment)', () => {
     e2.stand('p0');
     expect(poorRolls.map((p) => p.chips)).toEqual([99, 4]);
 
-    expect(roll(e2, 'p1', HIGH_STRAIGHT)).toBeNull(); // poor rolls
+    expect(roll(e2, 'p1', HIGH_STRAIGHT)).toBeNull(); // poor rolls — collects full 5
     expect(ofType(ev2, 'straightPaid')[0]).toMatchObject({
-      total: 4,
-      payments: [{ playerId: 'p0', amount: 4 }],
+      total: 5,
+      payments: [{ playerId: 'p0', amount: 5 }],
     });
-    // Straight pays 4, then the round ends (p0's pair beats the straight's group)
-    // and p0 takes the 2-chip pot → 99 - 4 + 2 = 97.
-    expect(poorRolls.map((p) => p.chips)).toEqual([97, 8]);
+    // Straight pays 5, then the round ends (p0's pair beats the straight's group)
+    // and p0 takes the 2-chip pot → 99 - 5 + 2 = 96.
+    expect(poorRolls.map((p) => p.chips)).toEqual([96, 9]);
     expect(poorRolls.reduce((sum, p) => sum + p.chips, 0) + e2.pot).toBe(beforePoor);
   });
 

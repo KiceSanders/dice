@@ -68,7 +68,7 @@ describe('first-roll Yahtzee payout (instant zero-sum side payment)', () => {
     expect(players.map((p) => p.chips)).toEqual([98, 99]);
   });
 
-  it('respects the toggle and reciprocal short-stack cap', () => {
+  it('respects the toggle and payer-only short-stack cap', () => {
     const players = makePlayers([100, 5, 100]);
     const before = players.reduce((sum, p) => sum + p.chips, 0);
     const { engine, events } = makeEngine(players, {
@@ -93,6 +93,25 @@ describe('first-roll Yahtzee payout (instant zero-sum side payment)', () => {
     disabled.engine.start();
     expect(roll(disabled.engine, 'p0', QUINT)).toBeNull();
     expect(ofType(disabled.events, 'firstRollYahtzeePaid')).toHaveLength(0);
+  });
+
+  it('short roller still collects the full amount from a solvent payer', () => {
+    // After ante: poor 4, rich 99. Nominal payout 10 → poor collects full 10.
+    const players = makePlayers([5, 100]);
+    const before = players.reduce((sum, p) => sum + p.chips, 0);
+    const { engine, events } = makeEngine(players, {
+      settings: payoutSettings({ amountPerPlayer: 10 }),
+    });
+    engine.start();
+    expect(players.map((p) => p.chips)).toEqual([4, 99]);
+
+    expect(roll(engine, 'p0', QUINT)).toBeNull();
+    expect(ofType(events, 'firstRollYahtzeePaid')[0]).toMatchObject({
+      total: 10,
+      payments: [{ playerId: 'p1', amount: 10 }],
+    });
+    expect(players.map((p) => p.chips)).toEqual([14, 89]);
+    expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.pot).toBe(before);
   });
 
   it('replays the payout identically after crash recovery', () => {

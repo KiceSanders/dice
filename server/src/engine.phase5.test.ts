@@ -112,7 +112,7 @@ describe('sub-rounds: ties', () => {
     // Pot: 3+3 antes + 1 + 1 sub = 8.
     expect(engine.pot).toBe(8);
 
-    turn(engine, 'p1', [6, 6, 6, 6, 1]); // four 6s — goes first (CCW), wins
+    turn(engine, 'p1', [6, 6, 6, 6, 2]); // four 6s — goes first (CCW), wins
     turn(engine, 'p0', [2, 2, 1, 3, 4]);
     const end = ofType(events, 'roundEnded')[0]!;
     expect(end.winnerId).toBe('p1');

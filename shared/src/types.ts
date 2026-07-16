@@ -33,8 +33,7 @@ export type StraightKind = 'none' | 'straight';
 /**
  * Instant side payment when a roll settles showing a straight (once per turn):
  * every other seated player immediately pays the roller from their own pile,
- * each transfer min(amount, payer stack, roller stack). Separate from the
- * round-winner pot.
+ * each transfer min(amount, payer stack). Separate from the round-winner pot.
  */
 export interface StraightPayoutConfig {
   enabled: boolean;
@@ -58,7 +57,7 @@ export interface ClassicPotConfig {
  * roller throws a temporary sixth die while the five-die quint stays on the
  * rail. If it literally matches the quint's scored face (a rolled 1 is NOT
  * wild here), every other seated player pays the roller min(amount, payer
- * stack, roller stack). The roller then stands automatically. Zero-sum.
+ * stack). The roller then stands automatically. Zero-sum.
  * See docs/GAME_RULES.md "Yahtzee bonus".
  */
 export interface YahtzeeBonusConfig {

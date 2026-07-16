@@ -550,9 +550,9 @@ export class GameEngine {
   /**
    * Instant straight side payment (docs/GAME_RULES.md "Straights"): the moment a roll
    * settles showing a straight, every other seated player pays the roller from
-   * their own pile — each transfer is min(amount, payer stack, roller stack) so
-   * the matchup stays reciprocal. Zero-sum, pot untouched, at most once per turn.
-   * The turn then continues as normal.
+   * their own pile — each transfer is min(amount, payer stack). Short/broke rollers
+   * still collect in full from solvent payers. Zero-sum, pot untouched, at most
+   * once per turn. The turn then continues as normal.
    */
   private applyStraightPayout(turn: CurrentTurn): void {
     if (turn.straightPaid || !turn.dice) return;
@@ -572,8 +572,8 @@ export class GameEngine {
     let total = 0;
     for (const p of this.getSeated()) {
       if (p.id === turn.playerId || p.seat === null) continue;
-      // Reciprocal: neither side pays more than the other could pay back.
-      const paid = Math.min(perPlayer, p.chips, roller.chips);
+      // Payer-only: short payers pay what they have; short rollers still collect full.
+      const paid = Math.min(perPlayer, p.chips);
       p.chips -= paid;
       total += paid;
       payments.push({ playerId: p.id, amount: paid });
@@ -706,8 +706,8 @@ export class GameEngine {
 
   /**
    * Yahtzee bonus payout: mirrors applyStraightPayout — every other seated
-   * player pays min(amount, payer stack, roller stack). Zero-sum, pot
-   * untouched. Settings re-read here so a mid-bonus toggle-off pays nothing.
+   * player pays min(amount, payer stack). Zero-sum, pot untouched. Settings
+   * re-read here so a mid-bonus toggle-off pays nothing.
    */
   private applyYahtzeeBonusPayout(turn: CurrentTurn): void {
     const config = this.settings.yahtzeeBonus;
@@ -719,8 +719,8 @@ export class GameEngine {
     let total = 0;
     for (const p of this.getSeated()) {
       if (p.id === turn.playerId || p.seat === null) continue;
-      // Reciprocal: neither side pays more than the other could pay back.
-      const paid = Math.min(config.amountPerPlayer, p.chips, roller.chips);
+      // Payer-only: short payers pay what they have; short rollers still collect full.
+      const paid = Math.min(config.amountPerPlayer, p.chips);
       p.chips -= paid;
       total += paid;
       payments.push({ playerId: p.id, amount: paid });

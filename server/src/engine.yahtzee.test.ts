@@ -144,7 +144,7 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
     expect(ofType(events, 'stood')[0]).toMatchObject({ playerId: 'p0' });
   });
 
-  it('payments clamp reciprocally to short stacks — chips never go negative', () => {
+  it('payments clamp to short payers — chips never go negative', () => {
     const players = makePlayers([100, 5, 100]); // p1 has 4 left after the 1-chip ante
     const before = players.reduce((sum, p) => sum + p.chips, 0);
     const { engine, events } = makeEngine(players, {
@@ -163,6 +163,27 @@ describe('Yahtzee bonus (single-die throw, instant zero-sum side payment)', () =
       ],
     });
     expect(players.map((p) => p.chips)).toEqual([113, 0, 89]);
+    expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.pot).toBe(before);
+  });
+
+  it('short roller still collects the full amount from a solvent payer', () => {
+    // After ante: poor 4, rich 99. Nominal payout 10 → poor collects full 10.
+    const players = makePlayers([5, 100]);
+    const before = players.reduce((sum, p) => sum + p.chips, 0);
+    const { engine, events } = makeEngine(players, {
+      settings: bonusSettings({ amountPerPlayer: 10 }),
+    });
+    engine.start();
+    expect(players.map((p) => p.chips)).toEqual([4, 99]);
+
+    expect(roll(engine, 'p0', QUINT)).toBeNull();
+    expect(bonusRoll(engine, 'p0', 6)).toBeNull();
+
+    expect(ofType(events, 'yahtzeeBonusPaid')[0]).toMatchObject({
+      total: 10,
+      payments: [{ playerId: 'p1', amount: 10 }],
+    });
+    expect(players.map((p) => p.chips)).toEqual([14, 89]);
     expect(players.reduce((sum, p) => sum + p.chips, 0) + engine.pot).toBe(before);
   });
 

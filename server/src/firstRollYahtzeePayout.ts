@@ -15,8 +15,9 @@ export interface FirstRollYahtzeePayment {
 }
 
 /**
- * Applies the first-roll Yahtzee instant payout. The same reciprocal cap as
- * other instant player-to-player bets keeps stacks non-negative and zero-sum.
+ * Applies the first-roll Yahtzee instant payout. Same payer-only cap as other
+ * instant player-to-player bets: short payers pay what they have; short rollers
+ * still collect in full. Stacks stay non-negative and zero-sum.
  */
 export function applyFirstRollYahtzeePayout(
   config: FirstRollYahtzeePayoutConfig,
@@ -32,7 +33,7 @@ export function applyFirstRollYahtzeePayout(
   let total = 0;
   for (const payer of seated) {
     if (payer.id === roller.id || payer.seat === null) continue;
-    const amount = Math.min(config.amountPerPlayer, payer.chips, roller.chips);
+    const amount = Math.min(config.amountPerPlayer, payer.chips);
     payer.chips -= amount;
     total += amount;
     payments.push({ playerId: payer.id, amount });
