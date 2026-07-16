@@ -159,11 +159,14 @@ export default function Table({
         onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
         onPointerLeave={() => onTablePointer?.(false)}
       >
+        {/* Tie-breaker flames are snapshot state, not a one-shot event, so
+            every viewer — roller, spectator, mid-turn joiner — gets them. */}
         <TableCanvas
           dice={dice}
           remoteFeed={remoteFeed}
           heldPose={heldPose}
           parkedKoozieAngle={parkedKoozieAngle}
+          tieBreaker={Boolean(snapshot.game?.subRound)}
         />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>

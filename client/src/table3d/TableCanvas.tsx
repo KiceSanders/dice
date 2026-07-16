@@ -13,6 +13,7 @@ import type { TableDiceProps } from './dice/types';
 import FixedCamera from './FixedCamera';
 import { FELT_HALF_EXTENT, SEAT_VIEW } from './layout';
 import PokerTableMesh from './PokerTableMesh';
+import TieBreakerFlames from './TieBreakerFlames';
 import { DEFAULT_TABLE_THEME } from './theme';
 
 /**
@@ -26,12 +27,15 @@ function SceneContent({
   remoteFeed,
   heldPose,
   parkedKoozieAngle,
+  tieBreaker,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
   /** Active turn card's occupied-seat angle for the spectator cup; null to hide. */
   parkedKoozieAngle?: number | null;
+  /** Cosmetic flame ring while a tie-breaker sub-round is active. */
+  tieBreaker?: boolean;
 }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
@@ -71,6 +75,7 @@ function SceneContent({
       <pointLight position={[0.4, 1.6, 1.2]} intensity={0.12} color="#f2b441" />
 
       <PokerTableMesh />
+      {tieBreaker && <TieBreakerFlames />}
 
       <Physics
         gravity={[0, gravityY, 0]}
@@ -105,6 +110,7 @@ interface Props {
   remoteFeed?: RemoteRollFeed;
   heldPose?: PoseFrame | null;
   parkedKoozieAngle?: number | null;
+  tieBreaker?: boolean;
 }
 
 /** Cap pixel ratio on high-DPR displays so Chromebook-class GPUs keep frame budget. */
@@ -119,6 +125,7 @@ export default function TableCanvas({
   remoteFeed,
   heldPose = null,
   parkedKoozieAngle = null,
+  tieBreaker = false,
 }: Props) {
   return (
     <Canvas
@@ -146,6 +153,7 @@ export default function TableCanvas({
           remoteFeed={remoteFeed}
           heldPose={heldPose}
           parkedKoozieAngle={parkedKoozieAngle}
+          tieBreaker={tieBreaker}
         />
       </Suspense>
     </Canvas>

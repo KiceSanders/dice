@@ -75,6 +75,18 @@ The straight celebration already flows through it — copy that pattern:
 **Never** thread a new effect prop through `Room → Table → TableCanvas → renderers`.
 That prop-drilling pattern was removed deliberately.
 
+**Persistent state-driven visuals are not events.** If the visual reflects ongoing
+snapshot state rather than a one-shot moment (event replay is time-bounded, so a
+mid-state joiner would miss it), drive it from the snapshot instead: Table derives a
+plain presentational prop and passes it into `TableCanvas`, exactly like
+`parkedKoozieAngle`. The tie-breaker flame ring (`TieBreakerFlames`, mounted in
+`SceneContent` beside `PokerTableMesh` while `game.subRound` is set) is the pattern —
+scene content outside the dice renderers exists for every viewer, so the
+three-renderer rule is satisfied by construction. Its placement constants live in a
+pure module (`flameRing.ts`) whose test framing-checks the ring's extreme points, per
+the anchor rules below. The event-prop prohibition above is about one-shot *effects*
+being threaded into the dice renderers, not about persistent presentational state.
+
 The animated pot follows this path with `chips-to-pot` and `pot-to-winner` events, and
 instant player-to-player payouts (straight payments today) with `chips-between-players` —
 a new instant side bet animates for free by setting `lastTransfer` in the store reducer;
@@ -161,6 +173,40 @@ is in frame at every browser size (the viewport is always 16:9 — see Layout be
 - Physics props (knockable chips etc.) are a deliberate escalation: prefer non-physics
   meshes/animations first. Anything entering the rapier world must follow ADR 001/002
   (procedural colliders from layout constants, `liveBody()` guards).
+
+## Shader effects on/around the table (fire, glow, celebrations)
+
+The tie-breaker flames (`TieBreakerFlames.tsx` + `flameRing.ts`) are the worked example;
+reuse its recipe for any future effect that surrounds or overlays the table:
+
+- **Billboarded instanced cards beat volumetric shaders here.** The camera never moves
+  (`SEAT_VIEW`), so camera-facing quads can bake their facing into instance matrices
+  once — zero per-frame CPU, one draw call, and cards never go edge-on the way a
+  cylinder/sheet does. Two staggered rows at different radii give parallax that reads
+  as 3D volume. Raymarched volumetrics blow the Chromebook GPU budget (ADR 002) — don't.
+  Set `frustumCulled={false}` on instanced meshes: the unit geometry's bounds know
+  nothing about instance transforms.
+- **Additive layers, `depthWrite: false`, depth-test on.** The opaque table then
+  occludes the effect naturally (far side peeks above the rim, near side climbs the
+  apron), and additive blending makes overlapping tongues/particles glow instead of
+  stacking flat alpha.
+- **No cutoff lines: alpha must reach exactly zero before every geometry edge.** A
+  visible flat edge means the fade ends at the edge instead of before it. Fades that
+  must stay invisible can hide behind the rail apron (its bottom is `surfaceY − 0.35`).
+- **Vertical frame headroom around the table is wildly asymmetric** (measured with
+  `projectToNdc`): ≈ 0.53 world units above the felt at the far arc, ≈ 1.3 at the
+  sides, ≈ 2.1 at the near arc. Tall effects must taper toward the far arc (see
+  `cardTipY`) or they leave frame / wave over the top-band HUD widgets. Encode the
+  bound in constants and framing-test every extreme point (`flameRing.test.ts`).
+- **Ring-shaped noise must wrap seamlessly:** sample 3D noise on a circle
+  (`vec3(cos a, sin a, y − t)`), never raw UV.x — that leaves a seam at the wrap.
+- **Deterministic per-instance jitter** (hash from index), constants in a pure module
+  with tests beside it — no `Math.random`, so layouts are testable and stable.
+- **Reduced motion:** freeze the shader's time uniform at a fixed value instead of
+  animating; the state still reads.
+- **Scene lights are a shared budget** (forward renderer — every light costs every lit
+  material). The flames add one flickering under-table point light; a future effect
+  should reuse or replace it, not stack more.
 
 ## Reskinning → edit or pass a theme
 
