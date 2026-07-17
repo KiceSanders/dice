@@ -1,0 +1,12 @@
+.git
+.agents
+.claude
+.codex
+.cursor
+client/dist
+coverage
+node_modules
+server/dist
+server/logs
+*.log
+.env*

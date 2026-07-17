@@ -2,7 +2,7 @@
 // Usage: node scripts/smoke-ws.mjs (server must be running on :3001)
 import WebSocket from 'ws';
 
-const url = process.env.WS_URL ?? 'ws://localhost:3001';
+const url = process.env.WS_URL ?? 'ws://localhost:3001/ws';
 const ws = new WebSocket(url);
 
 const reply = () =>

@@ -19,7 +19,7 @@ describe('WS integration: throw handshake', () => {
 
   beforeAll(async () => {
     server = await startTestServer();
-    url = `ws://127.0.0.1:${server.port}`;
+    url = `ws://127.0.0.1:${server.port}/ws`;
     host = new FakeClient('host');
     guest = new FakeClient('guest');
     await Promise.all([host.connect(url), guest.connect(url)]);

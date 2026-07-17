@@ -1,8 +1,10 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import Playground from './dev/Playground';
 import Home from './pages/Home';
-import Room from './pages/Room';
 import { AppProvider } from './state/context';
+
+const Room = lazy(() => import('./pages/Room'));
+const Playground = import.meta.env.DEV ? lazy(() => import('./dev/Playground')) : null;
 
 function AppRoutes() {
   return (
@@ -18,10 +20,12 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {import.meta.env.DEV && <Route path="/dev/play" element={<Playground />} />}
-        <Route path="/*" element={<AppRoutes />} />
-      </Routes>
+      <Suspense fallback={<main className="page">Loading…</main>}>
+        <Routes>
+          {Playground && <Route path="/dev/play" element={<Playground />} />}
+          <Route path="/*" element={<AppRoutes />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

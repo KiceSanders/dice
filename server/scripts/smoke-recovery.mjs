@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 
 const PORT = process.env.PORT ?? '3017';
-const url = `ws://localhost:${PORT}`;
+const url = `ws://localhost:${PORT}/ws`;
 const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const logDir = mkdtempSync(path.join(os.tmpdir(), 'dice-smoke-logs-'));
 

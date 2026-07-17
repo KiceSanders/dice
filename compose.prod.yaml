@@ -1,0 +1,19 @@
+services:
+  dice3:
+    build:
+      context: .
+    container_name: dice3
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      LOG_DIR: /data
+    volumes:
+      - dice3-data:/data
+
+volumes:
+  dice3-data:

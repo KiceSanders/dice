@@ -3,7 +3,7 @@
 // Prints JSON with roomId + per-player localStorage payloads for browser tabs.
 import WebSocket from 'ws';
 
-const url = process.env.WS_URL ?? 'ws://localhost:3001';
+const url = process.env.WS_URL ?? 'ws://localhost:3001/ws';
 
 function client(name) {
   const ws = new WebSocket(url);

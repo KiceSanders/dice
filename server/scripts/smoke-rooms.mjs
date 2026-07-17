@@ -3,7 +3,7 @@
 // Usage: node scripts/smoke-rooms.mjs (server must be running on :3001)
 import WebSocket from 'ws';
 
-const url = process.env.WS_URL ?? 'ws://localhost:3001';
+const url = process.env.WS_URL ?? 'ws://localhost:3001/ws';
 let failures = 0;
 
 function assert(cond, label) {

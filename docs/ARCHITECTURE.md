@@ -16,7 +16,10 @@ Consequence: a change in `shared/` immediately affects both sides — typecheck 
 (`npm run check`) after touching it.
 
 Dev: `npm run dev` → server :3001, client :5173 (Vite proxies `/ws` + `/health`).
-Prod: `npm run build && npm start` → one server on :3001 serving the built client.
+Prod: `npm run build && npm start` → one server on :3001 serving the built client and the
+same-origin `/ws` endpoint. The public socket accepts only `/ws`, caps incoming frames at
+64 KiB, and rejects cross-site browser origins (extra trusted origins can be listed in
+`ALLOWED_ORIGINS`).
 
 ## The roll data flow (the spine of the app)
 
@@ -100,6 +103,12 @@ a single snapshot at every round end. Boot recovery replays the log through the 
 reducers the live path uses (`applyReplayEvent` → engine `replayRolled`/`stand`/
 `forceStand`, everything else → `room.applyEvent`). Replay re-applies straight payouts and
 Classic Pot donations/wins — chip movements are reproduced, not stored.
+
+Production is deliberately **single-instance**: rooms, connections, timers, and live pose
+relay state are in memory. `LOG_DIR` must be on a persistent volume (the container default
+is `/data`) so a restart can recover room logs. Do not add replicas or zero-downtime overlap
+without first moving coordination and persistence to shared infrastructure; two instances
+would route players in the same room to different authoritative engines.
 
 ## Big files — extract, don't grow
 
