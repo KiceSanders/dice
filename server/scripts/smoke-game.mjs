@@ -164,8 +164,17 @@ assert(
   state.snapshot.game.currentTurn.rollCap === 2,
   'roll-cap pressure: second player capped at 2',
 );
-// Second player: pair of 3s — beats the pair of 2s, no tie, auto-stands at the cap.
-await playTurn(byId(second), second, [3, 3, 2, 4, 6], [3, 3, 6, 4, 2]);
+// Second player: first roll loses (high straight → weak one-6 group), then pair of 3s
+// beats the roll-to-beat → last-player auto-stand (no voluntary stand / no third throw).
+const secondClient = byId(second);
+const rLose = await throwDice(secondClient, second, [], [2, 3, 4, 5, 6]);
+assert(rLose.dice.length === 5 && rLose.rollNumber === 1, 'ann rolled 5 dice');
+await secondClient.nextWhere(
+  (m) => m.type === 'straight:paid' && m.playerId === second,
+  'losing straight payout resolved',
+);
+const rWin = await throwDice(secondClient, second, [], [3, 3, 2, 4, 6]);
+assert(rWin.rollNumber === 2, 'ann beat on second roll');
 
 // Round ends; pot awarded; chips conserved.
 const ended = await host.next('round:ended');

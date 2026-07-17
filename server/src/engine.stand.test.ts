@@ -95,4 +95,58 @@ describe('GameEngine: voluntary stand gating', () => {
     engine.start();
     expect(engine.standVoluntarily('p0')?.code).toBe('BAD_REQUEST');
   });
+
+  it('auto-stands the last player once they beat the roll-to-beat', () => {
+    const players = makePlayers([100, 100]);
+    const { engine, events } = makeEngine(players);
+    engine.start();
+
+    expect(roll(engine, 'p0', [4, 4, 4, 2, 3])).toBeNull();
+    expect(engine.standVoluntarily('p0')).toBeNull();
+
+    expect(roll(engine, 'p1', [5, 5, 5, 1, 2])).toBeNull(); // four 5s — already won
+    expect(engine.phase).toBe('roundEnd');
+    expect(events.find((e) => e.type === 'stood' && e.playerId === 'p1')).toBeDefined();
+    expect(events.find((e) => e.type === 'roundEnded')).toMatchObject({
+      type: 'roundEnded',
+      winnerId: 'p1',
+    });
+  });
+
+  it('does not auto-stand a non-last player who beats the roll-to-beat', () => {
+    const players = makePlayers();
+    const { engine } = makeEngine(players);
+    engine.start();
+
+    expect(roll(engine, 'p0', [3, 3, 2, 4, 5])).toBeNull();
+    expect(roll(engine, 'p0', [3, 3, 3, 2, 4], [0, 1])).toBeNull(); // three 3s in 2 → cap 2
+    expect(engine.standVoluntarily('p0')).toBeNull();
+
+    expect(roll(engine, 'p1', [4, 4, 4, 1, 2])).toBeNull(); // beats, but p2 still to act
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    expect(engine.standVoluntarily('p1')).toBeNull(); // voluntary still works
+    expect(engine.currentTurnPlayerId).toBe('p2');
+  });
+
+  it('lets the last player keep rolling on a mere tie', () => {
+    const players = makePlayers();
+    const { engine } = makeEngine(players);
+    engine.start();
+
+    // First stander sets a high roll cap; a later leader resets roll-to-beat
+    // without lowering the cap, leaving the last player room to keep rolling.
+    expect(roll(engine, 'p0', [3, 3, 2, 4, 5])).toBeNull();
+    expect(roll(engine, 'p0', [3, 3, 3, 2, 4], [0, 1])).toBeNull();
+    expect(roll(engine, 'p0', [3, 3, 3, 5, 6], [0, 1, 2])).toBeNull(); // three 3s in 3
+    expect(engine.standVoluntarily('p0')).toBeNull();
+
+    expect(roll(engine, 'p1', [4, 4, 4, 2, 5])).toBeNull(); // three 4s in 1 — new leader
+    expect(engine.standVoluntarily('p1')).toBeNull();
+
+    expect(roll(engine, 'p2', [4, 4, 4, 5, 2])).toBeNull(); // full tie — may keep rolling
+    expect(engine.currentTurnPlayerId).toBe('p2');
+    expect(engine.phase).toBe('playing');
+    expect(roll(engine, 'p2', [5, 5, 5, 1, 2])).toBeNull(); // full reroll beats → auto-stand
+    expect(engine.phase).toBe('roundEnd');
+  });
 });

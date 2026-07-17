@@ -311,19 +311,24 @@ running counter.
    lose. Both tabs keep that newest losing layout on the felt (never the earlier winning
    hand), leave it unobstructed for the configured After Roll Delay (2s by default), then show
    the winner recap and pot movement together.
-6. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
+6. **Last-player beat auto-stand:** with a roll-to-beat set, the final roller beats it (not
+   merely ties). Both tabs: koozie stays locked during the After Roll Delay; no further keep
+   / throw is possible; after the delay the roller stands automatically without clicking
+   **Stand**, and the round resolves to them as winner. A mere tie must still allow another
+   throw when rolls remain under the cap.
+7. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
    real layout (snapshot `restPose`) — this used to be a guaranteed fallback.
-7. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its
+8. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its
    own real layout.
-8. **Late joiner:** open a third tab as a spectator after a roll — real layout on join.
-9. **Lossy stream:** DevTools → Network → throttle B to Slow 3G during A's throw. The
+9. **Late joiner:** open a third tab as a spectator after a roll — real layout on join.
+10. **Lossy stream:** DevTools → Network → throttle B to Slow 3G during A's throw. The
    live animation may stutter, but after `turn:rolled` B snaps to the correct settled
    layout (the pose rides the message, not the stream).
-10. **Crash recovery:** restart the server mid-round after a roll; when both tabs
+11. **Crash recovery:** restart the server mid-round after a roll; when both tabs
    reconnect the layout is restored from the event log.
-11. **Fresh round (fallback *expected*):** at a new round before any roll, a lingering
+12. **Fresh round (fallback *expected*):** at a new round before any roll, a lingering
     `rollToBeat` with no pose may render slot layout + one dev warn — legitimate.
-12. **Dev face override (fallback *expected*):** with `window.__forceSettleFaces` set,
+13. **Dev face override (fallback *expected*):** with `window.__forceSettleFaces` set,
     the reported values disagree with the physics pose, so the client omits it, the
     server would drop it anyway, and viewers get the slot layout.
 

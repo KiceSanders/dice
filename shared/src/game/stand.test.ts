@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Die } from '../types.js';
 import { scoreHand } from './score.js';
-import { canStandVoluntarily } from './stand.js';
+import { canStandVoluntarily, mustAutoStandLastPlayerBeat } from './stand.js';
 
 const hand = (...dice: number[]) => dice as Die[];
 
@@ -49,5 +49,28 @@ describe('canStandVoluntarily', () => {
     expect(canStandVoluntarily(hand(5, 5, 2, 3, 4), 1, toBeat)).toBe(true); // two 5s
     expect(canStandVoluntarily(hand(2, 3, 4, 5, 6), 1, toBeat)).toBe(true); // tie on one 6
     expect(canStandVoluntarily(hand(2, 3, 4, 5, 6), 2, toBeat)).toBe(false); // same group, more rolls
+  });
+});
+
+describe('mustAutoStandLastPlayerBeat', () => {
+  const toBeat = scoreHand(hand(4, 4, 4, 2, 3), 1); // three 4s
+
+  it('requires the last player, a roll-to-beat, and a strict beat', () => {
+    expect(mustAutoStandLastPlayerBeat(hand(5, 5, 5, 1, 2), 1, toBeat, true)).toBe(true);
+    expect(mustAutoStandLastPlayerBeat(hand(5, 5, 5, 1, 2), 1, toBeat, false)).toBe(false);
+    expect(mustAutoStandLastPlayerBeat(hand(5, 5, 5, 1, 2), 1, null, true)).toBe(false);
+  });
+
+  it('does not auto-stand on a tie (last player may keep rolling)', () => {
+    expect(mustAutoStandLastPlayerBeat(hand(4, 4, 4, 5, 2), 1, toBeat, true)).toBe(false);
+  });
+
+  it('does not auto-stand while losing', () => {
+    expect(mustAutoStandLastPlayerBeat(hand(3, 3, 2, 5, 6), 1, toBeat, true)).toBe(false);
+  });
+
+  it('rejects before the first complete roll', () => {
+    expect(mustAutoStandLastPlayerBeat(hand(), 0, toBeat, true)).toBe(false);
+    expect(mustAutoStandLastPlayerBeat(hand(5, 5, 5, 1, 2), 0, toBeat, true)).toBe(false);
   });
 });

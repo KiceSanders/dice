@@ -43,8 +43,9 @@ every other seated player pay the roller.
    sub-round/fire effect, pot award, or round recap. On an ordinary non-terminal roll, the
    koozie docks immediately and the same player may select keeps and throw again while the
    prior quiet window is still running. Standing remains blocked until all pending roll
-   outcomes resolve. A capped roll, Yahtzee bonus transition, and settled bonus die lock and
-   hide the koozie immediately because that delayed result changes the throw mode or possession.
+   outcomes resolve. A capped roll, a last-player beat of the roll-to-beat, a Yahtzee bonus
+   transition, and a settled bonus die lock and hide the koozie immediately because that
+   delayed result changes the throw mode or possession.
    Each settled roll captures its dice and delay independently; a mid-delay settings edit
    applies to the next roll.
 
@@ -160,13 +161,16 @@ Instant side bet on rolling a Yahtzee. Detection lives in
 
 ## Standing
 
-Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and server.
+Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`, `mustAutoStandLastPlayerBeat`),
+mirrored client and server.
 
 - A player may stand after any roll **unless** a roll-to-beat exists and their current hand
   loses to it — then they must keep rolling until they beat it, tie it, or hit the cap.
   Ties are allowed (they force a sub-round).
-- Forced stands bypass the rule: roll cap reached (auto-stand), disconnect,
-  kick.
+- Forced stands bypass the rule: roll cap reached (auto-stand), **last player of the
+  round/sub-round beats the roll-to-beat** (auto-stand after the after-roll delay — further
+  rolls cannot change the pot winner; a mere tie does not auto-stand, so they may keep
+  rolling to try to win outright), disconnect, kick.
 - A turn that ends with **no completed roll** is **forfeited**: no hand, no shot at the pot,
   the ante stays in. If every turn in a round is forfeited the round has no winner
   (`winnerId: null`) and the pot carries over.

@@ -134,9 +134,9 @@ try {
   const firstTurn = state.snapshot.game.currentTurn.playerId;
   const byId = (id) => (id === created.playerId ? host : ann);
 
-  // First player rolls twice and stands; second player rolls once → crash point.
-  // Scripted faces: first ends with a pair of 2s; second's pair of 3s beats it
-  // (so the post-recovery voluntary stand is legal against the roll-to-beat).
+  // First player rolls twice and stands; second player rolls a losing hand once →
+  // crash point (still mid-turn). A beating hand would auto-stand the last player
+  // immediately, so recovery uses a weak high-straight group (straights off).
   const first = byId(firstTurn);
   await throwDice(first, firstTurn, [], [2, 2, 3, 4, 6]);
   await throwDice(first, firstTurn, [0, 1], [2, 2, 5, 4, 6]);
@@ -147,7 +147,7 @@ try {
   );
   const secondTurn = state.snapshot.game.currentTurn.playerId;
   const second = byId(secondTurn);
-  const midRoll = await throwDice(second, secondTurn, [], [3, 3, 2, 4, 6]);
+  const midRoll = await throwDice(second, secondTurn, [], [2, 3, 4, 5, 6]);
   state = await host.stateWhere((s) => s.game?.currentTurn?.rollsUsed === 1, 'mid-turn state');
   const before = state.snapshot;
 
@@ -200,9 +200,10 @@ try {
   );
   assert(s.game?.rollToBeat != null, 'roll-to-beat survived');
 
-  // Play can continue: the interrupted player stands, the round resolves.
+  // Play can continue: the interrupted player beats the roll-to-beat and
+  // auto-stands as the last player; the round resolves.
   const secondAfter = secondTurn === created.playerId ? host : ann;
-  secondAfter.send({ type: 'turn:stand' });
+  await throwDice(secondAfter, secondTurn, [], [3, 3, 2, 4, 6]);
   const ended = await host.next('round:ended');
   assert(ended.potWon >= before.game.pot, `round resolved, pot paid out (${ended.potWon})`);
   const totals = (await host.stateWhere((s2) => s2.phase !== 'playing' || true, 'final state'))

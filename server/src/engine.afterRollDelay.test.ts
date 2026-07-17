@@ -173,4 +173,28 @@ describe('after-roll delay', () => {
     vi.advanceTimersByTime(1);
     expect(ofType(events, 'rollResolved')).toHaveLength(2);
   });
+
+  it('delays last-player beat auto-stand and locks the koozie until then', () => {
+    const players = makePlayers([100, 100]);
+    const { engine, events } = makeEngine(players, { afterRollDelayMs: 2_000 });
+    engine.start();
+
+    expect(roll(engine, 'p0', [4, 4, 4, 2, 3])).toBeNull();
+    vi.advanceTimersByTime(2_000);
+    expect(engine.standVoluntarily('p0')).toBeNull();
+
+    expect(roll(engine, 'p1', [5, 5, 5, 1, 2])).toBeNull();
+    expect(engine.publicState().currentTurn?.koozieLocked).toBe(true);
+    expect(engine.beginThrow('p1', [])).toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'the koozie is still locked',
+    });
+    expect(engine.phase).toBe('playing');
+    expect(ofType(events, 'stood').filter((e) => e.playerId === 'p1')).toHaveLength(0);
+
+    vi.advanceTimersByTime(2_000);
+    expect(engine.phase).toBe('roundEnd');
+    expect(ofType(events, 'stood').some((e) => e.playerId === 'p1')).toBe(true);
+    expect(ofType(events, 'roundEnded')[0]).toMatchObject({ winnerId: 'p1', potWon: 2 });
+  });
 });

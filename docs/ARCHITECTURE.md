@@ -45,7 +45,7 @@ pointer release on the koozie
          only for capped, Yahtzee-transition, and bonus-die results; ordinary rerolls may overlap)
       → emit 'rollResolved' → broadcast turn:rollResolved
       → apply straight / first-roll Yahtzee payouts and Classic Pot transfers
-      → offer the Yahtzee bonus or auto-stand at rollCap
+      → offer the Yahtzee bonus or auto-stand at rollCap / last-player beat
   → roomGameBridge.handleEngineEvent
                          (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
   → room.broadcastState   (authoritative RoomSnapshot → every client; snapshot carries

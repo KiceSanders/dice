@@ -14,6 +14,7 @@ import {
   compareHands,
   detectStraight,
   HAND_SIZE,
+  mustAutoStandLastPlayerBeat,
   orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
@@ -169,6 +170,8 @@ interface SettledRollResolution {
   bonusFace: Die | null;
   bonusAwarded: boolean;
   atRollCap: boolean;
+  /** Last player already beat roll-to-beat — stand after the quiet window. */
+  lastPlayerBeat: boolean;
 }
 
 /**
@@ -491,6 +494,12 @@ export class GameEngine {
     const bonusFace = yahtzeeBonusTarget(score);
     const bonusAwarded = !turn.bonusOffered && bonusFace !== null;
     if (bonusAwarded) turn.bonusOffered = true;
+    const lastPlayerBeat = mustAutoStandLastPlayerBeat(
+      turn.dice,
+      turn.rollsUsed,
+      this.rollToBeat?.score ?? null,
+      this.queue.length === 0,
+    );
     const resolution: SettledRollResolution = {
       dice: [...turn.dice],
       rollNumber: turn.rollsUsed,
@@ -501,9 +510,12 @@ export class GameEngine {
       bonusFace,
       bonusAwarded,
       atRollCap: turn.rollsUsed >= turn.rollCap,
+      lastPlayerBeat,
     };
     const blocksKoozie =
-      resolution.atRollCap || (resolution.bonusAwarded && settings.yahtzeeBonus.enabled);
+      resolution.atRollCap ||
+      resolution.lastPlayerBeat ||
+      (resolution.bonusAwarded && settings.yahtzeeBonus.enabled);
     const delayedId = delayConsequences ? this.postRoll.arm(turn, blocksKoozie) : null;
     this.emit({
       type: 'rolled',
@@ -567,7 +579,7 @@ export class GameEngine {
       settings.yahtzeeBonus,
       resolution.bonusAwarded ? resolution.bonusFace : null,
     );
-    if (!bonusOffered && resolution.atRollCap) {
+    if (!bonusOffered && (resolution.atRollCap || resolution.lastPlayerBeat)) {
       this.standNow(turn);
       return;
     }
@@ -581,7 +593,8 @@ export class GameEngine {
   /**
    * Player-requested stand: rejected while the current hand loses to the
    * roll-to-beat (shared `canStandVoluntarily` — ties are allowed). Forced
-   * stands (roll cap, keep-all, disconnect/kick) call `stand` directly.
+   * stands (roll cap, last-player beat, keep-all, disconnect/kick) call
+   * `stand` / `standNow` directly.
    */
   standVoluntarily(playerId: PlayerId, restPose?: BodyPose[]): EngineError | null {
     const turn = this.guardTurn(playerId);
