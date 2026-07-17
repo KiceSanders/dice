@@ -7,6 +7,7 @@ import { BONUS_DIE_INDEX, DICE_COUNT } from '../table3d/dice/constants';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { seatDisplayPlacement } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
+import { shouldLockKoozieAfterSettledRoll } from './afterRollKoozie';
 import {
   bonusThrowResultMessage,
   bonusThrowStartMessage,
@@ -78,6 +79,8 @@ export function useTableRoll(
   // throw — the full quint is force-kept, keep clicks and standing are off.
   const bonusPending = isMyTurn ? (turn?.bonusPending ?? null) : null;
   const bonusMode = bonusPending !== null;
+  const resolving = isMyTurn && (turn?.resolving ?? false);
+  const koozieLocked = isMyTurn && (turn?.koozieLocked ?? false);
   const bonusModeRef = useRef(bonusMode);
   bonusModeRef.current = bonusMode;
   const myDisplaySeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
@@ -112,12 +115,19 @@ export function useTableRoll(
         // quint's settled pose survives as the between-turns layout.
         const die = dice[BONUS_DIE_INDEX];
         if (die !== undefined) send(bonusThrowResultMessage(die));
-        return;
+        return true;
       }
       const canonical = poseFrameToCanonical(settleFrame, mySeat);
       send(throwResultMessage(dice, restPoseForThrowResult(canonical.bodies, dice)));
+      const rollNumber = (turn?.rollsUsed ?? 0) + 1;
+      return shouldLockKoozieAfterSettledRoll(
+        dice,
+        rollNumber,
+        turn?.rollCap ?? Number.POSITIVE_INFINITY,
+        snapshot?.settings.yahtzeeBonus.enabled === true,
+      );
     },
-    [send, mySeat],
+    [send, mySeat, snapshot?.settings.yahtzeeBonus.enabled, turn],
   );
 
   const flushFrames = useCallback(() => {
@@ -145,13 +155,13 @@ export function useTableRoll(
 
   const onKeepToggle = useCallback(
     (index: number) => {
-      if (!isMyTurn) return;
+      if (!isMyTurn || koozieLocked) return;
       return toggleKeep(index, turnRollsUsed > 0) ?? undefined;
     },
-    [isMyTurn, toggleKeep, turnRollsUsed],
+    [isMyTurn, koozieLocked, toggleKeep, turnRollsUsed],
   );
 
-  const canDrag = isMyTurn && connected && snapshot?.phase === 'playing';
+  const canDrag = isMyTurn && !koozieLocked && connected && snapshot?.phase === 'playing';
   const tableDice: TableDiceProps | undefined =
     turn && isMyTurn
       ? {
@@ -166,7 +176,7 @@ export function useTableRoll(
           onRelease,
           onDragChange: setDragging,
           onRollingChange: setRolling,
-          onKeepToggle: bonusMode ? undefined : onKeepToggle,
+          onKeepToggle: bonusMode || koozieLocked ? undefined : onKeepToggle,
           onPoseFrame,
         }
       : undefined;
@@ -186,12 +196,14 @@ export function useTableRoll(
           send(standMessage(restPose));
         },
         canStand,
-        standHint: bonusPending
-          ? `Throw the bonus die — match a ${bonusPending.face}!`
-          : snapshot
-            ? standHintFor(snapshot, turn, canStand)
-            : undefined,
-        disabled: rolling || !connected,
+        standHint: resolving
+          ? 'Checking the roll…'
+          : bonusPending
+            ? `Throw the bonus die — match a ${bonusPending.face}!`
+            : snapshot
+              ? standHintFor(snapshot, turn, canStand)
+              : undefined,
+        disabled: rolling || resolving || !connected,
         aiming: dragging,
       }
     : undefined;
@@ -201,7 +213,7 @@ export function useTableRoll(
     turnActions,
     pendingKeep,
     active: tableDice !== undefined,
-    diceAiming: dragging || (pointerOnTable && isMyTurn && !rolling),
+    diceAiming: dragging || (pointerOnTable && isMyTurn && !rolling && !koozieLocked),
     onTablePointer: setPointerOnTable,
     rolling,
     dragging,

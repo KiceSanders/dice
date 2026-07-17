@@ -56,6 +56,7 @@ function client(name) {
 const settings = {
   chipsPerRound: 2,
   maxRolls: 3,
+  afterRollDelayMs: 2000,
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: {
@@ -125,10 +126,15 @@ async function throwDice(me, myId, keepIndices, dice) {
     `${me.name} throwStarted`,
   );
   me.send({ type: 'turn:throwResult', dice });
-  return me.nextWhere(
+  const rolled = await me.nextWhere(
     (m) => m.type === 'turn:rolled' && m.playerId === myId,
     `${me.name} turn:rolled`,
   );
+  await me.nextWhere(
+    (m) => m.type === 'turn:rollResolved' && m.playerId === myId,
+    `${me.name} turn:rollResolved`,
+  );
+  return rolled;
 }
 
 // Both players: roll once, keep first two dice, reroll, stand (or auto-stand at cap).

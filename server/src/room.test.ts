@@ -1,4 +1,4 @@
-import type { ServerMessage } from '@dice/shared';
+import type { RoomSettings, ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS, MAX_SEATED_PLAYERS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { restPoseFor } from './engine.testkit.js';
@@ -19,7 +19,7 @@ class FakeLink implements ClientLink {
 }
 
 function makeRoom(seatForfeitMs?: number) {
-  const room = new Room('TEST22', DEFAULT_SETTINGS, seatForfeitMs);
+  const room = new Room('TEST22', DEFAULT_SETTINGS, seatForfeitMs, { afterRollDelayMs: 0 });
   const hostLink = new FakeLink();
   const host = room.addPlayer('Host', hostLink, { host: true });
   return { room, host, hostLink };
@@ -39,12 +39,19 @@ describe('clampSettings / sanitizeName', () => {
       ...DEFAULT_SETTINGS,
       chipsPerRound: -5,
       maxRolls: 99,
+      afterRollDelayMs: 99_999,
       minBuyIn: 50,
       maxBuyIn: 10, // below min → raised to min
     });
     expect(clamped.chipsPerRound).toBe(1);
     expect(clamped.maxRolls).toBe(10);
+    expect(clamped.afterRollDelayMs).toBe(10_000);
     expect(clamped.maxBuyIn).toBe(50);
+  });
+
+  it('defaults a missing after-roll delay for older persisted settings', () => {
+    const { afterRollDelayMs: _omitted, ...withoutDelay } = DEFAULT_SETTINGS;
+    expect(clampSettings(withoutDelay as RoomSettings).afterRollDelayMs).toBe(2_000);
   });
 
   it('defaults a missing yahtzeeBonus and clamps a negative amount', () => {
@@ -270,6 +277,9 @@ describe('Room roll broadcasts (ADR 005)', () => {
     const rolled = link.ofType('turn:rolled');
     expect(rolled).toHaveLength(1);
     expect(rolled[0]).toMatchObject({ playerId: host.id, dice: [...dice], restPose: pose });
+    expect(link.ofType('turn:rollResolved')).toEqual([
+      { type: 'turn:rollResolved', playerId: host.id, dice: [...dice], rollNumber: 1 },
+    ]);
     // The follow-up snapshot exposes it too (rejoin path).
     expect(link.ofType('room:state').at(-1)?.snapshot.game?.currentTurn?.restPose).toEqual(pose);
   });

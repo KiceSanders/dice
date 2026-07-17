@@ -64,6 +64,14 @@ export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext):
       });
       ctx.broadcastState();
       break;
+    case 'rollResolved':
+      ctx.broadcast({
+        type: 'turn:rollResolved',
+        playerId: event.playerId,
+        dice: event.dice,
+        rollNumber: event.rollNumber,
+      });
+      break;
     case 'stood':
       ctx.recorder?.append({
         type: 'stood',
@@ -152,12 +160,14 @@ export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext):
         playerId: event.playerId,
       });
       break;
-    case 'bonusRolled':
+    case 'bonusSettled':
       ctx.recorder?.append({
         type: 'bonusRolled',
         playerId: event.playerId,
         die: event.die,
       });
+      break;
+    case 'bonusRolled':
       ctx.broadcast({
         type: 'turn:bonusRolled',
         playerId: event.playerId,

@@ -83,6 +83,8 @@ export type ServerMessage =
       /** Validated rest pose (canonical space) or null when unavailable (ADR 005). */
       restPose: BodyPose[] | null;
     }
+  /** The after-roll delay elapsed; outcome messages and turn consequences now follow. */
+  | { type: 'turn:rollResolved'; playerId: PlayerId; dice: Die[]; rollNumber: number }
   /** A physics throw is in flight; final values arrive via turn:rolled. */
   | { type: 'turn:throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   /** Relay of the current roller's throw poses (ADR 004). */

@@ -15,7 +15,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `seat:request` | `{ buyIn }` | Spectator asks for a seat |
 | `seat:approve` / `seat:deny` | `{ playerId }` | Host only |
 | `player:kick` | `{ playerId }` | Host only |
-| `settings:update` | `{ settings }` | Host only (anytime; chip amounts apply at next ante / payout; capacity is fixed) |
+| `settings:update` | `{ settings }` | Host only (anytime; `afterRollDelayMs` applies to the next settled roll; chip amounts apply at next ante / payout; capacity is fixed) |
 | `game:start` | `{}` | Host only, ≥2 seated |
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
@@ -41,13 +41,14 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:throwStarted` | `{ playerId, kept, rollNumber }` | A throw is in flight |
 | `dice:frames` | `{ playerId, frames }` | Relay of the roller's poses |
 | `turn:rolled` | `{ playerId, dice, rollNumber, kept, restPose }` | The settled roll; `restPose` is the server-validated rest layout (`BodyPose[] \| null`, ADR 005) every viewer renders between turns |
+| `turn:rollResolved` | `{ playerId, dice, rollNumber }` | The configured after-roll delay elapsed; outcome messages/effects and automatic turn consequences follow |
 | `turn:forfeited` | `{ playerId }` | Turn ended with no completed roll |
 | `straight:paid` | `{ playerId, kind, amountPerPlayer, total, payments }` | Instant side payment |
 | `classic:donated` | `{ playerId, amount, classicPot }` | First-roll four-of-a-kind → Classic Pot |
 | `classic:won` | `{ playerId, amount }` | First-roll three 6s while roll-to-beat unset takes Classic Pot |
 | `turn:bonusOffered` | `{ playerId, face }` | A Yahtzee settled: the roller owes a temporary sixth-die throw before auto-standing |
 | `turn:bonusThrowStarted` | `{ playerId }` | A bonus throw is in flight |
-| `turn:bonusRolled` | `{ playerId, die, face, matched }` | The bonus die settled; `matched = die === face` (a rolled 1 is NOT wild here) |
+| `turn:bonusRolled` | `{ playerId, die, face, matched }` | Sent only after the bonus die's configured delay; `matched = die === face` (a rolled 1 is NOT wild here) |
 | `yahtzee:paid` | `{ playerId, amountPerPlayer, total, payments }` | Yahtzee bonus hit: every other seated player paid the roller |
 | `yahtzee:first-roll-paid` | `{ playerId, amountPerPlayer, total, payments }` | First-roll Yahtzee instant payment (wild-composed quints count) |
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
@@ -63,6 +64,12 @@ fails `npm run check:client`. Unknown runtime messages are dropped before the re
 messages still rely on the reducer's `assertUnreachable` default in
 `client/src/state/store.ts` for exhaustive state handling.
 
+`RoomSnapshot.game.currentTurn` exposes both `resolving` and `koozieLocked`. `resolving`
+means one or more delayed outcomes are pending and blocks Stand; it does not by itself block
+another ordinary throw. `koozieLocked` is set in the same snapshot as `turn:rolled` when the
+settled roll is capped, starts the Yahtzee bonus, or is the bonus die, so the client keeps the
+cup hidden without briefly offering it before the delayed turn/mode change.
+
 ## The three event vocabularies
 
 One game event crosses three deliberately distinct unions. The mapping is hand-written in
@@ -75,6 +82,7 @@ to any column, update this table.**
 | `roundStarted` | `roundStarted` ✓ | `round:started` | `lastAnte` (table chip animation) |
 | `throwStarted` | — (not recorded) | `turn:throwStarted` | ignored by reducer; 3D table consumes off the socket |
 | `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |
+| `rollResolved` | — | `turn:rollResolved` | `lastRollResolution` (outcome-only effects, including straight glow/bell) |
 | `stood` | `stood` ✓ (`restPose?` optional so old logs parse) | — (snapshot only) | via `room:state` |
 | `forfeited` | `forfeited` ✓ | `turn:forfeited` | system chat line |
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
@@ -84,7 +92,8 @@ to any column, update this table.**
 | `classicWon` | `classicWon` ✓ | `classic:won` | `lastClassicWin` (classic pot → seat chip animation) + toast + chat line |
 | `bonusOffered` | — (replaying the quint `rolled` re-offers) | `turn:bonusOffered` | toast + chat line |
 | `bonusThrowStarted` | — (not recorded) | `turn:bonusThrowStarted` | ignored by reducer; 3D table consumes off the socket |
-| `bonusRolled` | `bonusRolled` ✓ (die only; replayed via `replayBonusRolled`) | `turn:bonusRolled` | chat line on a miss; never touches `lastRoll` |
+| `bonusSettled` | `bonusRolled` ✓ (die only; replayed via `replayBonusRolled`) | — | — (persisted immediately, outcome still hidden) |
+| `bonusRolled` | — | `turn:bonusRolled` | delayed chat line on a miss; never touches `lastRoll` |
 | `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
 | `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
@@ -102,10 +111,11 @@ allowed to change room capacity.
 
 ## Ephemeral vs persisted
 
-`dice:frames`, `turn:throwStarted`, and `turn:bonusThrowStarted` are streaming/transient —
-never persisted, never in the reducer's state. Bonus frames temporarily carry the cup plus
-six dice; the bonus die result carries no rest pose and the sixth die is discarded, so the
-quint's settled five-die pose remains the between-turns layout. Everything a recovered room needs lives in the `RoomEvent` log
+`dice:frames`, `turn:throwStarted`, `turn:rollResolved`, and `turn:bonusThrowStarted` are
+streaming/transient — never persisted. `turn:rollResolved` is reduced only as a transient effect
+marker. Bonus frames temporarily carry the cup plus six dice; the bonus die result carries no
+rest pose and the sixth die is discarded after its quiet window, so the quint's settled five-die
+pose remains the between-turns layout. Everything a recovered room needs lives in the `RoomEvent` log
 (`server/logs/<roomId>.log`, JSON Lines, compacted to a snapshot at each round end).
 
 The settled **rest pose** is the exception that proves the rule (ADR 005): unlike the
@@ -117,3 +127,6 @@ rejoiners — renders the dice where they physically landed and where the hand w
 
 `GameStatePublic.rollToBeat` carries `playerIds: PlayerId[]` (first stander first; later
 tiers who fully tie append). A strict beat replaces the list with the new leader alone.
+
+During the bonus die's after-roll delay, spectators keep rendering the last six-body pose frame;
+the delayed `turn:bonusRolled` clears it and returns every viewer to the five-die hand.

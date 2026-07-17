@@ -375,7 +375,7 @@ export default function DicePhysics({
   );
 
   const enterSelectingPhase = useCallback(
-    (values: Die[]) => {
+    (values: Die[], keepKoozieHidden = false) => {
       const latestTuning = getDicePhysicsTuning();
       const kept = keepRef.current;
 
@@ -404,17 +404,15 @@ export default function DicePhysics({
       setRuntime(nextRuntime);
       setCupPosition(homePosition(latestTuning));
       transitionCupPhase('selecting');
-      setCupVisible(canDragRef.current);
+      setCupVisible(canDragRef.current && !keepKoozieHidden);
       rollingRef.current = false;
       rollElapsedMsRef.current = 0;
       setSimRolling(false);
       settleCountRef.current = 0;
       heldStateRef.current = null;
       pourStateRef.current = null;
-      // Straight celebration: the dice are frozen for selecting — light them up.
-      startStraightGlow(values);
     },
-    [startStraightGlow, transitionCupPhase],
+    [transitionCupPhase],
   );
 
   const applyKeepLayout = useCallback((kept: number[]) => {
@@ -597,22 +595,19 @@ export default function DicePhysics({
         finishPendingRef.current = false;
         settleCountRef.current = 0;
         setSimRolling(false);
-        if (!bonusMode) enterSelectingPhase(values);
         const settleFrame = samplePoseFrame(performance.now());
         onPoseFrameRef.current?.(settleFrame);
         onRollingChangeRef.current?.(false);
-        onSettledRef.current(values, settleFrame);
+        const keepKoozieHidden = onSettledRef.current(values, settleFrame) === true;
         if (bonusMode) {
-          // The sixth die exists only for this throw. Keep the stood quint in
-          // place while the server advances the turn, but remove the bonus die
-          // and cup immediately after its settled face has been reported.
-          const quintRuntime = runtimeRef.current.slice(0, DICE_COUNT);
-          runtimeRef.current = quintRuntime;
-          setRuntime(quintRuntime);
+          // Leave the settled sixth die visible during the server-owned
+          // after-roll quiet window; the component unmounts when the delayed
+          // bonus result advances the turn. Only the cup hides immediately.
           transitionCupPhase('hidden');
           setCupVisible(false);
           return;
         }
+        enterSelectingPhase(values, keepKoozieHidden);
       });
     },
     [bonusMode, readCurrentDieValues, enterSelectingPhase, samplePoseFrame, transitionCupPhase],
@@ -789,7 +784,9 @@ export default function DicePhysics({
 
   useEffect(() => {
     if (rollingRef.current || dragging) return;
-    if (cupPhaseRef.current === 'selecting') return;
+    if (cupPhaseRef.current === 'selecting' || (bonusMode && cupPhaseRef.current === 'hidden')) {
+      return;
+    }
     if (skipDiceLayoutRef.current) {
       skipDiceLayoutRef.current = false;
       return;
@@ -804,20 +801,19 @@ export default function DicePhysics({
     applyKeepLayout(keepIndices);
   }, [keepIndices, applyKeepLayout]);
 
-  // Self-heal: enterSelectingPhase snapshots canDrag into cup visibility; if it
-  // was transiently false at settle (disconnect blip), re-sync when it returns.
+  // Self-heal from the authoritative roll snapshot too. The synchronous settle
+  // prediction can differ only if settings changed in flight; the incoming dice
+  // then restore the server's canDrag decision without an early cup flash.
   useEffect(() => {
     if (cupPhaseRef.current === 'selecting') setCupVisible(canDrag);
-  }, [canDrag]);
+  }, [canDrag, dice]);
 
-  // Straight celebration for the passive (non-roller) view: no local settle
-  // happens here, so the 'straight' table event triggers the glow instead.
-  // The roller ignores it (their own settle already fired startStraightGlow);
-  // replay covers the mid-turn-join mount that happens after the roll landed.
+  // Every renderer, including the roller, starts the straight celebration from
+  // the same delayed table event. Replay covers a view that mounts just after
+  // the quiet window elapsed.
   useTableEvent(
     'straight',
     (event) => {
-      if (canDragRef.current) return;
       startStraightGlow(event.dice);
     },
     { replayLastMs: STRAIGHT_GLOW.cueMaxAgeMs },

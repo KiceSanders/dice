@@ -36,6 +36,17 @@ every other seated player pay the roller.
 5. Rolls are **physics throws reported by the roller's client** (ADR 004): `turn:throwStart`
    locks the keep set, `turn:throwResult` reports the settled faces. The server never rolls;
    its integrity checks are dice ∈ [1,6] and kept positions unchanged.
+6. **After-roll delay**: every normal roll and Yahtzee bonus die is followed by
+   `settings.afterRollDelayMs` of quiet inspection time. Settled dice publish immediately,
+   but no outcome is revealed until the delay elapses: no side-bet transfer, Classic Pot
+   movement, straight celebration, Yahtzee bonus offer/result, automatic stand, turn change,
+   sub-round/fire effect, pot award, or round recap. On an ordinary non-terminal roll, the
+   koozie docks immediately and the same player may select keeps and throw again while the
+   prior quiet window is still running. Standing remains blocked until all pending roll
+   outcomes resolve. A capped roll, Yahtzee bonus transition, and settled bonus die lock and
+   hide the koozie immediately because that delayed result changes the throw mode or possession.
+   Each settled roll captures its dice and delay independently; a mid-delay settings edit
+   applies to the next roll.
 
 ## Scoring and comparison
 
@@ -61,19 +72,19 @@ Scoring lives in `shared/src/game/score.ts`; ordering in `compare.ts`.
 - The group score under a straight is weak (`2-3-4-5-6` → one 6; `1-2-3-4-5` → two 5s,
   because the 1 is wild). Standing on a straight publishes that group as the roll-to-beat —
   a tradeoff for taking the payout.
-- **Straight payout** (`settings.straightPayout`, applied in `engine.applyStraightPayout`):
-  the moment a roll settles showing a straight, every other seated player immediately pays
-  the roller from their own pile. Each transfer is
+- **Straight payout** (`settings.straightPayout`, applied after the roll's configured delay):
+  when a settled straight resolves, every other seated player pays the roller from their own
+  pile. Each transfer is
   `min(amountPerPlayer, payer.chips)` — short payers pay what they have; a short or broke
   roller still collects the full amount from each solvent payer. Chips never go negative.
-  Zero-sum, pot untouched, at most once per turn, and it fires on the roll (the turn then
-  continues normally). Replayed rolls re-apply it identically.
+  Zero-sum, pot untouched, at most once per turn, and it fires when the roll resolves (the turn
+  then continues normally). Replayed rolls re-apply it identically without replay-time waits.
 
 ## Classic Pot
 
 Side pool separate from the round-winner ante pot. Detection lives in
-`shared/src/game/classic.ts`; applied in `engine.applyClassicDonation` /
-`applyClassicPayout` on roll settlement (same moment as the straight payout).
+`shared/src/game/classic.ts`; donation/payout applies after the configured delay with the
+straight payout.
 
 - **Donation** (`settings.classicPot`): on a player's **first roll of their turn**
   (any seat), if the scored hand is exactly four of a kind (`count === 4`, wilds
@@ -97,13 +108,13 @@ Side pool separate from the round-winner ante pot. Detection lives in
 
 Instant side payment for scoring a Yahtzee on the **first roll of a turn**.
 Detection lives in `shared/src/game/firstRollYahtzee.ts` (`isFirstRollYahtzee`);
-the payout fires in `engine.settleRoll` via `applyFirstRollYahtzeePayout`
-(same settlement moment as the straight payout / Classic Pot rules).
+the payout fires when the roll resolves via `applyFirstRollYahtzeePayout`
+(with the straight payout / Classic Pot rules).
 
 - **Trigger** (`settings.firstRollYahtzeePayout`): the settled hand scores five
   of a kind with `rollsUsed === 1`. **Wilds count** (`6,6,6,1,1` and
   `1,1,1,1,1` both qualify). Later-roll Yahtzees do not.
-- **Payout**: every other seated player immediately pays the roller
+- **Payout**: after the quiet window, every other seated player pays the roller
   `min(amountPerPlayer, payer.chips)` — the same payer-only cap as the straight
   payout. Zero-sum, pot untouched.
 - **Independent of the Yahtzee bonus**: a first-roll Yahtzee still offers the
@@ -115,20 +126,21 @@ the payout fires in `engine.settleRoll` via `applyFirstRollYahtzeePayout`
 
 Instant side bet on rolling a Yahtzee. Detection lives in
 `shared/src/game/yahtzeeBonus.ts` (`yahtzeeBonusTarget`); the offer fires in
-`engine.offerYahtzeeBonus` on roll settlement (same moment as the straight
-payout) and the payout in `engine.applyYahtzeeBonusPayout`.
+`engine.offerYahtzeeBonus` after the main roll's delay and the payout in
+`engine.applyYahtzeeBonusPayout` after the bonus die's own delay.
 
-- **Trigger** (`settings.yahtzeeBonus`): the moment a roll settles scoring five
+- **Trigger** (`settings.yahtzeeBonus`): after a roll settles scoring five
   of a kind (**wilds count**: `6,6,6,1,1` is five 6s; `1,1,1,1,1` scores five
   6s), the turn pauses. All **five Yahtzee dice stay on the rail**, and the
   roller throws a temporary **sixth bonus die** with the real cup gesture (a
   real physics throw, ADR 004 — `turn:bonusThrowStart` /
-  `turn:bonusThrowResult`). The sixth die exists only for that throw and is
-  removed from view as soon as it settles; it never replaces or alters a die
+  `turn:bonusThrowResult`). The sixth die exists only for that throw and
+  remains visible where it settles for its own after-roll quiet window, then is
+  removed when the delayed result resolves; it never replaces or alters a die
   in the five-die hand.
 - **Match**: the bonus die must **literally equal the quint's scored face** — a
   rolled 1 is NOT wild here (quint of 6s needs a 6; a 1 misses). On a match,
-  every other seated player immediately pays the roller
+  every other seated player pays the roller after the bonus die's quiet window:
   `min(amountPerPlayer, payer.chips)` — the same payer-only cap as the straight
   payout. Zero-sum, pot untouched. On a miss nothing happens.
 - **Turn flow**: while the bonus is pending, re-rolling and voluntary standing
@@ -142,8 +154,9 @@ payout) and the payout in `engine.applyYahtzeeBonusPayout`.
   on the quint, no payout. Crash recovery replays the quint and re-offers the
   bonus; a recorded bonus die replays verbatim (`bonusRolled` room event).
 - **Settings**: `settings.yahtzeeBonus = { enabled, amountPerPlayer }`. The
-  offer checks `enabled` at roll settlement; the payout re-reads it at the
-  bonus commit, so disabling between offer and commit pays nothing.
+  offer checks `enabled` from the main roll settlement; the payout re-reads it at the
+  bonus commit, so disabling between offer and commit pays nothing. A later edit during the
+  bonus die's quiet window applies to the following roll.
 
 ## Standing
 
@@ -179,13 +192,15 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
   spectator), edits settings anytime (including mid-round), and starts the game (≥2 seated).
   Chip amounts take effect at the next natural point: `chipsPerRound` on the next round /
   sub-round ante, `straightPayout` / `classicPot` / `yahtzeeBonus` /
-  `firstRollYahtzeePayout` on the next roll settlement, buy-in bounds on the next seat
-  request, `maxRolls` on the next turn that reads the ceiling.
+  `firstRollYahtzeePayout` on the next roll settlement, `afterRollDelayMs` on the next
+  settled normal/bonus roll, buy-in bounds on the next seat request, `maxRolls` on the next
+  turn that reads the ceiling.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
-- Round-end delay: 8s before the next round auto-starts. The client leaves the final
-  settled hand unobstructed for the first 5s, then shows the winner recap.
+- Round-end delay: 8s after `round:ended` before the next round auto-starts. The configured
+  after-roll delay has already left the final hand unobstructed; the winner recap appears when
+  the delayed round result arrives, with no separate client-only reveal timer.
 
 ## Room settings
 
@@ -193,6 +208,7 @@ Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`), mirrored client and se
 |---|---|---|
 | `chipsPerRound` | 1 | Ante per player per round |
 | `maxRolls` | 5 | Roll ceiling for the round's first player |
+| `afterRollDelayMs` | 2000 | Quiet outcome window after every normal/bonus roll; ordinary same-player rerolls remain immediate; clamped to 0–10000 ms |
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
 | `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
 | `classicPot` | `{ enabled: true, donationAmount: 1 }` | See Classic Pot |

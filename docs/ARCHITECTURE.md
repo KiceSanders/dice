@@ -38,12 +38,14 @@ pointer release on the koozie
   → engine.commitThrow    (integrity: 5 dice ∈ [1,6], kept positions unchanged;
                            restPose soft-gated by shared validateRestPose — bounds +
                            faces must match the dice, else dropped to null, never the throw)
-  → engine.settleRoll     (single entry point shared with log replay; sets turn.restPose
-                           before the roll-cap auto-stand so rollToBeat inherits it)
+  → engine.settleRoll     (sets turn.restPose and arms the after-roll gate before publish)
       → emit 'rolled' → persisted + broadcast turn:rolled { …, restPose }
-      → applyStraightPayout / applyFirstRollYahtzeePayout (instant zero-sum side payments)
-      → applyClassicDonation / applyClassicPayout (Classic Pot side pool)
-      → auto-stand at rollCap
+      → wait the captured settings.afterRollDelayMs
+        (turn.resolving blocks Stand/outcome transitions; turn.koozieLocked blocks cup reuse
+         only for capped, Yahtzee-transition, and bonus-die results; ordinary rerolls may overlap)
+      → emit 'rollResolved' → broadcast turn:rollResolved
+      → apply straight / first-roll Yahtzee payouts and Classic Pot transfers
+      → offer the Yahtzee bonus or auto-stand at rollCap
   → roomGameBridge.handleEngineEvent
                          (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
   → room.broadcastState   (authoritative RoomSnapshot → every client; snapshot carries
@@ -63,9 +65,11 @@ the five authoritative hand dice stay railed, a sixth die is created in the cup,
 its face is sent in `turn:bonusThrowResult`. The sixth die is then removed, the original
 five-die rest pose remains authoritative, and the engine stands the roller automatically.
 
-Round-end delay: 8s (`ROUND_END_DELAY_MS`) → next round auto-starts; the client reserves
-the first 5s for an unobstructed view of the final settled dice. Disconnect/kick
-during a turn calls `forceStand` (stand on settled dice, or forfeit if none).
+After-roll delay: configurable per room (default 2s) and captured at normal/bonus settlement;
+live outcomes wait, while crash replay resolves recorded rolls synchronously. Round-end delay:
+8s (`ROUND_END_DELAY_MS`) after the delayed result → next round auto-starts. There is no extra
+client recap timer. Disconnect/kick during the quiet window queues the forced stand until the
+roll resolves; otherwise `forceStand` stands on settled dice or forfeits if none.
 
 ## Seat/view transform
 
@@ -122,7 +126,8 @@ would route players in the same room to different authoritative engines.
 These four are at their complexity budget. New behavior near them goes in a new module they
 call, not in more lines inside them (CODING_GUIDELINES §3). Related extractions:
 `cupPhaseMachine`, `dicePointer`, `diceSettleHandoff`, `usePendingKeep`, `throwProtocol`,
-`useTableScene`, `roomGameBridge`, `throwLifecycle`. Cross-cutting table geometry constants
+`useTableScene`, `roomGameBridge`, `throwLifecycle`, `delayedAction`, `rollSideEffects`.
+Cross-cutting table geometry constants
 and builders are re-exported from `client/src/table3d/geometry.ts`.
 
 ## Test layout

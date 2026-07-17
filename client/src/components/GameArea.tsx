@@ -61,17 +61,19 @@ export default function GameArea({
 
           <div className="table-dice-controls">
             <p className="muted dice-placeholder">
-              {turnActions?.aiming
-                ? 'Drag to aim — release to throw.'
-                : mouseThrow
-                  ? turn.rollsUsed > 0 && turn.dice.length > 0 && !turnActions?.disabled
-                    ? 'Click dice on the table to keep them. Click the koozie in front of you to roll again.'
-                    : 'Grab the koozie in front of you, drag it around, then release to roll.'
-                  : turn.dice.length > 0 || turnActions?.disabled
-                    ? 'Dice on the table…'
-                    : isMyTurn
-                      ? 'Dice in the cup — roll to throw onto the table.'
-                      : 'Dice in the cup — waiting for the roll…'}
+              {turn.resolving && turn.koozieLocked
+                ? 'Inspect the dice — results in a moment…'
+                : turnActions?.aiming
+                  ? 'Drag to aim — release to throw.'
+                  : mouseThrow
+                    ? turn.rollsUsed > 0 && turn.dice.length > 0 && !turnActions?.disabled
+                      ? 'Click dice on the table to keep them. Click the koozie in front of you to roll again.'
+                      : 'Grab the koozie in front of you, drag it around, then release to roll.'
+                    : turn.dice.length > 0 || turnActions?.disabled
+                      ? 'Dice on the table…'
+                      : isMyTurn
+                        ? 'Dice in the cup — roll to throw onto the table.'
+                        : 'Dice in the cup — waiting for the roll…'}
             </p>
           </div>
 

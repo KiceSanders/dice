@@ -81,6 +81,22 @@ describe('parseServerMessage', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('validates the delayed roll-resolution marker', () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          type: 'turn:rollResolved',
+          playerId: 'p1',
+          dice: [1, 2, 3, 4, 5],
+          rollNumber: 1,
+        }),
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseServerMessage(JSON.stringify({ type: 'turn:rollResolved', playerId: 'p1' })).ok,
+    ).toBe(false);
+  });
+
   it('accepts room:state with a snapshot object', () => {
     const result = parseServerMessage(
       JSON.stringify({ type: 'room:state', snapshot: { roomId: 'ABC' } }),

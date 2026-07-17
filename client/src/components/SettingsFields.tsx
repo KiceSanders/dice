@@ -65,6 +65,20 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         </small>
       </div>
 
+      <div className="field">
+        <label htmlFor="set-after-roll-delay">After Roll Delay (ms)</label>
+        <input
+          id="set-after-roll-delay"
+          type="number"
+          min={0}
+          max={10000}
+          step={100}
+          value={value.afterRollDelayMs}
+          onChange={(e) => set({ afterRollDelayMs: num(e.target.value, value.afterRollDelayMs) })}
+        />
+        <small>Time to inspect settled dice before payouts, effects, or turn changes.</small>
+      </div>
+
       <div className="field-row">
         <div className="field">
           <label htmlFor="set-minbuyin">Min buy-in</label>

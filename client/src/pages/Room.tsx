@@ -16,16 +16,12 @@ import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import TableAudio from '../table3d/audio/TableAudio';
 
-/** Leave the final settled hand unobstructed before the round recap appears. */
-const ROUND_END_REVEAL_DELAY_MS = 5_000;
-
 export default function Room() {
   const { roomId = '' } = useParams();
   const { state, send, dispatch, ws } = useApp();
   const [name, setName] = useState(loadName() ?? '');
   const [nameConfirmed, setNameConfirmed] = useState(() => Boolean(loadName()));
   const [copied, setCopied] = useState(false);
-  const [revealedRoundEndAt, setRevealedRoundEndAt] = useState<number | null>(null);
 
   const alreadyInRoom = state.roomId === roomId && state.me !== null;
   const joinSentRef = useRef(false);
@@ -36,6 +32,7 @@ export default function Room() {
     state.snapshot,
     state.me?.playerId ?? null,
     state.lastRoll,
+    state.lastRollResolution,
     send,
     connected,
     ws,
@@ -47,19 +44,6 @@ export default function Room() {
     state.lastClassicDonate,
     state.lastClassicWin,
   );
-
-  useEffect(() => {
-    const receivedAt = state.roundEnd?.receivedAt ?? null;
-    if (receivedAt === null) {
-      setRevealedRoundEndAt(null);
-      return;
-    }
-    setRevealedRoundEndAt(null);
-    const timer = window.setTimeout(() => {
-      setRevealedRoundEndAt(receivedAt);
-    }, ROUND_END_REVEAL_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [state.roundEnd?.receivedAt]);
 
   useEffect(() => {
     document.title = roomId ? `Room ${roomId} — Dice` : 'Dice';
@@ -166,7 +150,7 @@ export default function Room() {
       <ChatPanel />
       <TableAudio />
 
-      {state.roundEnd && revealedRoundEndAt === state.roundEnd.receivedAt && (
+      {state.roundEnd && (
         <RoundEndModal
           roundEnd={state.roundEnd}
           players={snapshot.players}

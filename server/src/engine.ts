@@ -14,14 +14,14 @@ import {
   compareHands,
   detectStraight,
   HAND_SIZE,
-  isClassicDonation,
-  isClassicWin,
   orderPlayersFromFirstRollerSeat,
   resolveRound,
   scoreHand,
   yahtzeeBonusTarget,
 } from '@dice/shared';
+import { DelayedActions } from './delayedAction.js';
 import { applyFirstRollYahtzeePayout } from './firstRollYahtzeePayout.js';
+import { collectSidePayment, donateToClassicPot, winClassicPot } from './rollSideEffects.js';
 import {
   softGateRestPose,
   validateCommitDice,
@@ -49,6 +49,8 @@ export type EngineEvent =
       /** Validated rest pose (canonical space, ADR 005) or null when unavailable. */
       restPose: BodyPose[] | null;
     }
+  /** The configured quiet window elapsed; outcome events follow this marker. */
+  | { type: 'rollResolved'; playerId: PlayerId; dice: Die[]; rollNumber: number }
   | {
       type: 'stood';
       playerId: PlayerId;
@@ -98,7 +100,9 @@ export type EngineEvent =
   /** A Yahtzee settled: the roller owes a temporary sixth-die throw (docs/GAME_RULES.md). */
   | { type: 'bonusOffered'; playerId: PlayerId; face: Die }
   | { type: 'bonusThrowStarted'; playerId: PlayerId }
-  /** The bonus die settled. matched = die === face (a rolled 1 is NOT wild here). */
+  /** Persist the settled bonus face immediately, without revealing its outcome yet. */
+  | { type: 'bonusSettled'; playerId: PlayerId; die: Die }
+  /** The bonus delay elapsed. matched = die === face (a rolled 1 is NOT wild here). */
   | { type: 'bonusRolled'; playerId: PlayerId; die: Die; face: Die; matched: boolean }
   /** Yahtzee bonus hit: every other seated player paid the roller. */
   | {
@@ -131,6 +135,8 @@ function cloneRestPose(restPose: BodyPose[] | null): BodyPose[] | null {
 
 export interface EngineOptions {
   roundEndDelayMs?: number;
+  /** Test-only override; live games read RoomSettings.afterRollDelayMs per roll. */
+  afterRollDelayMs?: number;
 }
 
 export const ROUND_END_DELAY_MS = 8_000;
@@ -151,6 +157,18 @@ interface CurrentTurn {
   bonusOffered: boolean;
   /** Validated rest pose of the latest roll (canonical space, ADR 005). */
   restPose: BodyPose[] | null;
+}
+
+interface SettledRollResolution {
+  dice: Die[];
+  rollNumber: number;
+  score: HandScore;
+  straightKind: StraightKind;
+  straightAwarded: boolean;
+  classicWinEligible: boolean;
+  bonusFace: Die | null;
+  bonusAwarded: boolean;
+  atRollCap: boolean;
 }
 
 /**
@@ -186,6 +204,9 @@ export class GameEngine {
   private pendingThrow: { playerId: PlayerId; keepIndices: number[] } | null = null;
 
   private readonly roundEndDelayMs: number;
+  private readonly afterRollDelayMsOverride: number | undefined;
+  private readonly postRoll = new DelayedActions();
+  private forceStandAfterRoll = false;
   private roundTimer: NodeJS.Timeout | null = null;
   /** True for recovered engines until a player reconnects (PLAN.md 6.2). */
   private paused = false;
@@ -197,6 +218,7 @@ export class GameEngine {
     opts: EngineOptions = {},
   ) {
     this.roundEndDelayMs = opts.roundEndDelayMs ?? ROUND_END_DELAY_MS;
+    this.afterRollDelayMsOverride = opts.afterRollDelayMs;
   }
 
   start(): void {
@@ -375,6 +397,9 @@ export class GameEngine {
   beginThrow(playerId: PlayerId, keepIndices: number[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
+    if (this.postRoll.koozieBlockedFor(turn)) {
+      return err('BAD_REQUEST', 'the koozie is still locked');
+    }
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is already in flight');
     if (turn.bonus) return err('BAD_REQUEST', 'resolve the bonus throw first');
 
@@ -438,25 +463,48 @@ export class GameEngine {
   ): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
-    return this.settleRoll(turn, dice, kept, restPose);
+    return this.settleRoll(turn, dice, kept, restPose, false);
   }
 
   /**
-   * Apply settled faces to the turn — the single dice entry point for the live
-   * physics path and log replay, so the straight payout and auto-stand fire
-   * identically in both. `restPose` must be set on the turn before the roll-cap
-   * auto-stand below, so a capping roll carries its pose into rollToBeat.
+   * Apply settled faces to the turn. Live throws publish the dice immediately,
+   * then hold every outcome behind the configured after-roll delay. Replay
+   * resolves synchronously so persisted events can be reduced in log order.
    */
   private settleRoll(
     turn: CurrentTurn,
     dice: Die[],
     kept: number[],
     restPose: BodyPose[] | null,
+    delayConsequences = true,
   ): EngineError | null {
     turn.dice = [...dice];
     turn.rollsUsed += 1;
     turn.keptIndices = [...kept];
     turn.restPose = cloneRestPose(restPose);
+    const settings = this.settings;
+    const seated = this.getSeated().filter((player) => player.seat !== null);
+    const score = this.scoreFor(turn);
+    const straightKind = detectStraight(turn.dice);
+    const straightAwarded = !turn.straightPaid && straightKind !== 'none';
+    if (straightAwarded) turn.straightPaid = true;
+    const bonusFace = yahtzeeBonusTarget(score);
+    const bonusAwarded = !turn.bonusOffered && bonusFace !== null;
+    if (bonusAwarded) turn.bonusOffered = true;
+    const resolution: SettledRollResolution = {
+      dice: [...turn.dice],
+      rollNumber: turn.rollsUsed,
+      score: { ...score },
+      straightKind,
+      straightAwarded,
+      classicWinEligible: this.rollToBeat === null,
+      bonusFace,
+      bonusAwarded,
+      atRollCap: turn.rollsUsed >= turn.rollCap,
+    };
+    const blocksKoozie =
+      resolution.atRollCap || (resolution.bonusAwarded && settings.yahtzeeBonus.enabled);
+    const delayedId = delayConsequences ? this.postRoll.arm(turn, blocksKoozie) : null;
     this.emit({
       type: 'rolled',
       playerId: turn.playerId,
@@ -465,24 +513,65 @@ export class GameEngine {
       kept: [...turn.keptIndices],
       restPose: turn.restPose,
     });
-    this.applyStraightPayout(turn);
-    this.applyClassicDonation(turn);
-    this.applyClassicPayout(turn);
+    const resolve = () => this.resolveRoll(turn, resolution, settings, seated);
+    if (!delayConsequences) resolve();
+    else if (delayedId !== null) {
+      const delayMs = this.afterRollDelayMsOverride ?? settings.afterRollDelayMs;
+      this.postRoll.releaseAfter(delayedId, delayMs, resolve);
+    }
+    return null;
+  }
+
+  private resolveRoll(
+    turn: CurrentTurn,
+    resolution: SettledRollResolution,
+    settings: RoomSettings,
+    seated: EnginePlayer[],
+  ): void {
+    this.emit({
+      type: 'rollResolved',
+      playerId: turn.playerId,
+      dice: [...resolution.dice],
+      rollNumber: resolution.rollNumber,
+    });
+    this.applyStraightPayout(turn, resolution, settings.straightPayout, seated);
+    this.applyClassicDonation(turn, resolution, settings.classicPot);
+    this.applyClassicPayout(turn, resolution, settings.classicPot);
     const firstRollYahtzeePayout = applyFirstRollYahtzeePayout(
-      this.settings.firstRollYahtzeePayout,
-      this.scoreFor(turn),
+      settings.firstRollYahtzeePayout,
+      resolution.score,
       this.participantById(turn.playerId),
-      this.getSeated(),
+      seated,
     );
     if (firstRollYahtzeePayout)
       this.emit({ type: 'firstRollYahtzeePaid', ...firstRollYahtzeePayout });
 
-    // A fresh Yahtzee bonus defers standing until the bonus die resolves;
-    // commitBonusThrow always stands the player immediately afterward.
-    const bonusOffered = this.offerYahtzeeBonus(turn);
-    if (!bonusOffered && turn.rollsUsed >= turn.rollCap) return this.stand(turn.playerId);
+    // A turn can already have advanced when a newer roll used a shorter delay.
+    // Its snapshotted side effects still apply, but it cannot mutate the new turn.
+    if (this.currentTurn !== turn) {
+      this.emit({ type: 'stateChanged' });
+      return;
+    }
+
+    if (this.forceStandAfterRoll) {
+      if (!this.postRoll.pendingFor(turn)) {
+        this.forceStandAfterRoll = false;
+        this.standNow(turn);
+      } else {
+        this.emit({ type: 'stateChanged' });
+      }
+      return;
+    }
+    const bonusOffered = this.offerYahtzeeBonus(
+      turn,
+      settings.yahtzeeBonus,
+      resolution.bonusAwarded ? resolution.bonusFace : null,
+    );
+    if (!bonusOffered && resolution.atRollCap) {
+      this.standNow(turn);
+      return;
+    }
     this.emit({ type: 'stateChanged' });
-    return null;
   }
 
   private clearPendingThrow(): void {
@@ -497,6 +586,7 @@ export class GameEngine {
   standVoluntarily(playerId: PlayerId, restPose?: BodyPose[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
+    if (this.postRoll.pendingFor(turn)) return err('BAD_REQUEST', 'the roll is still resolving');
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
     if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
     if (turn.bonus) return err('STAND_NOT_ALLOWED', 'throw the bonus die first');
@@ -509,6 +599,16 @@ export class GameEngine {
   stand(playerId: PlayerId, restPose?: BodyPose[]): EngineError | null {
     const turn = this.guardTurn(playerId);
     if ('code' in turn) return turn;
+    if (this.postRoll.pendingFor(turn)) return err('BAD_REQUEST', 'the roll is still resolving');
+    if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
+    if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
+
+    return this.standNow(turn, restPose);
+  }
+
+  private standNow(turn: CurrentTurn, restPose?: BodyPose[]): EngineError | null {
+    const playerId = turn.playerId;
+    if (this.currentTurn !== turn) return err('NOT_YOUR_TURN', 'it is not your turn');
     if (this.pendingThrow) return err('BAD_REQUEST', 'a throw is in flight');
     if (turn.dice === null) return err('BAD_REQUEST', 'roll before standing');
 
@@ -554,13 +654,13 @@ export class GameEngine {
    * still collect in full from solvent payers. Zero-sum, pot untouched, at most
    * once per turn. The turn then continues as normal.
    */
-  private applyStraightPayout(turn: CurrentTurn): void {
-    if (turn.straightPaid || !turn.dice) return;
-    const kind = detectStraight(turn.dice);
-    if (kind === 'none') return;
-    turn.straightPaid = true;
-
-    const config = this.settings.straightPayout;
+  private applyStraightPayout(
+    turn: CurrentTurn,
+    resolution: SettledRollResolution,
+    config: RoomSettings['straightPayout'],
+    seated: EnginePlayer[],
+  ): void {
+    if (!resolution.straightAwarded || resolution.straightKind === 'none') return;
     if (!config.enabled) return;
     const roller = this.participantById(turn.playerId);
     if (!roller) return;
@@ -568,22 +668,12 @@ export class GameEngine {
     const perPlayer = config.amountPerPlayer;
     if (perPlayer <= 0) return;
 
-    const payments: { playerId: PlayerId; amount: number }[] = [];
-    let total = 0;
-    for (const p of this.getSeated()) {
-      if (p.id === turn.playerId || p.seat === null) continue;
-      // Payer-only: short payers pay what they have; short rollers still collect full.
-      const paid = Math.min(perPlayer, p.chips);
-      p.chips -= paid;
-      total += paid;
-      payments.push({ playerId: p.id, amount: paid });
-    }
-    roller.chips += total;
+    const { total, payments } = collectSidePayment(roller, seated, perPlayer);
 
     this.emit({
       type: 'straightPaid',
       playerId: turn.playerId,
-      kind,
+      kind: resolution.straightKind,
       amountPerPlayer: perPlayer,
       total,
       payments,
@@ -594,26 +684,21 @@ export class GameEngine {
    * First-roll four-of-a-kind donation into the Classic Pot
    * (docs/GAME_RULES.md "Classic Pot"). Exact count === 4 (wilds OK).
    */
-  private applyClassicDonation(turn: CurrentTurn): void {
-    if (!turn.dice || turn.rollsUsed !== 1) return;
-    const config = this.settings.classicPot;
-    if (!config.enabled || config.donationAmount <= 0) return;
-
-    const score = this.scoreFor(turn);
-    if (!isClassicDonation(score)) return;
-
+  private applyClassicDonation(
+    turn: CurrentTurn,
+    resolution: SettledRollResolution,
+    config: RoomSettings['classicPot'],
+  ): void {
+    if (resolution.rollNumber !== 1) return;
     const roller = this.participantById(turn.playerId);
     if (!roller) return;
-
-    const amount = Math.min(config.donationAmount, roller.chips);
-    if (amount <= 0) return;
-
-    roller.chips -= amount;
-    this.classicPot += amount;
+    const result = donateToClassicPot(config, resolution.score, roller, this.classicPot);
+    if (!result) return;
+    this.classicPot = result.classicPot;
     this.emit({
       type: 'classicDonated',
       playerId: turn.playerId,
-      amount,
+      amount: result.amount,
       classicPot: this.classicPot,
     });
   }
@@ -622,25 +707,21 @@ export class GameEngine {
    * Classic win: first-roll three 6s while roll-to-beat is still unset
    * (docs/GAME_RULES.md "Classic Pot").
    */
-  private applyClassicPayout(turn: CurrentTurn): void {
-    if (!turn.dice || this.rollToBeat !== null) return;
-    const config = this.settings.classicPot;
-    if (!config.enabled) return;
-    if (this.classicPot <= 0) return;
-
-    const score = this.scoreFor(turn);
-    if (!isClassicWin(score)) return;
-
+  private applyClassicPayout(
+    turn: CurrentTurn,
+    resolution: SettledRollResolution,
+    config: RoomSettings['classicPot'],
+  ): void {
+    if (!resolution.classicWinEligible) return;
     const roller = this.participantById(turn.playerId);
     if (!roller) return;
-
-    const amount = this.classicPot;
+    const result = winClassicPot(config, resolution.score, roller, this.classicPot);
+    if (!result) return;
     this.classicPot = 0;
-    roller.chips += amount;
     this.emit({
       type: 'classicWon',
       playerId: turn.playerId,
-      amount,
+      amount: result.amount,
     });
   }
 
@@ -650,12 +731,13 @@ export class GameEngine {
    * Latches once per turn like the straight payout. Returns true when a bonus
    * is now pending.
    */
-  private offerYahtzeeBonus(turn: CurrentTurn): boolean {
-    if (turn.bonusOffered || !turn.dice) return false;
-    const face = yahtzeeBonusTarget(this.scoreFor(turn));
+  private offerYahtzeeBonus(
+    turn: CurrentTurn,
+    config: RoomSettings['yahtzeeBonus'],
+    face: Die | null,
+  ): boolean {
     if (face === null) return false;
-    turn.bonusOffered = true;
-    if (!this.settings.yahtzeeBonus.enabled) return false;
+    if (!config.enabled) return false;
     turn.bonus = { face, throwing: false };
     this.emit({ type: 'bonusOffered', playerId: turn.playerId, face });
     return true;
@@ -687,12 +769,7 @@ export class GameEngine {
     if (!Number.isInteger(die) || die < 1 || die > 6) {
       return err('BAD_REQUEST', 'die must be an integer in [1, 6]');
     }
-    const { face } = turn.bonus;
-    turn.bonus = null;
-    const matched = die === face;
-    this.emit({ type: 'bonusRolled', playerId, die, face, matched });
-    if (matched) this.applyYahtzeeBonusPayout(turn);
-    return this.stand(playerId);
+    return this.settleBonusRoll(turn, die, true);
   }
 
   /** Log replay (PLAN.md Phase 6): re-apply a recorded bonus die verbatim. */
@@ -701,7 +778,39 @@ export class GameEngine {
     if ('code' in turn) return turn;
     if (!turn.bonus) return err('BAD_REQUEST', 'no bonus throw pending');
     turn.bonus.throwing = true;
-    return this.commitBonusThrow(playerId, die);
+    return this.settleBonusRoll(turn, die, false);
+  }
+
+  private settleBonusRoll(
+    turn: CurrentTurn,
+    die: Die,
+    delayConsequences: boolean,
+  ): EngineError | null {
+    if (!turn.bonus) return err('BAD_REQUEST', 'no bonus throw pending');
+    const { face } = turn.bonus;
+    const config = this.settings.yahtzeeBonus;
+    const seated = this.getSeated().filter((player) => player.seat !== null);
+    turn.bonus.throwing = false;
+    const delayedId = delayConsequences ? this.postRoll.arm(turn, true) : null;
+    if (delayConsequences) {
+      this.emit({ type: 'bonusSettled', playerId: turn.playerId, die });
+      this.emit({ type: 'stateChanged' });
+    }
+    const resolve = () => {
+      if (this.currentTurn !== turn) return;
+      turn.bonus = null;
+      const matched = die === face;
+      this.emit({ type: 'bonusRolled', playerId: turn.playerId, die, face, matched });
+      if (matched) this.applyYahtzeeBonusPayout(turn, config, seated);
+      this.forceStandAfterRoll = false;
+      this.standNow(turn);
+    };
+    if (!delayConsequences) resolve();
+    else if (delayedId !== null) {
+      const delayMs = this.afterRollDelayMsOverride ?? this.settings.afterRollDelayMs;
+      this.postRoll.releaseAfter(delayedId, delayMs, resolve);
+    }
+    return null;
   }
 
   /**
@@ -709,23 +818,16 @@ export class GameEngine {
    * player pays min(amount, payer stack). Zero-sum, pot untouched. Settings
    * re-read here so a mid-bonus toggle-off pays nothing.
    */
-  private applyYahtzeeBonusPayout(turn: CurrentTurn): void {
-    const config = this.settings.yahtzeeBonus;
+  private applyYahtzeeBonusPayout(
+    turn: CurrentTurn,
+    config: RoomSettings['yahtzeeBonus'],
+    seated: EnginePlayer[],
+  ): void {
     if (!config.enabled || config.amountPerPlayer <= 0) return;
     const roller = this.participantById(turn.playerId);
     if (!roller) return;
 
-    const payments: { playerId: PlayerId; amount: number }[] = [];
-    let total = 0;
-    for (const p of this.getSeated()) {
-      if (p.id === turn.playerId || p.seat === null) continue;
-      // Payer-only: short payers pay what they have; short rollers still collect full.
-      const paid = Math.min(config.amountPerPlayer, p.chips);
-      p.chips -= paid;
-      total += paid;
-      payments.push({ playerId: p.id, amount: paid });
-    }
-    roller.chips += total;
+    const { total, payments } = collectSidePayment(roller, seated, config.amountPerPlayer);
 
     this.emit({
       type: 'yahtzeeBonusPaid',
@@ -745,6 +847,11 @@ export class GameEngine {
   forceStand(playerId: PlayerId): void {
     const turn = this.currentTurn;
     if (!turn || turn.playerId !== playerId) return;
+    if (this.postRoll.pendingFor(turn)) {
+      this.forceStandAfterRoll = true;
+      this.clearPendingThrow();
+      return;
+    }
     // A pending physics result is abandoned; the forced outcome wins.
     this.clearPendingThrow();
     if (turn.dice === null) {
@@ -752,7 +859,7 @@ export class GameEngine {
       this.nextTurn();
       return;
     }
-    this.stand(playerId);
+    this.standNow(turn);
   }
 
   private guardTurn(playerId: PlayerId): CurrentTurn | EngineError {
@@ -779,6 +886,8 @@ export class GameEngine {
           rollsUsed: this.currentTurn.rollsUsed,
           rollCap: this.currentTurn.rollCap,
           throwing: this.pendingThrow !== null || (this.currentTurn.bonus?.throwing ?? false),
+          resolving: this.postRoll.pendingFor(this.currentTurn),
+          koozieLocked: this.postRoll.koozieBlockedFor(this.currentTurn),
           bonusPending: this.currentTurn.bonus ? { face: this.currentTurn.bonus.face } : null,
           restPose: this.currentTurn.restPose
             ? this.currentTurn.restPose.map((p): BodyPose => [...p])
@@ -850,6 +959,8 @@ export class GameEngine {
   pause(): void {
     this.paused = true;
     this.clearPendingThrow();
+    this.postRoll.cancel();
+    this.forceStandAfterRoll = false;
     // An in-flight bonus throw is abandoned like pendingThrow; the bonus
     // itself stays owed so the rejoining roller throws again.
     if (this.currentTurn?.bonus) this.currentTurn.bonus.throwing = false;
@@ -873,6 +984,8 @@ export class GameEngine {
 
   stop(): void {
     this.clearPendingThrow();
+    this.postRoll.cancel();
+    this.forceStandAfterRoll = false;
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;
   }

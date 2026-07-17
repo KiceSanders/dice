@@ -55,6 +55,15 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'room:create', playerName: 'a', settings })).toMatchObject({ ok: false });
   });
 
+  it('requires a finite after-roll delay', () => {
+    const { afterRollDelayMs: _omitted, ...missing } = DEFAULT_SETTINGS;
+    expect(parse({ type: 'room:create', playerName: 'a', settings: missing })).toMatchObject({
+      ok: false,
+    });
+    const bad = { ...DEFAULT_SETTINGS, afterRollDelayMs: 'soon' };
+    expect(parse({ type: 'settings:update', settings: bad })).toMatchObject({ ok: false });
+  });
+
   it('rejects malformed settings (bad or missing yahtzeeBonus)', () => {
     const bad = { ...DEFAULT_SETTINGS, yahtzeeBonus: { enabled: true } };
     expect(parse({ type: 'room:create', playerName: 'a', settings: bad })).toMatchObject({

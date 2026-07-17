@@ -10,6 +10,8 @@ import { RoomLogStore, recoverRooms } from './persistence.js';
 import type { ClientLink, Room } from './room.js';
 import { RoomManager } from './roomManager.js';
 
+const TEST_SETTINGS = { ...DEFAULT_SETTINGS, afterRollDelayMs: 0 };
+
 class FakeLink implements ClientLink {
   messages: ServerMessage[] = [];
   send(msg: ServerMessage) {
@@ -39,7 +41,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('recovers a half-played round after a simulated restart (6.4)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull(); // host auto-approves
     const p1 = seatPlayer(room, 'P1', 50);
@@ -115,7 +117,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('replays physics-thrown rolls exactly (ADR 004)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 50);
@@ -173,7 +175,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('compacts the log to a single snapshot at round end and recovers from it (6.3)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 100);
@@ -210,7 +212,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('straight payouts survive replay with identical chip movements', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 50);
@@ -237,10 +239,41 @@ describe('persistence & crash recovery (Phase 6)', () => {
     await store2.flush();
   });
 
+  it('recovers a settled roll that crashed during its quiet window', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create({ ...DEFAULT_SETTINGS, afterRollDelayMs: 10_000 });
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const p1 = seatPlayer(room, 'P1', 50);
+
+    expect(room.startGame(host.id)).toBeNull();
+    expect(roll(room.engine!, host.id, [1, 2, 3, 4, 5])).toBeNull();
+    expect(room.engine!.publicState().currentTurn?.resolving).toBe(true);
+    expect(room.players.get(host.id)!.chips).toBe(99);
+    expect(room.players.get(p1.id)!.chips).toBe(49);
+    await store.flush();
+
+    // Simulate process loss before the timer fires. The persisted roll replays
+    // synchronously, so its delayed payout is neither lost nor double-applied.
+    room.destroy();
+    const store2 = new RoomLogStore(dir);
+    const manager2 = new RoomManager(undefined, undefined, store2);
+    expect(await recoverRooms(store2, manager2)).toBe(1);
+    const recovered = manager2.get(room.id)!;
+    expect(recovered.players.get(host.id)!.chips).toBe(104);
+    expect(recovered.players.get(p1.id)!.chips).toBe(44);
+    expect(recovered.engine!.publicState().currentTurn?.resolving).toBe(false);
+
+    manager.stop();
+    manager2.stop();
+    await store2.flush();
+  });
+
   it('a crash between quint and bonus die recovers with the bonus still pending', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 50);
@@ -281,7 +314,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('yahtzee bonus payouts survive replay with identical chip movements', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const p1 = seatPlayer(room, 'P1', 50);
@@ -311,11 +344,11 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('survives kicks and settings changes (replayed through the same reducers)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     const p1 = seatPlayer(room, 'P1', 100);
     expect(room.kick(p1.id)).toBeNull();
-    expect(room.updateSettings({ ...DEFAULT_SETTINGS, chipsPerRound: 5 })).toBeNull();
+    expect(room.updateSettings({ ...TEST_SETTINGS, chipsPerRound: 5 })).toBeNull();
     await store.flush();
 
     const manager2 = new RoomManager(undefined, undefined, new RoomLogStore(dir));
@@ -331,7 +364,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
   it('deletes the log when a room is destroyed (6.3)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     room.addPlayer('Host', new FakeLink(), { host: true });
     await store.flush();
     expect(existsSync(path.join(dir, `${room.id}.log`))).toBe(true);

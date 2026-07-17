@@ -39,6 +39,10 @@ const validators: Record<ServerMessage['type'], Validator> = {
     (m.restPose === null || Array.isArray(m.restPose))
       ? null
       : 'turn:rolled missing fields',
+  'turn:rollResolved': (m) =>
+    isNonEmptyString(m.playerId) && Array.isArray(m.dice) && isFiniteNumber(m.rollNumber)
+      ? null
+      : 'turn:rollResolved missing fields',
   'turn:throwStarted': (m) =>
     isNonEmptyString(m.playerId) && Array.isArray(m.kept) && isFiniteNumber(m.rollNumber)
       ? null

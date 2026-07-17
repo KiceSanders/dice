@@ -73,6 +73,7 @@ export function usePlaygroundTurn(initialScene: PlaygroundScene) {
         },
       };
     });
+    return false;
   }, []);
 
   const stand = useCallback(() => {
@@ -133,6 +134,8 @@ function standSnapshot(scene: PlaygroundScene): PlaygroundScene {
               rollsUsed: 0,
               rollCap: turn.rollCap,
               throwing: false,
+              resolving: false,
+              koozieLocked: false,
               bonusPending: null,
               restPose: null,
             }

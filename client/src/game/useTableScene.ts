@@ -6,6 +6,7 @@ import type {
   ClassicDonateInfo,
   ClassicWinInfo,
   LastRoll,
+  RollResolutionInfo,
   RoundEndInfo,
   TransferInfo,
 } from '../state/store';
@@ -23,6 +24,7 @@ export function useTableScene(
   snapshot: RoomSnapshot | null,
   myId: string | null,
   lastRoll: LastRoll | null,
+  lastRollResolution: RollResolutionInfo | null,
   send: (msg: ClientMessage) => boolean,
   connected: boolean,
   ws: WsClient,
@@ -44,9 +46,12 @@ export function useTableScene(
   }, [lastRoll, snapshot?.game, snapshot?.players, viewerSeat]);
 
   useEffect(() => {
-    if (!lastRoll || detectStraight(lastRoll.dice) === 'none') return;
-    tableEvents.emit({ type: 'straight', dice: lastRoll.dice }, lastRoll.receivedAt);
-  }, [lastRoll]);
+    if (!lastRollResolution || detectStraight(lastRollResolution.dice) === 'none') return;
+    tableEvents.emit(
+      { type: 'straight', dice: lastRollResolution.dice },
+      lastRollResolution.receivedAt,
+    );
+  }, [lastRollResolution]);
 
   const turn = snapshot?.game?.currentTurn ?? null;
   const inGame = snapshot !== null && snapshot.phase !== 'lobby' && snapshot.game !== null;

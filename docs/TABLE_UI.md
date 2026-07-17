@@ -52,8 +52,9 @@ dice runtime without changing the five-die hand: while `turn.bonusPending` is se
 `useTableRoll` mounts `DicePhysics` with `bonusMode` and a forced keep set `[0,1,2,3,4]`
 (TableCanvas flips the component `key`, so the runtime rebuilds). All 5 quint dice sit
 railed and a temporary sixth die rides in the cup; settled runtime `values[5]` alone is
-reported as `turn:bonusThrowResult`. The sixth body is removed immediately after settle,
-the five-die rest pose remains untouched, and the server auto-stands the player. Keep
+reported as `turn:bonusThrowResult`. The settled sixth body and last streamed pose remain
+visible for the configured after-roll delay, then the delayed result removes them; the
+five-die rest pose remains untouched, and the server auto-stands the player. Keep
 clicks are disabled and the Stand button renders disabled with a "throw the bonus die"
 hint. Spectators render up to 6 streamed dice through `RemoteDiceView`; ordinary throws
 still hide its unused sixth mesh. The match payout animates via the existing
@@ -101,6 +102,20 @@ the final total before the chips arrive. The flight canvas draws in viewport
 coordinates and is portaled to `<body>`: `.table-top-band` is a transformed ancestor, and
 a transform re-roots `position: fixed` descendants onto itself — mounting the canvas
 inside the band squashes it into the band's box and lands chips beside roll-to-beat.
+
+Outcome-only effects obey the room's after-roll barrier. `turn:rolled` still updates the
+settled/static dice immediately, but it must not emit celebrations. The delayed
+`turn:rollResolved` is reduced to `lastRollResolution`; `useTableScene` emits the `straight`
+table event from that marker, so glow and bell begin with chip/outcome messages after the quiet
+window. Do not derive a consequence effect directly from `lastRoll`.
+
+The koozie is the exception to the interaction barrier. Ordinary non-terminal rolls enter
+`selecting` and dock the cup immediately, even while `turn.resolving` remains true, so the same
+player can keep and reroll quickly. Capped rolls and enabled Yahtzee-bonus transitions set
+`turn.koozieLocked` immediately. `useTableRoll.onSettled` also predicts those two immutable
+conditions from the just-settled dice and returns the lock synchronously to `DicePhysics`; this
+prevents a one-frame cup flash before the authoritative snapshot arrives. Bonus-die settlement
+always keeps the cup hidden. Stand stays disabled until every pending outcome resolves.
 
 ## Audio — impacts, rattle, and adding a sound
 

@@ -15,6 +15,8 @@ import {
 } from './room.js';
 import { RoomManager } from './roomManager.js';
 
+const TEST_SETTINGS = { ...DEFAULT_SETTINGS, afterRollDelayMs: 0 };
+
 class FakeLink implements ClientLink {
   messages: ServerMessage[] = [];
   send(msg: ServerMessage) {
@@ -26,7 +28,7 @@ class FakeLink implements ClientLink {
 }
 
 function makeRoom() {
-  const room = new Room('CHAT22', DEFAULT_SETTINGS);
+  const room = new Room('CHAT22', TEST_SETTINGS);
   const hostLink = new FakeLink();
   const host = room.addPlayer('Host', hostLink, { host: true });
   const guestLink = new FakeLink();
@@ -111,7 +113,7 @@ describe('chat persistence across restarts', () => {
   it('replays chat from the event log after a simulated restart', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.sendChat(host.id, 'survives restarts')).toBeNull();
     await store.flush();
@@ -129,7 +131,7 @@ describe('chat persistence across restarts', () => {
   it('survives round-end log compaction (chat is part of the snapshot)', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
-    const room = manager.create(DEFAULT_SETTINGS);
+    const room = manager.create(TEST_SETTINGS);
     const host = room.addPlayer('Host', new FakeLink(), { host: true });
     expect(room.requestSeat(host.id, 100)).toBeNull();
     const link = new FakeLink();

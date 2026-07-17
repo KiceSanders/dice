@@ -30,6 +30,8 @@ export function makeEngine(
     (e) => events.push(e),
     {
       roundEndDelayMs: 5_000,
+      // Most rule tests are about outcomes rather than wall-clock timing.
+      afterRollDelayMs: 0,
       ...engineOpts,
     },
   );

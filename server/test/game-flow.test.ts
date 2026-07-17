@@ -5,6 +5,7 @@ import { FakeClient, startTestServer } from './harness.js';
 
 const settings = {
   ...DEFAULT_SETTINGS,
+  afterRollDelayMs: 0,
   chipsPerRound: 2,
   maxRolls: 3,
   minBuyIn: 10,

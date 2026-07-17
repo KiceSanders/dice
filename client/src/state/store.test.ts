@@ -31,6 +31,7 @@ function snapshot(
     settings: partial.settings ?? {
       chipsPerRound: 1,
       maxRolls: 3,
+      afterRollDelayMs: 2000,
       minBuyIn: 5,
       maxBuyIn: 50,
       straightPayout: { enabled: true, amountPerPlayer: 2 },
@@ -335,6 +336,23 @@ describe('turn and round messages', () => {
       kept: [0, 1],
       restPose: null,
       receivedAt: 9_999,
+    });
+  });
+
+  it('records the delayed roll-resolution marker separately from the settled roll', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(4_321);
+    const state = receive({
+      type: 'turn:rollResolved',
+      playerId: 'p1',
+      dice: [1, 2, 3, 4, 5],
+      rollNumber: 2,
+    });
+    expect(state.lastRoll).toBeNull();
+    expect(state.lastRollResolution).toEqual({
+      playerId: 'p1',
+      dice: [1, 2, 3, 4, 5],
+      rollNumber: 2,
+      receivedAt: 4_321,
     });
   });
 

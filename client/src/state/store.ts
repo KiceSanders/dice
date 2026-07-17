@@ -35,6 +35,14 @@ export interface LastRoll {
   receivedAt: number;
 }
 
+/** Delayed marker that unlocks outcome-only table effects for a settled roll. */
+export interface RollResolutionInfo {
+  playerId: PlayerId;
+  dice: Die[];
+  rollNumber: number;
+  receivedAt: number;
+}
+
 /** Last `round:ended` payload, kept for the recap modal until dismissed. */
 export interface RoundEndInfo {
   /** null when every turn was forfeited — no hands, the pot carries over. */
@@ -91,6 +99,7 @@ export interface AppState {
   snapshot: RoomSnapshot | null;
   chat: ChatEntry[];
   lastRoll: LastRoll | null;
+  lastRollResolution: RollResolutionInfo | null;
   lastAnte: AnteInfo | null;
   lastTransfer: TransferInfo | null;
   lastClassicDonate: ClassicDonateInfo | null;
@@ -108,6 +117,7 @@ export const initialState: AppState = {
   snapshot: null,
   chat: [],
   lastRoll: null,
+  lastRollResolution: null,
   lastAnte: null,
   lastTransfer: null,
   lastClassicDonate: null,
@@ -192,6 +202,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         me: { playerId: msg.playerId, rejoinToken: msg.rejoinToken },
         snapshot: msg.snapshot,
         lastRoll: null,
+        lastRollResolution: null,
         lastAnte: null,
         lastTransfer: null,
         lastClassicDonate: null,
@@ -256,6 +267,17 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         },
       };
 
+    case 'turn:rollResolved':
+      return {
+        ...state,
+        lastRollResolution: {
+          playerId: msg.playerId,
+          dice: msg.dice,
+          rollNumber: msg.rollNumber,
+          receivedAt: Date.now(),
+        },
+      };
+
     case 'chat:message': {
       // The server replays history on rejoin; skip messages we already have.
       const duplicate = state.chat.some(
@@ -297,6 +319,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       return {
         ...state,
         lastRoll: null,
+        lastRollResolution: null,
         roundEnd: null,
         lastAnte: {
           kind: 'round',
@@ -311,6 +334,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       return {
         ...state,
         lastRoll: null,
+        lastRollResolution: null,
         lastAnte: {
           kind: 'subround',
           depth: msg.depth,

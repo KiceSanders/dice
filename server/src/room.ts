@@ -61,6 +61,7 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
     maxRolls: clampInt(s.maxRolls, 1, 10),
+    afterRollDelayMs: clampInt(s.afterRollDelayMs ?? DEFAULT_SETTINGS.afterRollDelayMs, 0, 10_000),
     minBuyIn,
     maxBuyIn: clampInt(s.maxBuyIn, minBuyIn, 10_000_000),
     straightPayout: {

@@ -69,6 +69,20 @@ in [`GameArea.tsx`](../../client/src/components/GameArea.tsx) and the Playground
 - Fixed/locked bodies are placed **declaratively only** (position props, remounts via `layoutGen`); rapier skips mesh sync for sleeping fixed bodies, so imperative `setTranslation` on them moves physics without the visual. Imperative teleports remain only for dynamic dice mid-interaction (`pullUnkeptDiceIntoCup`) and the grabbed kinematic cup.
 - **Follow-ups:** animated lerp instead of teleport.
 - **2026-07-03 update:** production Room keeps the last settled table pose visible across turn switches and delays the round-end modal 3 seconds, so the final roll remains readable before winner reveal.
+- **2026-07-17 update (central after-roll barrier):** the client-only round-end modal delay above
+  was removed. Every normal roll and Yahtzee bonus die now arms one server-owned,
+  room-configurable quiet window (default 2000ms). Settled dice still publish immediately, while
+  transfers, celebrations, bonus offers/results, auto-stands, turn/sub-round transitions, pot
+  awards, and the recap wait behind `turn:rollResolved` or the delayed bonus result. This keeps
+  all three renderers synchronized and prevents snapshots/chip counts from revealing an outcome
+  before the visual effect. The settled bonus die also remains visible through its quiet window.
+  Crash replay skips wall-clock waiting but recomputes the same result. Ordinary non-terminal
+  rolls are deliberately non-blocking for cup interaction: the koozie docks immediately and
+  same-player rerolls may overlap pending quiet windows, whose dice/outcomes are snapshotted
+  independently. Capped and enabled Yahtzee-transition rolls expose `turn.koozieLocked` in the
+  immediate snapshot, and the local settle callback predicts that immutable lock synchronously,
+  preventing the cup from flashing for one frame before it disappears. Bonus-die settlement
+  always keeps it hidden; Stand remains blocked while any outcome is pending.
 - **2026-07-04 update:** a **Stand** button renders on the table frame gutter (outside the play area, like the parked koozie). Voluntary stands are gated by the shared `canStandVoluntarily` rule — blocked while the current hand loses to the roll-to-beat (ties allowed; they force the sub-round) — and the server enforces the same rule on `turn:stand` (`STAND_NOT_ALLOWED`). Forced stands (roll cap, keep-all, timeout/disconnect/kick) bypass the gate.
 - **2026-07-07 update (table symmetry):** the felt became a **circle** (`FELT_SCALE` isotropic, guarded by a layout test). Seat identity is applied by rotating pose data around Y, and only a rotationally symmetric table maps onto itself under that rotation — on the old 1.15×0.95 oval, a remote roller's settled dice appeared on or past the rail in other players' views. Also: the previous turn's frozen pose now stays on the felt for the next roller **until they grab the koozie** (Room.tsx `showHeldPose` gates on dragging/rolling/dice; the idle sim's own dice are hidden in the docked cup, so the two never overlap). A captured pose is only shown if its top faces equal the authoritative last roll (`poseFrameMatchesDice` vs `turn:rolled`); otherwise a static pose is rebuilt from the roll values — per-client capture pipelines (local frames vs streamed frames) can be stale, and clients must never disagree on the faces.
 - **2026-07-07 update:** the parked koozie moved off the felt to a **dock beyond the containment wall** behind the far rail (rim peeking over). The on-felt spot let dice settle against/under the parked cup, where the generous pickup hit-test stole their clicks (misclick = keep set committed). Pull-into-cup-on-grab alone was insufficient; the dock plus the **grab guard line** (above) makes far-rail dice always clickable by construction. On grab from the dock, `pullUnkeptDiceIntoCup` now includes dice already inside the cup (`includeCupDice`) so a mid-turn remount can't strand them outside the wall. The vestigial `KOOZIE.home`/`cup.homeZ` constants and the Playground `cupHomeZ` slider were deleted — `koozieRestPosition` is the single source of the parked position.

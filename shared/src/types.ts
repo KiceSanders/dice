@@ -80,6 +80,8 @@ export interface RoomSettings {
   chipsPerRound: number;
   /** Absolute max rolls for the round's first player. */
   maxRolls: number;
+  /** Quiet window after dice settle before any outcome or turn consequence is revealed. */
+  afterRollDelayMs: number;
   minBuyIn: number;
   maxBuyIn: number;
   straightPayout: StraightPayoutConfig;
@@ -91,6 +93,7 @@ export interface RoomSettings {
 export const DEFAULT_SETTINGS: RoomSettings = {
   chipsPerRound: 1,
   maxRolls: 5,
+  afterRollDelayMs: 2_000,
   minBuyIn: 10,
   maxBuyIn: 1000,
   straightPayout: {
@@ -150,6 +153,10 @@ export interface TurnState {
   rollCap: number;
   /** True while a physics throw is in flight (throwStart → throwResult, ADR 004). */
   throwing: boolean;
+  /** True after dice settle while the configured after-roll delay is running. */
+  resolving: boolean;
+  /** True when the delayed result will change koozie ownership or enter a special throw. */
+  koozieLocked: boolean;
   /** Set while the turn awaits its Yahtzee bonus die (docs/GAME_RULES.md "Yahtzee bonus"). */
   bonusPending: { face: Die } | null;
   /**

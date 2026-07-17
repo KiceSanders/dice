@@ -31,7 +31,8 @@ export interface TableDiceProps {
    * pose sampled at that instant (kept dice already railed, cup hidden) — the
    * source of the authoritative rest pose sent to the server (ADR 005).
    */
-  onSettled: (dice: Die[], settleFrame: PoseFrame) => void;
+  /** Return true to keep the koozie hidden while the server delays a terminal/special result. */
+  onSettled: (dice: Die[], settleFrame: PoseFrame) => boolean | undefined;
   /** Called when rolling state changes. */
   onRollingChange?: (rolling: boolean) => void;
   /** Called on mouseup after a drag with sampled throw velocity. */

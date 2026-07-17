@@ -229,6 +229,11 @@ Conventions for all phases:
 - [ ] **9.4 Game HUD** — pot size (chip stack visual), roll-to-beat (dice + holder name), round number, sub-round banner with depth & doubled ante when active, per-seat chip counts updating live.
 - [ ] **9.5 Round & straight moments** — `round:ended`: winner highlight + pot-slide animation + scores recap modal (auto-dismiss before next round); null winner renders the pot-carryover state. `straight:paid`: celebration moment showing kind (little/big), total collected, and per-player payments (currently a toast + chat line; a richer banner is open work).
 - [ ] **9.6 Spectator view** — spectators see everything read-only; seat-request remains available between rounds.
+- [x] **9.7 Central after-roll delay** — host-configurable quiet window after every normal/bonus
+  roll (default 2000ms) before payouts, celebrations, bonus offers/results, automatic stands,
+  turn/sub-round transitions, pot awards, or winner recap; replaces the client-only recap timer.
+  Ordinary rolls return the koozie immediately for rapid same-player rerolls; capped/special
+  rolls lock it without a transient dock flash.
 
 **Verification:** play 3 full rounds with 3 tabs including a tie and a straight (dice are client-reported — ADR 004 — so a tie/straight can be forced from the browser console by sending scripted `turn:throwResult` faces); record that animations fire and state never desyncs from a hard-refresh rejoin.
 

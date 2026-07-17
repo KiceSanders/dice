@@ -78,6 +78,8 @@ function turn(
     rollsUsed: opts.rollsUsed ?? 0,
     rollCap: opts.rollCap ?? DEFAULT_SETTINGS.maxRolls,
     throwing: false,
+    resolving: false,
+    koozieLocked: false,
     bonusPending: null,
     restPose: null,
   };

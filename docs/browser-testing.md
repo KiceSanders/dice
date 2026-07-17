@@ -121,6 +121,13 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
     max-player field in either tab.
 14. Tab A: change **Chips per round** (e.g. 2) → **Save settings** → Tab B read-only panel shows updated value.
 14b. After the game has started (mid-round): Tab A host opens **Room settings**, changes **Chips per round** (e.g. 4) → **Save** → Tab B shows the new value immediately; the **current** pot is unchanged. On the **next** round, both players ante the new amount.
+14c. Set **After Roll Delay (ms)** to 3000 mid-game. The next settled roll stays quiet for
+    about 3 seconds before any payout/effect/turn change. Change it to 500 during that quiet
+    window: the current roll still waits about 3 seconds; the following roll waits about 0.5s.
+    On an ordinary roll, confirm the koozie docks immediately and can be grabbed for a rapid
+    reroll during the quiet window. On a capped roll or a roll that starts a Yahtzee bonus,
+    confirm the koozie stays hidden continuously—there must be no one-frame flash at the
+    player's dock before the delayed turn/bonus transition.
 
 ### Host transfer
 
@@ -197,9 +204,10 @@ Dice come only from client physics (no server RNG), so the settle override in
 1. In the **roller's** tab console (dev builds only):
    `window.__forceSettleFaces = [1, 2, 3, 4, 5]` (or `[2, 3, 4, 5, 6]`).
    Kept dice keep their committed values, so force on the **first** throw of a turn.
-2. Grab and throw the koozie. On settle: dice light up gold **one-by-one in
+2. Grab and throw the koozie. On settle, the dice remain plain and chip counts do not move for
+   the configured After Roll Delay (2s by default). Then they light up gold **one-by-one in
    ascending face order** (~1.6s, then fade). Grabbing the cup again clears it early.
-3. Same roll: `straight:paid` toast, every other seated player's chips drop by the
+3. At that same delayed boundary: `straight:paid` toast, every other seated player's chips drop by the
    configured amount, roller's rise — pot unchanged, turn continues.
 4. Spectator tab (streamed playback or passive view) shows the same staggered glow
    shortly after the dice snap into place.
@@ -216,7 +224,7 @@ same override; switch **View as** to check the passive glow.
 
 1. Confirm Classic Pot is enabled in settings (default on; donation amount 1).
 2. On the first throw of a turn, force four of a kind (e.g.
-   `window.__forceSettleFaces = [3, 3, 3, 3, 2]`). On settle: roller loses 1 chip, Classic
+   `window.__forceSettleFaces = [3, 3, 3, 3, 2]`). After the configured delay: roller loses 1 chip, Classic
    Pot (top-band right of roll-to-beat) increments, toast/chat announce the donation, and a
    chip flies seat → Classic Pot.
 3. Yahtzee on first roll (`[4,4,4,4,4]`) must **not** donate. A four-of-a-kind on the second
@@ -237,7 +245,7 @@ same override; switch **View as** to check the passive glow.
 1. Confirm **First-roll Yahtzee payout** and Yahtzee bonus are enabled. In the roller tab, force
    a first-throw quint with
    `window.__forceSettleFaces = [6, 6, 6, 6, 6]`, then throw the koozie.
-2. On settlement, every other seated player's chips fall by the configured first-roll amount,
+2. After the main roll's configured delay, every other seated player's chips fall by the configured first-roll amount,
    the roller's chips rise by the same total, and both tabs show the transfer toast/chat line.
    Repeat with `[6, 6, 6, 1, 1]` to confirm wild-composed Yahtzees qualify; a Yahtzee made on a
    second roll must not pay this rule.
@@ -246,7 +254,8 @@ same override; switch **View as** to check the passive glow.
    the cup.
 4. Throw the bonus die. The spectator must see all five railed dice plus the streamed
    sixth die during the throw.
-5. On settle (match or miss), confirm the sixth die disappears, the original five-die
+5. On settle (match or miss), confirm there is no match/miss announcement, chip movement, or
+   automatic stand until the bonus die's configured delay elapses. Then the original five-die
    Yahtzee remains as the last hand, and the roller stands automatically without clicking
    **Stand**. The next player's turn should begin (or the round should resolve).
 6. Repeat from the other player seat and check both consoles for errors or
@@ -300,7 +309,8 @@ running counter.
    koozie, A's held pose hides and B's own dice proceed through the normal throw flow.
 5. **Losing hand + round end:** establish a roll to beat, then let the next/final roller
    lose. Both tabs keep that newest losing layout on the felt (never the earlier winning
-   hand), leave it unobstructed for about 5 seconds, then show the winner recap.
+   hand), leave it unobstructed for the configured After Roll Delay (2s by default), then show
+   the winner recap and pot movement together.
 6. **Spectator refresh:** refresh B while A is selecting. B rejoins straight into A's
    real layout (snapshot `restPose`) — this used to be a guaranteed fallback.
 7. **Roller refresh:** refresh A after a settle, before standing. A rejoins seeing its
