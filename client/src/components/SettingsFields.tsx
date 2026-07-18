@@ -86,18 +86,6 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
   return (
     <fieldset className="settings-fields" disabled={disabled}>
       <div className="field">
-        <label htmlFor="set-chips">Chips per round</label>
-        <input
-          id="set-chips"
-          type="number"
-          min={1}
-          value={displayNum(value.chipsPerRound)}
-          onChange={(e) => onNum(e.target.value, (n) => set({ chipsPerRound: n }))}
-        />
-        <small>Ante every seated player pays into the pot each round.</small>
-      </div>
-
-      <div className="field">
         <label htmlFor="set-multiplier">Bet multiplier</label>
         <input
           id="set-multiplier"
@@ -147,59 +135,16 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
       </div>
 
       <div className="field">
-        <label htmlFor="set-maxrolls">Max rolls</label>
+        <label htmlFor="set-chips">Chips per round</label>
         <input
-          id="set-maxrolls"
+          id="set-chips"
           type="number"
           min={1}
-          max={10}
-          value={displayNum(value.maxRolls)}
-          onChange={(e) => onNum(e.target.value, (n) => set({ maxRolls: n }))}
+          value={displayNum(value.chipsPerRound)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ chipsPerRound: n }))}
         />
-        <small>
-          Roll ceiling for the round's first player; later players are capped by the leader.
-        </small>
+        <small>Ante every seated player pays into the pot each round.</small>
       </div>
-
-      <div className="field">
-        <label htmlFor="set-after-roll-delay">After Roll Delay (ms)</label>
-        <input
-          id="set-after-roll-delay"
-          type="number"
-          min={0}
-          max={10000}
-          step={100}
-          value={displayNum(value.afterRollDelayMs)}
-          onChange={(e) => onNum(e.target.value, (n) => set({ afterRollDelayMs: n }))}
-        />
-        <small>Time to inspect settled dice before payouts, effects, or turn changes.</small>
-      </div>
-
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="set-minbuyin">Min buy-in</label>
-          <input
-            id="set-minbuyin"
-            type="number"
-            min={1}
-            value={displayNum(value.minBuyIn)}
-            onChange={(e) => onNum(e.target.value, (n) => set({ minBuyIn: n }))}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="set-maxbuyin">Max buy-in</label>
-          <input
-            id="set-maxbuyin"
-            type="number"
-            min={1}
-            value={displayNum(value.maxBuyIn)}
-            onChange={(e) => onNum(e.target.value, (n) => set({ maxBuyIn: n }))}
-          />
-        </div>
-      </div>
-      <small className="field-help">
-        Players pick their own starting chips within these bounds.
-      </small>
 
       <div className="settings-bonus">
         <label className="check">
@@ -336,6 +281,61 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           </div>
         )}
       </div>
+
+      <div className="field">
+        <label htmlFor="set-maxrolls">Max rolls</label>
+        <input
+          id="set-maxrolls"
+          type="number"
+          min={1}
+          max={10}
+          value={displayNum(value.maxRolls)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ maxRolls: n }))}
+        />
+        <small>
+          Roll ceiling for the round's first player; later players are capped by the leader.
+        </small>
+      </div>
+
+      <div className="field">
+        <label htmlFor="set-after-roll-delay">After Roll Delay (ms)</label>
+        <input
+          id="set-after-roll-delay"
+          type="number"
+          min={0}
+          max={10000}
+          step={100}
+          value={displayNum(value.afterRollDelayMs)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ afterRollDelayMs: n }))}
+        />
+        <small>Time to inspect settled dice before payouts, effects, or turn changes.</small>
+      </div>
+
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="set-minbuyin">Min buy-in</label>
+          <input
+            id="set-minbuyin"
+            type="number"
+            min={1}
+            value={displayNum(value.minBuyIn)}
+            onChange={(e) => onNum(e.target.value, (n) => set({ minBuyIn: n }))}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="set-maxbuyin">Max buy-in</label>
+          <input
+            id="set-maxbuyin"
+            type="number"
+            min={1}
+            value={displayNum(value.maxBuyIn)}
+            onChange={(e) => onNum(e.target.value, (n) => set({ maxBuyIn: n }))}
+          />
+        </div>
+      </div>
+      <small className="field-help">
+        Players pick their own starting chips within these bounds.
+      </small>
     </fieldset>
   );
 }
