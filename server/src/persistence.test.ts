@@ -200,8 +200,8 @@ describe('persistence & crash recovery (Phase 6)', () => {
     const room2 = manager2.get(room.id)!;
     expect(room2.phase).toBe('roundEnd');
     expect(room2.engine!.roundNumber).toBe(1);
-    expect(room2.players.get(host.id)!.chips).toBe(111); // first-roll Yahtzee payout + pot
-    expect(room2.players.get(p1.id)!.chips).toBe(89);
+    expect(room2.players.get(host.id)!.chips).toBe(105); // first-roll Yahtzee payout + pot
+    expect(room2.players.get(p1.id)!.chips).toBe(95);
 
     manager.stop();
     manager2.stop();
@@ -219,10 +219,10 @@ describe('persistence & crash recovery (Phase 6)', () => {
 
     expect(room.startGame(host.id)).toBeNull();
     const engine = room.engine!;
-    // Straight mid-round: p1 pays 5 on the spot (default payout config).
+    // Straight mid-round: p1 pays 3 on the spot (default payout config).
     expect(roll(engine, host.id, [1, 2, 3, 4, 5])).toBeNull();
-    expect(room.players.get(host.id)!.chips).toBe(104); // 100 - 1 ante + 5
-    expect(room.players.get(p1.id)!.chips).toBe(44); // 50 - 1 ante - 5
+    expect(room.players.get(host.id)!.chips).toBe(102); // 100 - 1 ante + 3
+    expect(room.players.get(p1.id)!.chips).toBe(46); // 50 - 1 ante - 3
 
     await store.flush();
     const store2 = new RoomLogStore(dir);
@@ -231,8 +231,8 @@ describe('persistence & crash recovery (Phase 6)', () => {
     const room2 = manager2.get(room.id)!;
 
     // Replaying the rolled event re-fires applyStraightPayout identically.
-    expect(room2.players.get(host.id)!.chips).toBe(104);
-    expect(room2.players.get(p1.id)!.chips).toBe(44);
+    expect(room2.players.get(host.id)!.chips).toBe(102);
+    expect(room2.players.get(p1.id)!.chips).toBe(46);
 
     manager.stop();
     manager2.stop();
@@ -261,8 +261,8 @@ describe('persistence & crash recovery (Phase 6)', () => {
     const manager2 = new RoomManager(undefined, undefined, store2);
     expect(await recoverRooms(store2, manager2)).toBe(1);
     const recovered = manager2.get(room.id)!;
-    expect(recovered.players.get(host.id)!.chips).toBe(104);
-    expect(recovered.players.get(p1.id)!.chips).toBe(44);
+    expect(recovered.players.get(host.id)!.chips).toBe(102);
+    expect(recovered.players.get(p1.id)!.chips).toBe(46);
     expect(recovered.engine!.publicState().currentTurn?.resolving).toBe(false);
 
     manager.stop();
@@ -294,16 +294,16 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(turn?.playerId).toBe(host.id);
     expect(turn?.bonusPending).toEqual({ face: 6 });
     expect(turn?.throwing).toBe(false);
-    expect(room2.players.get(host.id)!.chips).toBe(109);
-    expect(room2.players.get(p1.id)!.chips).toBe(39);
+    expect(room2.players.get(host.id)!.chips).toBe(103);
+    expect(room2.players.get(p1.id)!.chips).toBe(45);
 
     // The rejoining roller can complete the bonus throw.
     room2.rejoin(host.rejoinToken, new FakeLink());
     room2.rejoin(p1.rejoinToken, new FakeLink());
     expect(room2.engine!.beginBonusThrow(host.id)).toBeNull();
     expect(room2.engine!.commitBonusThrow(host.id, 6)).toBeNull();
-    expect(room2.players.get(host.id)!.chips).toBe(119);
-    expect(room2.players.get(p1.id)!.chips).toBe(29);
+    expect(room2.players.get(host.id)!.chips).toBe(106);
+    expect(room2.players.get(p1.id)!.chips).toBe(42);
     expect(room2.engine!.currentTurnPlayerId).toBe(p1.id);
 
     manager.stop();
@@ -324,8 +324,8 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(roll(engine, host.id, [6, 6, 6, 6, 6])).toBeNull();
     expect(engine.beginBonusThrow(host.id)).toBeNull();
     expect(engine.commitBonusThrow(host.id, 6)).toBeNull();
-    expect(room.players.get(host.id)!.chips).toBe(119); // first-roll + bonus payouts
-    expect(room.players.get(p1.id)!.chips).toBe(29);
+    expect(room.players.get(host.id)!.chips).toBe(106); // first-roll + bonus payouts
+    expect(room.players.get(p1.id)!.chips).toBe(42);
 
     await store.flush();
     const manager2 = new RoomManager(undefined, undefined, new RoomLogStore(dir));
@@ -333,8 +333,8 @@ describe('persistence & crash recovery (Phase 6)', () => {
     const room2 = manager2.get(room.id)!;
 
     // Replaying rolled + bonusRolled re-fires the payout identically.
-    expect(room2.players.get(host.id)!.chips).toBe(119);
-    expect(room2.players.get(p1.id)!.chips).toBe(29);
+    expect(room2.players.get(host.id)!.chips).toBe(106);
+    expect(room2.players.get(p1.id)!.chips).toBe(42);
     expect(room2.engine!.publicState().currentTurn?.bonusPending).toBeNull();
 
     manager.stop();

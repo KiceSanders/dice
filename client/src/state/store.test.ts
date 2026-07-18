@@ -30,6 +30,8 @@ function snapshot(
     phase: partial.phase ?? 'lobby',
     settings: partial.settings ?? {
       chipsPerRound: 1,
+      betMultiplier: 1,
+      autoIncrement: { enabled: true, everyRounds: 7 },
       maxRolls: 3,
       afterRollDelayMs: 2000,
       minBuyIn: 5,

@@ -19,8 +19,9 @@ every other seated player pay the roller.
 ## Turn structure
 
 1. A **round** begins: every seated player with chips antes into the pot. The ante is
-   `min(settings.chipsPerRound, lowest positive stack)` — everyone who can play pays the
-   same short-stack floor. Players with 0 chips sit the round out (they keep their seat).
+   `min(settings.chipsPerRound × effective multiplier, lowest positive stack)` — everyone
+   who can play pays the same short-stack floor (see "Stakes: multiplier and auto-raise").
+   Players with 0 chips sit the round out (they keep their seat).
    If fewer than 2 players have chips, the game ends.
 2. Players act **clockwise** in seat order. The **first roller** rotates
    **counter-clockwise** from the previous first roller each round and each
@@ -159,6 +160,29 @@ Instant side bet on rolling a Yahtzee. Detection lives in
   bonus commit, so disabling between offer and commit pays nothing. A later edit during the
   bonus die's quiet window applies to the following roll.
 
+## Stakes: multiplier and auto-raise
+
+Both live in `shared/src/game/stakes.ts` (`effectiveMultiplier`), applied by the engine.
+
+- The **effective multiplier** for round N is
+  `betMultiplier × (autoIncrement.enabled ? 1 + floor((N - 1) / everyRounds) : 1)`, never
+  below 1 — the base multiplier is both the starting value and the auto-raise step size.
+  With the defaults (`betMultiplier: 1`, every 7 rounds) rounds 1–7 use ×1, rounds 8–14
+  use ×2, and so on; with `betMultiplier: 2` that becomes ×2, ×4, ×6 — stakes escalate so
+  games don't drag on.
+- It multiplies the **ante** (round and sub-round, before the short-stack floor) and every
+  **instant side-bet amount**: `straightPayout.amountPerPlayer`,
+  `classicPot.donationAmount`, `yahtzeeBonus.amountPerPlayer`, and
+  `firstRollYahtzeePayout.amountPerPlayer`. The Classic Pot **win** is untouched — it
+  always pays the whole accumulated pool. Per-payer caps (`min(amount, payer.chips)`)
+  apply to the multiplied amount.
+- Each round uses the multiplier for its own round number; sub-rounds use their parent
+  round's multiplier (the 2^depth doubling stacks on top). Side bets read the multiplier
+  when the roll settles, like the rest of their config.
+- **Settings**: `betMultiplier` (default 1) and
+  `autoIncrement = { enabled, everyRounds }` (default `{ enabled: true, everyRounds: 7 }`).
+  Host edits take effect at the same natural points as the underlying amounts.
+
 ## Standing
 
 Rule: `shared/src/game/stand.ts` (`canStandVoluntarily`, `mustAutoStandLastPlayerBeat`),
@@ -178,7 +202,8 @@ mirrored client and server.
 ## Ties and sub-rounds
 
 - Tied best hands start a **sub-round** among only the tied players, same pot.
-- Each tied player antes the same amount: `min(chipsPerRound * 2^depth, lowest tied stack)`
+- Each tied player antes the same amount:
+  `min(chipsPerRound × effective multiplier × 2^depth, lowest tied stack)`
   (doubling each level, equal floor — no asymmetric all-in). A winner takes the entire pot;
   no side pots.
 - Roll caps reset each sub-round. Sub-rounds nest; past depth 10 antes stop and
@@ -211,13 +236,15 @@ mirrored client and server.
 | Setting | Default | Notes |
 |---|---|---|
 | `chipsPerRound` | 1 | Ante per player per round |
+| `betMultiplier` | 1 | Base stake multiplier — see Stakes: multiplier and auto-raise |
+| `autoIncrement` | `{ enabled: true, everyRounds: 7 }` | Periodic `betMultiplier`-sized bump of the effective multiplier — see Stakes: multiplier and auto-raise |
 | `maxRolls` | 5 | Roll ceiling for the round's first player |
 | `afterRollDelayMs` | 2000 | Quiet outcome window after every normal/bonus roll; ordinary same-player rerolls remain immediate; clamped to 0–10000 ms |
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |
-| `straightPayout` | `{ enabled: true, amountPerPlayer: 5 }` | See Straights |
+| `straightPayout` | `{ enabled: true, amountPerPlayer: 3 }` | See Straights |
 | `classicPot` | `{ enabled: true, donationAmount: 1 }` | See Classic Pot |
-| `firstRollYahtzeePayout` | `{ enabled: true, amountPerPlayer: 10 }` | See First-roll Yahtzee payout |
-| `yahtzeeBonus` | `{ enabled: true, amountPerPlayer: 10 }` | See Yahtzee bonus |
+| `firstRollYahtzeePayout` | `{ enabled: true, amountPerPlayer: 4 }` | See First-roll Yahtzee payout |
+| `yahtzeeBonus` | `{ enabled: true, amountPerPlayer: 3 }` | See Yahtzee bonus |
 
 Defaults: `DEFAULT_SETTINGS` in `shared/src/types.ts`. Server-side clamping:
 `clampSettings` in `server/src/room.ts`.

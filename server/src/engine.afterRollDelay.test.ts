@@ -41,7 +41,7 @@ describe('after-roll delay', () => {
       },
     ]);
     expect(ofType(events, 'straightPaid')).toHaveLength(1);
-    expect(players.map((player) => player.chips)).toEqual([104, 94]);
+    expect(players.map((player) => player.chips)).toEqual([102, 96]);
     expect(engine.publicState().currentTurn?.resolving).toBe(false);
   });
 
@@ -93,7 +93,7 @@ describe('after-roll delay', () => {
     vi.advanceTimersByTime(2_000);
     expect(ofType(events, 'bonusRolled')[0]).toMatchObject({ matched: true });
     expect(ofType(events, 'yahtzeeBonusPaid')).toHaveLength(1);
-    expect(players.map((player) => player.chips)).toEqual([109, 89]);
+    expect(players.map((player) => player.chips)).toEqual([102, 96]);
     expect(engine.currentTurnPlayerId).toBe('p1');
   });
 

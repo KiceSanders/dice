@@ -6,6 +6,7 @@ export * from './game/firstRollYahtzee.js';
 export * from './game/resolve.js';
 export * from './game/restPose.js';
 export * from './game/score.js';
+export * from './game/stakes.js';
 export * from './game/stand.js';
 export * from './game/turnOrder.js';
 export * from './game/yahtzeeBonus.js';

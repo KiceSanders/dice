@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  AutoIncrementConfig,
   ClassicPotConfig,
   FirstRollYahtzeePayoutConfig,
   PlayerId,
@@ -54,12 +55,19 @@ export function clampSettings(s: RoomSettings): RoomSettings {
   const cp: Partial<ClassicPotConfig> = s.classicPot ?? {};
   const yb: Partial<YahtzeeBonusConfig> = s.yahtzeeBonus ?? {};
   const fry: Partial<FirstRollYahtzeePayoutConfig> = s.firstRollYahtzeePayout ?? {};
+  const ai: Partial<AutoIncrementConfig> = s.autoIncrement ?? {};
   const dSp = DEFAULT_SETTINGS.straightPayout;
   const dCp = DEFAULT_SETTINGS.classicPot;
   const dYb = DEFAULT_SETTINGS.yahtzeeBonus;
   const dFry = DEFAULT_SETTINGS.firstRollYahtzeePayout;
+  const dAi = DEFAULT_SETTINGS.autoIncrement;
   return {
     chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
+    betMultiplier: clampInt(s.betMultiplier ?? DEFAULT_SETTINGS.betMultiplier, 1, 1000),
+    autoIncrement: {
+      enabled: ai.enabled === undefined ? dAi.enabled : Boolean(ai.enabled),
+      everyRounds: clampInt(ai.everyRounds ?? dAi.everyRounds, 1, 1000),
+    },
     maxRolls: clampInt(s.maxRolls, 1, 10),
     afterRollDelayMs: clampInt(s.afterRollDelayMs ?? DEFAULT_SETTINGS.afterRollDelayMs, 0, 10_000),
     minBuyIn,

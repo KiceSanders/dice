@@ -42,11 +42,22 @@ describe('clampSettings / sanitizeName', () => {
       afterRollDelayMs: 99_999,
       minBuyIn: 50,
       maxBuyIn: 10, // below min → raised to min
+      betMultiplier: 0,
+      autoIncrement: { enabled: true, everyRounds: 0 },
     });
     expect(clamped.chipsPerRound).toBe(1);
     expect(clamped.maxRolls).toBe(10);
     expect(clamped.afterRollDelayMs).toBe(10_000);
     expect(clamped.maxBuyIn).toBe(50);
+    expect(clamped.betMultiplier).toBe(1);
+    expect(clamped.autoIncrement).toEqual({ enabled: true, everyRounds: 1 });
+  });
+
+  it('defaults missing stakes settings for older persisted settings', () => {
+    const { betMultiplier: _m, autoIncrement: _ai, ...withoutStakes } = DEFAULT_SETTINGS;
+    const defaulted = clampSettings(withoutStakes as RoomSettings);
+    expect(defaulted.betMultiplier).toBe(1);
+    expect(defaulted.autoIncrement).toEqual(DEFAULT_SETTINGS.autoIncrement);
   });
 
   it('defaults a missing after-roll delay for older persisted settings', () => {

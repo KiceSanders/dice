@@ -1,4 +1,5 @@
 import type {
+  AutoIncrementConfig,
   ClassicPotConfig,
   ClientMessage,
   FirstRollYahtzeePayoutConfig,
@@ -37,11 +38,17 @@ function isFirstRollYahtzeePayoutConfig(v: unknown): v is FirstRollYahtzeePayout
   return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.amountPerPlayer);
 }
 
+function isAutoIncrementConfig(v: unknown): v is AutoIncrementConfig {
+  return isRecord(v) && typeof v.enabled === 'boolean' && isFiniteNumber(v.everyRounds);
+}
+
 /** Structural check only; range clamping happens in the room layer (Phase 3.2). */
 function isRoomSettings(v: unknown): v is RoomSettings {
   return (
     isRecord(v) &&
     isFiniteNumber(v.chipsPerRound) &&
+    isFiniteNumber(v.betMultiplier) &&
+    isAutoIncrementConfig(v.autoIncrement) &&
     isFiniteNumber(v.maxRolls) &&
     isFiniteNumber(v.afterRollDelayMs) &&
     isFiniteNumber(v.minBuyIn) &&

@@ -1,4 +1,5 @@
 import type {
+  AutoIncrementConfig,
   ClassicPotConfig,
   FirstRollYahtzeePayoutConfig,
   RoomSettings,
@@ -19,6 +20,11 @@ export function fillEmptySettings(s: RoomSettings): RoomSettings {
   return {
     ...s,
     chipsPerRound: z(s.chipsPerRound),
+    betMultiplier: z(s.betMultiplier),
+    autoIncrement: {
+      ...s.autoIncrement,
+      everyRounds: z(s.autoIncrement.everyRounds),
+    },
     maxRolls: z(s.maxRolls),
     afterRollDelayMs: z(s.afterRollDelayMs),
     minBuyIn: z(s.minBuyIn),
@@ -69,6 +75,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
       ...value,
       firstRollYahtzeePayout: { ...value.firstRollYahtzeePayout, ...patch },
     });
+  const setAutoIncrement = (patch: Partial<AutoIncrementConfig>) =>
+    onChange?.({ ...value, autoIncrement: { ...value.autoIncrement, ...patch } });
 
   const onNum = (raw: string, apply: (n: number) => void) => {
     const n = parseNum(raw);
@@ -87,6 +95,55 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           onChange={(e) => onNum(e.target.value, (n) => set({ chipsPerRound: n }))}
         />
         <small>Ante every seated player pays into the pot each round.</small>
+      </div>
+
+      <div className="field">
+        <label htmlFor="set-multiplier">Bet multiplier</label>
+        <input
+          id="set-multiplier"
+          type="number"
+          min={1}
+          value={displayNum(value.betMultiplier)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ betMultiplier: n }))}
+        />
+        <small>
+          Multiplies the ante, straight payout, Classic Pot donation, Yahtzee bonus, and first-roll
+          Yahtzee payout.
+        </small>
+      </div>
+
+      <div className="settings-bonus">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={value.autoIncrement.enabled}
+            onChange={(e) => setAutoIncrement({ enabled: e.target.checked })}
+          />
+          Auto-raise stakes
+        </label>
+        <small>
+          Raises the effective multiplier by the bet multiplier at a fixed round interval so games
+          don't drag on.
+        </small>
+
+        {value.autoIncrement.enabled && (
+          <div className="bonus-grid">
+            <div className="field">
+              <label htmlFor="set-auto-increment-rounds">Every N rounds</label>
+              <input
+                id="set-auto-increment-rounds"
+                type="number"
+                min={1}
+                value={displayNum(value.autoIncrement.everyRounds)}
+                onChange={(e) => onNum(e.target.value, (n) => setAutoIncrement({ everyRounds: n }))}
+              />
+            </div>
+            <small className="field-help">
+              With the default of 7, rounds 1–7 use the base multiplier, rounds 8–14 double it,
+              rounds 15–21 triple it, and so on.
+            </small>
+          </div>
+        )}
       </div>
 
       <div className="field">

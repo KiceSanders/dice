@@ -41,6 +41,8 @@ function client(name) {
 
 const settings = {
   chipsPerRound: 1,
+  betMultiplier: 1,
+  autoIncrement: { enabled: true, everyRounds: 7 },
   maxRolls: 3,
   afterRollDelayMs: 2000,
   minBuyIn: 10,
