@@ -4,24 +4,18 @@ import { isWebSocketOriginAllowed, parseAllowedOrigins } from './httpSecurity.js
 describe('WebSocket origin policy', () => {
   it('allows same-host browser connections and origin-less tools', () => {
     const allowed = new Set<string>();
-    expect(isWebSocketOriginAllowed(undefined, 'kicesanders.com', allowed)).toBe(true);
-    expect(isWebSocketOriginAllowed('https://kicesanders.com', 'kicesanders.com', allowed)).toBe(
+    expect(isWebSocketOriginAllowed(undefined, 'example.com', allowed)).toBe(true);
+    expect(isWebSocketOriginAllowed('https://example.com', 'example.com', allowed)).toBe(true);
+    expect(isWebSocketOriginAllowed('https://example.com:8443', 'example.com:8443', allowed)).toBe(
       true,
     );
-    expect(
-      isWebSocketOriginAllowed('https://kicesanders.com:8443', 'kicesanders.com:8443', allowed),
-    ).toBe(true);
   });
 
   it('rejects cross-site, non-http, and malformed origins', () => {
     const allowed = new Set<string>();
-    expect(isWebSocketOriginAllowed('https://evil.example', 'kicesanders.com', allowed)).toBe(
-      false,
-    );
-    expect(isWebSocketOriginAllowed('file:///tmp/app.html', 'kicesanders.com', allowed)).toBe(
-      false,
-    );
-    expect(isWebSocketOriginAllowed('not a url', 'kicesanders.com', allowed)).toBe(false);
+    expect(isWebSocketOriginAllowed('https://evil.example', 'example.com', allowed)).toBe(false);
+    expect(isWebSocketOriginAllowed('file:///tmp/app.html', 'example.com', allowed)).toBe(false);
+    expect(isWebSocketOriginAllowed('not a url', 'example.com', allowed)).toBe(false);
   });
 
   it('allows explicitly trusted origins for split deployments', () => {

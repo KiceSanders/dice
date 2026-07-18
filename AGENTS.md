@@ -1,4 +1,4 @@
-# Agent guide — dice3
+# Agent guide — dice
 
 npm workspaces monorepo: `shared` (types + protocol + pure game rules, consumed as raw TS),
 `server` (express + ws, authoritative engine), `client` (React 19 + Vite + react-three-fiber).

@@ -10,7 +10,7 @@ import { type StartedServer, startServer } from '../src/startServer.js';
  */
 
 export async function startTestServer(): Promise<StartedServer> {
-  const logDir = await mkdtemp(path.join(tmpdir(), 'dice3-test-'));
+  const logDir = await mkdtemp(path.join(tmpdir(), 'dice-test-'));
   return startServer({ port: 0, host: '127.0.0.1', logDir, recover: false });
 }
 

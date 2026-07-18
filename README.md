@@ -52,5 +52,5 @@ WebSockets on the same port — everything on `http://localhost:3001`.
 - `ALLOWED_ORIGINS` — optional comma-separated extra browser origins; same-origin
   WebSockets are accepted automatically
 
-For a container build, run `docker build -t dice3 .` and mount persistent storage at
-`/data`. See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for managed-host and VPS setup.
+For a container build, run `docker build -t dice .` and mount persistent storage at
+`/data`. See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for the production runtime contract.

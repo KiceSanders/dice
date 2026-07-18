@@ -1,8 +1,8 @@
 services:
-  dice3:
+  dice:
     build:
       context: .
-    container_name: dice3
+    container_name: dice
     restart: unless-stopped
     init: true
     ports:
@@ -13,7 +13,8 @@ services:
       PORT: 3001
       LOG_DIR: /data
     volumes:
-      - dice3-data:/data
+      - dice-data:/data
 
 volumes:
-  dice3-data:
+  dice-data:
+    name: dice-data

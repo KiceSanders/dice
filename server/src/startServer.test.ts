@@ -15,7 +15,7 @@ function openSocket(url: string): Promise<WebSocket> {
 
 describe('startServer shutdown', () => {
   it('closes the HTTP server even when flushing logs fails', async () => {
-    const logDir = await mkdtemp(path.join(tmpdir(), 'dice3-close-test-'));
+    const logDir = await mkdtemp(path.join(tmpdir(), 'dice-close-test-'));
     const server = await startServer({ port: 0, host: '127.0.0.1', logDir, recover: false });
     const originalClose = server.httpServer.close.bind(server.httpServer);
     let closeCalled = false;
@@ -33,7 +33,7 @@ describe('startServer shutdown', () => {
   });
 
   it('serves a hardened health check and accepts WebSockets only on /ws', async () => {
-    const logDir = await mkdtemp(path.join(tmpdir(), 'dice3-http-test-'));
+    const logDir = await mkdtemp(path.join(tmpdir(), 'dice-http-test-'));
     const server = await startServer({ port: 0, host: '127.0.0.1', logDir, recover: false });
 
     try {

@@ -35,7 +35,7 @@ ends with a **Verification** step — do not move on until it passes.
 ### Repository layout
 
 ```
-dice3/
+dice/
 ├── PLAN.md                 ← this file
 ├── README.md
 ├── package.json            ← npm workspaces root
