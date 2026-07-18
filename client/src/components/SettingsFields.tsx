@@ -107,8 +107,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           onChange={(e) => onNum(e.target.value, (n) => set({ betMultiplier: n }))}
         />
         <small>
-          Multiplies the ante, straight payout, Classic Pot donation, Yahtzee bonus, and first-roll
-          Yahtzee payout.
+          Each auto-raise multiplies the ante, straight payout, Classic Pot donation, Yahtzee bonus,
+          and first-roll Yahtzee payout by this factor, updating the values in these settings.
         </small>
       </div>
 
@@ -122,8 +122,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           Auto-raise stakes
         </label>
         <small>
-          Raises the effective multiplier by the bet multiplier at a fixed round interval so games
-          don't drag on.
+          Applies the bet multiplier to all bet amounts at a fixed round interval so games don't
+          drag on. The raised amounts show up here and can be edited back down anytime.
         </small>
 
         {value.autoIncrement.enabled && (
@@ -139,8 +139,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
               />
             </div>
             <small className="field-help">
-              With the default of 7, rounds 1–7 use the base multiplier, rounds 8–14 double it,
-              rounds 15–21 triple it, and so on.
+              With the defaults (every 7 rounds, multiplier 2), rounds 1–7 use the amounts above,
+              rounds 8–14 double them, rounds 15–21 double them again, and so on.
             </small>
           </div>
         )}

@@ -1,4 +1,4 @@
-import type { ServerMessage } from '@dice/shared';
+import type { RoomSettings, ServerMessage } from '@dice/shared';
 import { assertNever } from '@dice/shared';
 import type { EngineEvent } from './engine.js';
 import type { RoomRecorder } from './events.js';
@@ -11,6 +11,8 @@ export interface EngineBridgeContext {
   recorder: RoomRecorder | null;
   broadcast: (msg: ServerMessage) => void;
   broadcastState: () => void;
+  /** Engine auto-raised the stored bet amounts; mirror them on the room. */
+  syncSettings: (settings: RoomSettings) => void;
   setPhasePlaying: () => void;
   setPhaseRoundEnd: () => void;
   compactAtRoundEnd: () => void;
@@ -24,6 +26,11 @@ export interface EngineBridgeContext {
  */
 export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext): void {
   switch (event.type) {
+    case 'stakesRaised':
+      // Not recorded: replayed round starts re-derive the raise deterministically.
+      // Clients pick the new settings up from the round-start state broadcast.
+      ctx.syncSettings(event.settings);
+      break;
     case 'roundStarted':
       ctx.recorder?.append({
         type: 'roundStarted',

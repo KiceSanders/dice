@@ -77,25 +77,27 @@ export interface FirstRollYahtzeePayoutConfig {
 }
 
 /**
- * Auto-raise: every `everyRounds` rounds the effective stake multiplier grows
- * by another `betMultiplier` (rounds 1..N use `betMultiplier`, the next N use
- * `betMultiplier × 2`, and so on) so games escalate instead of dragging.
+ * Auto-raise: every `everyRounds` rounds the ante and all instant side-bet
+ * amounts are multiplied by `betMultiplier` and **written back into the room
+ * settings**, so the current amounts stay visible and host-editable (a manual
+ * edit sticks; the next raise builds on it).
  * See docs/GAME_RULES.md "Stakes: multiplier and auto-raise".
  */
 export interface AutoIncrementConfig {
   enabled: boolean;
-  /** Rounds between each `betMultiplier`-sized bump of the effective multiplier. */
+  /** Rounds between each `betMultiplier`× raise of the stored amounts. */
   everyRounds: number;
 }
 
 export interface RoomSettings {
   chipsPerRound: number;
   /**
-   * Base stake multiplier applied to the ante, straight payout, classic pot
-   * donation, Yahtzee bonus, and first-roll Yahtzee payout amounts.
+   * Factor applied to the ante, straight payout, classic pot donation,
+   * Yahtzee bonus, and first-roll Yahtzee payout amounts at every auto-raise
+   * boundary (see AutoIncrementConfig). 1 = stakes never grow.
    */
   betMultiplier: number;
-  /** Periodic +1 bump of the effective multiplier (see AutoIncrementConfig). */
+  /** Periodic in-place raise of the stored bet amounts (see AutoIncrementConfig). */
   autoIncrement: AutoIncrementConfig;
   /** Absolute max rolls for the round's first player. */
   maxRolls: number;
@@ -111,7 +113,7 @@ export interface RoomSettings {
 
 export const DEFAULT_SETTINGS: RoomSettings = {
   chipsPerRound: 1,
-  betMultiplier: 1,
+  betMultiplier: 2,
   autoIncrement: {
     enabled: true,
     everyRounds: 7,

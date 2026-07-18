@@ -80,6 +80,7 @@ to any column, update this table.**
 
 | `EngineEvent` (engine.ts) | `RoomEvent` (events.ts, persisted log) | `ServerMessage` (wire) | Client handling (store.ts) |
 |---|---|---|---|
+| `stakesRaised` | — (deterministic from round number; replayed round starts re-derive it) | — (settings ride the `room:state` snapshot) | via `room:state` |
 | `roundStarted` | `roundStarted` ✓ | `round:started` | `lastAnte` (table chip animation) |
 | `throwStarted` | — (not recorded) | `turn:throwStarted` | ignored by reducer; 3D table consumes off the socket |
 | `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |

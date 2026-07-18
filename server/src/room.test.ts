@@ -18,8 +18,8 @@ class FakeLink implements ClientLink {
   }
 }
 
-function makeRoom(seatForfeitMs?: number) {
-  const room = new Room('TEST22', DEFAULT_SETTINGS, seatForfeitMs, { afterRollDelayMs: 0 });
+function makeRoom(seatForfeitMs?: number, settings: RoomSettings = DEFAULT_SETTINGS) {
+  const room = new Room('TEST22', settings, seatForfeitMs, { afterRollDelayMs: 0 });
   const hostLink = new FakeLink();
   const host = room.addPlayer('Host', hostLink, { host: true });
   return { room, host, hostLink };
@@ -56,7 +56,7 @@ describe('clampSettings / sanitizeName', () => {
   it('defaults missing stakes settings for older persisted settings', () => {
     const { betMultiplier: _m, autoIncrement: _ai, ...withoutStakes } = DEFAULT_SETTINGS;
     const defaulted = clampSettings(withoutStakes as RoomSettings);
-    expect(defaulted.betMultiplier).toBe(1);
+    expect(defaulted.betMultiplier).toBe(DEFAULT_SETTINGS.betMultiplier);
     expect(defaulted.autoIncrement).toEqual(DEFAULT_SETTINGS.autoIncrement);
   });
 
@@ -412,6 +412,39 @@ describe('Room mid-game settings', () => {
       { playerId: player.id, amount: 5 },
     ]);
     expect(host.chips + player.chips + room.engine!.pot).toBe(chipsBefore);
+  });
+
+  it('mirrors engine auto-raises into room.settings so hosts can edit them', () => {
+    const { room, host } = makeRoom(undefined, {
+      ...DEFAULT_SETTINGS,
+      betMultiplier: 2,
+      autoIncrement: { enabled: true, everyRounds: 1 },
+    });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { player, link } = seatPlayer(room, 'P1', 100);
+    expect(room.startGame(host.id)).toBeNull();
+
+    const engine = room.engine!;
+    expect(engine.beginThrow(host.id, [])).toBeNull();
+    expect(engine.commitThrow(host.id, [6, 6, 6, 6, 2])).toBeNull();
+    expect(engine.stand(host.id)).toBeNull();
+    expect(engine.beginThrow(player.id, [])).toBeNull();
+    expect(engine.commitThrow(player.id, [2, 3, 4, 6, 6])).toBeNull();
+    // Second player auto-stands at the one-roll cap; round ends.
+    expect(room.phase).toBe('roundEnd');
+    expect(room.continueRound(player.id)).toBeNull();
+
+    // Round 2 crossed the every-1-round boundary: stored amounts doubled and
+    // are visible on the room (settings panel / snapshots).
+    expect(room.settings.chipsPerRound).toBe(2);
+    expect(room.settings.straightPayout.amountPerPlayer).toBe(
+      DEFAULT_SETTINGS.straightPayout.amountPerPlayer * 2,
+    );
+    const round2 = link.ofType('round:started').at(-1)!;
+    expect(round2.antes).toEqual([
+      { playerId: host.id, amount: 2 },
+      { playerId: player.id, amount: 2 },
+    ]);
   });
 
   it('allows only seated players to dismiss the recap and tolerates duplicate dismissals', () => {

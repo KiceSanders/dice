@@ -19,10 +19,10 @@ every other seated player pay the roller.
 ## Turn structure
 
 1. A **round** begins: every seated player with chips antes into the pot. The ante is
-   `min(settings.chipsPerRound × effective multiplier, lowest positive stack)` — everyone
-   who can play pays the same short-stack floor (see "Stakes: multiplier and auto-raise").
-   Players with 0 chips sit the round out (they keep their seat).
-   If fewer than 2 players have chips, the game ends.
+   `min(settings.chipsPerRound, lowest positive stack)` — everyone who can play pays the
+   same short-stack floor. `chipsPerRound` itself grows at auto-raise boundaries (see
+   "Stakes: multiplier and auto-raise"). Players with 0 chips sit the round out (they keep
+   their seat). If fewer than 2 players have chips, the game ends.
 2. Players act **clockwise** in seat order. The **first roller** rotates
    **counter-clockwise** from the previous first roller each round and each
    sub-round (so the same seat never opens twice in a row, including after a
@@ -162,26 +162,30 @@ Instant side bet on rolling a Yahtzee. Detection lives in
 
 ## Stakes: multiplier and auto-raise
 
-Both live in `shared/src/game/stakes.ts` (`effectiveMultiplier`), applied by the engine.
+Logic lives in `shared/src/game/stakes.ts` (`shouldRaiseStakes`, `raiseStakes`), applied by
+the engine when a round starts (`stakesRaised` engine event).
 
-- The **effective multiplier** for round N is
-  `betMultiplier × (autoIncrement.enabled ? 1 + floor((N - 1) / everyRounds) : 1)`, never
-  below 1 — the base multiplier is both the starting value and the auto-raise step size.
-  With the defaults (`betMultiplier: 1`, every 7 rounds) rounds 1–7 use ×1, rounds 8–14
-  use ×2, and so on; with `betMultiplier: 2` that becomes ×2, ×4, ×6 — stakes escalate so
+- **Auto-raise**: when round N starts and `(N - 1) % everyRounds === 0` (N > 1, auto-raise
+  enabled), the **stored settings amounts are multiplied in place by `betMultiplier`**:
+  `chipsPerRound`, `straightPayout.amountPerPlayer`, `classicPot.donationAmount`,
+  `yahtzeeBonus.amountPerPlayer`, and `firstRollYahtzeePayout.amountPerPlayer`. With the
+  defaults (`betMultiplier: 2`, every 7 rounds) rounds 1–7 use the configured amounts,
+  rounds 8–14 double them, rounds 15–21 double them again, and so on — stakes escalate so
   games don't drag on.
-- It multiplies the **ante** (round and sub-round, before the short-stack floor) and every
-  **instant side-bet amount**: `straightPayout.amountPerPlayer`,
-  `classicPot.donationAmount`, `yahtzeeBonus.amountPerPlayer`, and
-  `firstRollYahtzeePayout.amountPerPlayer`. The Classic Pot **win** is untouched — it
-  always pays the whole accumulated pool. Per-payer caps (`min(amount, payer.chips)`)
-  apply to the multiplied amount.
-- Each round uses the multiplier for its own round number; sub-rounds use their parent
-  round's multiplier (the 2^depth doubling stacks on top). Side bets read the multiplier
-  when the roll settles, like the rest of their config.
-- **Settings**: `betMultiplier` (default 1) and
+- The raise **writes the new values into the room settings** (visible in the settings
+  panel and every snapshot). The host can edit any amount between raises — including
+  lowering it — and the game uses the stored value immediately at its usual natural point;
+  the **next raise builds on whatever is stored then**.
+- The Classic Pot **win** is untouched — it always pays the whole accumulated pool. The
+  Classic Pot balance itself is never scaled, only the donation. Sub-round antes double
+  from the (possibly raised) `chipsPerRound` as usual. Per-payer caps
+  (`min(amount, payer.chips)`) are unchanged. Raised values cap at the clamp ceilings
+  (ante 1000, bet amounts 100000).
+- `betMultiplier: 1` (or disabling auto-raise) freezes the amounts. The raise is
+  deterministic from the round number and stored settings, so crash-recovery replay
+  re-derives it — it is not persisted as its own event.
+- **Settings**: `betMultiplier` (default 2) and
   `autoIncrement = { enabled, everyRounds }` (default `{ enabled: true, everyRounds: 7 }`).
-  Host edits take effect at the same natural points as the underlying amounts.
 
 ## Standing
 
@@ -202,8 +206,7 @@ mirrored client and server.
 ## Ties and sub-rounds
 
 - Tied best hands start a **sub-round** among only the tied players, same pot.
-- Each tied player antes the same amount:
-  `min(chipsPerRound × effective multiplier × 2^depth, lowest tied stack)`
+- Each tied player antes the same amount: `min(chipsPerRound * 2^depth, lowest tied stack)`
   (doubling each level, equal floor — no asymmetric all-in). A winner takes the entire pot;
   no side pots.
 - Roll caps reset each sub-round. Sub-rounds nest; past depth 10 antes stop and
@@ -239,8 +242,8 @@ mirrored client and server.
 | Setting | Default | Notes |
 |---|---|---|
 | `chipsPerRound` | 1 | Ante per player per round |
-| `betMultiplier` | 1 | Base stake multiplier — see Stakes: multiplier and auto-raise |
-| `autoIncrement` | `{ enabled: true, everyRounds: 7 }` | Periodic `betMultiplier`-sized bump of the effective multiplier — see Stakes: multiplier and auto-raise |
+| `betMultiplier` | 2 | Factor each auto-raise applies to the stored bet amounts — see Stakes: multiplier and auto-raise |
+| `autoIncrement` | `{ enabled: true, everyRounds: 7 }` | Periodic in-place raise of the stored bet amounts — see Stakes: multiplier and auto-raise |
 | `maxRolls` | 5 | Roll ceiling for the round's first player |
 | `afterRollDelayMs` | 2000 | Quiet outcome window after every normal/bonus roll; ordinary same-player rerolls remain immediate; clamped to 0–10000 ms |
 | `minBuyIn` / `maxBuyIn` | 10 / 1000 | Seat buy-in bounds |

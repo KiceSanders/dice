@@ -13,12 +13,13 @@ import {
   canStandVoluntarily,
   compareHands,
   detectStraight,
-  effectiveMultiplier,
   HAND_SIZE,
   mustAutoStandLastPlayerBeat,
   orderPlayersFromFirstRollerSeat,
+  raiseStakes,
   resolveRound,
   scoreHand,
+  shouldRaiseStakes,
   yahtzeeBonusTarget,
 } from '@dice/shared';
 import { DelayedActions } from './delayedAction.js';
@@ -40,6 +41,12 @@ export interface EnginePlayer {
 }
 
 export type EngineEvent =
+  /**
+   * Auto-raise fired at a round boundary: the stored bet amounts were
+   * multiplied in place (docs/GAME_RULES.md "Stakes: multiplier and
+   * auto-raise"). Not persisted — replayed round starts re-derive it.
+   */
+  | { type: 'stakesRaised'; roundNumber: number; settings: RoomSettings }
   | { type: 'roundStarted'; roundNumber: number; antes: { playerId: PlayerId; amount: number }[] }
   | { type: 'throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   | {
@@ -240,16 +247,22 @@ export class GameEngine {
   // -- rounds ----------------------------------------------------------------
 
   /**
-   * Stake multiplier for a round (docs/GAME_RULES.md "Stakes: multiplier and
-   * auto-raise"): scales the ante and every instant side bet.
+   * Auto-raise (docs/GAME_RULES.md "Stakes: multiplier and auto-raise"):
+   * at each boundary the stored ante and instant-bet amounts are multiplied by
+   * `betMultiplier` and written back into the settings, so hosts can see and
+   * manually re-edit the live amounts between raises. Deterministic from the
+   * round number, so crash-recovery replay re-derives it — never persisted.
    */
-  private stakeMultiplier(roundNumber = this.roundNumber): number {
-    return effectiveMultiplier(this.settings, roundNumber);
+  private maybeRaiseStakes(roundNumber: number): void {
+    if (!shouldRaiseStakes(this.settings.autoIncrement, roundNumber)) return;
+    this.settings = raiseStakes(this.settings);
+    this.emit({ type: 'stakesRaised', roundNumber, settings: this.settings });
   }
 
   private startRound(): void {
-    // roundNumber increments below, so the new round's stakes use +1.
-    const ante = this.settings.chipsPerRound * this.stakeMultiplier(this.roundNumber + 1);
+    // roundNumber increments below, so the starting round is +1.
+    this.maybeRaiseStakes(this.roundNumber + 1);
+    const ante = this.settings.chipsPerRound;
     const seated = this.getSeated().filter((p) => p.seat !== null);
 
     // Zero-chip players sit out; everyone else antes the same short-stack floor.
@@ -295,7 +308,7 @@ export class GameEngine {
     let anteAmount = 0;
     const antes: { playerId: PlayerId; amount: number }[] = [];
     if (!suddenDeath) {
-      anteAmount = this.settings.chipsPerRound * this.stakeMultiplier() * 2 ** depth;
+      anteAmount = this.settings.chipsPerRound * 2 ** depth;
       const effectiveAnte = Math.min(anteAmount, ...tied.map((p) => p.chips));
       for (const p of tied) {
         p.chips -= effectiveAnte;
@@ -556,28 +569,11 @@ export class GameEngine {
       dice: [...resolution.dice],
       rollNumber: resolution.rollNumber,
     });
-    // Instant side-bet amounts scale with the round's stake multiplier. The
-    // classic *win* pays the whole accumulated pool, so only the donation scales.
-    const stakes = this.stakeMultiplier();
-    this.applyStraightPayout(
-      turn,
-      resolution,
-      {
-        ...settings.straightPayout,
-        amountPerPlayer: settings.straightPayout.amountPerPlayer * stakes,
-      },
-      seated,
-    );
-    this.applyClassicDonation(turn, resolution, {
-      ...settings.classicPot,
-      donationAmount: settings.classicPot.donationAmount * stakes,
-    });
+    this.applyStraightPayout(turn, resolution, settings.straightPayout, seated);
+    this.applyClassicDonation(turn, resolution, settings.classicPot);
     this.applyClassicPayout(turn, resolution, settings.classicPot);
     const firstRollYahtzeePayout = applyFirstRollYahtzeePayout(
-      {
-        ...settings.firstRollYahtzeePayout,
-        amountPerPlayer: settings.firstRollYahtzeePayout.amountPerPlayer * stakes,
-      },
+      settings.firstRollYahtzeePayout,
       resolution.score,
       this.participantById(turn.playerId),
       seated,
@@ -867,13 +863,12 @@ export class GameEngine {
     const roller = this.participantById(turn.playerId);
     if (!roller) return;
 
-    const perPlayer = config.amountPerPlayer * this.stakeMultiplier();
-    const { total, payments } = collectSidePayment(roller, seated, perPlayer);
+    const { total, payments } = collectSidePayment(roller, seated, config.amountPerPlayer);
 
     this.emit({
       type: 'yahtzeeBonusPaid',
       playerId: turn.playerId,
-      amountPerPlayer: perPlayer,
+      amountPerPlayer: config.amountPerPlayer,
       total,
       payments,
     });
