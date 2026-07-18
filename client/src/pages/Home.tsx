@@ -2,7 +2,7 @@ import { DEFAULT_SETTINGS, type RoomSettings } from '@dice/shared';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ConnectionStatus from '../components/ConnectionStatus';
-import SettingsFields from '../components/SettingsFields';
+import SettingsFields, { fillEmptySettings } from '../components/SettingsFields';
 import Toasts from '../components/Toasts';
 import { useApp } from '../state/context';
 import { loadName, saveName } from '../state/persist';
@@ -30,7 +30,9 @@ export default function Home() {
     const playerName = name.trim();
     if (!playerName) return;
     saveName(playerName);
-    if (send({ type: 'room:create', playerName, settings })) setCreating(true);
+    const next = fillEmptySettings(settings);
+    setSettings(next);
+    if (send({ type: 'room:create', playerName, settings: next })) setCreating(true);
   }
 
   function joinRoom(e: FormEvent) {

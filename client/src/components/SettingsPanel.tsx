@@ -1,7 +1,7 @@
 import type { RoomSettings, RoomSnapshot } from '@dice/shared';
 import { useEffect, useState } from 'react';
 import { useApp } from '../state/context';
-import SettingsFields from './SettingsFields';
+import SettingsFields, { fillEmptySettings } from './SettingsFields';
 
 /**
  * Room settings: editable by the host anytime (lobby / playing / roundEnd),
@@ -31,7 +31,9 @@ export default function SettingsPanel({
   }
 
   function save() {
-    if (send({ type: 'settings:update', settings: draft })) setDirty(false);
+    const settings = fillEmptySettings(draft);
+    setDraft(settings);
+    if (send({ type: 'settings:update', settings })) setDirty(false);
   }
 
   return (

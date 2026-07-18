@@ -13,6 +13,45 @@ interface Props {
   disabled?: boolean;
 }
 
+/** Empty number fields use NaN in the draft; call this before create/save. */
+export function fillEmptySettings(s: RoomSettings): RoomSettings {
+  const z = (n: number) => (Number.isFinite(n) ? n : 0);
+  return {
+    ...s,
+    chipsPerRound: z(s.chipsPerRound),
+    maxRolls: z(s.maxRolls),
+    afterRollDelayMs: z(s.afterRollDelayMs),
+    minBuyIn: z(s.minBuyIn),
+    maxBuyIn: z(s.maxBuyIn),
+    straightPayout: {
+      ...s.straightPayout,
+      amountPerPlayer: z(s.straightPayout.amountPerPlayer),
+    },
+    classicPot: {
+      ...s.classicPot,
+      donationAmount: z(s.classicPot.donationAmount),
+    },
+    yahtzeeBonus: {
+      ...s.yahtzeeBonus,
+      amountPerPlayer: z(s.yahtzeeBonus.amountPerPlayer),
+    },
+    firstRollYahtzeePayout: {
+      ...s.firstRollYahtzeePayout,
+      amountPerPlayer: z(s.firstRollYahtzeePayout.amountPerPlayer),
+    },
+  };
+}
+
+function parseNum(raw: string): number | null {
+  if (raw === '') return Number.NaN;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function displayNum(n: number): number | '' {
+  return Number.isFinite(n) ? n : '';
+}
+
 /**
  * Room settings form fields, shared by the create-room form (Home) and the
  * host settings panel (Room). Defaults and ranges: docs/GAME_RULES.md.
@@ -31,9 +70,9 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
       firstRollYahtzeePayout: { ...value.firstRollYahtzeePayout, ...patch },
     });
 
-  const num = (raw: string, fallback: number): number => {
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : fallback;
+  const onNum = (raw: string, apply: (n: number) => void) => {
+    const n = parseNum(raw);
+    if (n !== null) apply(n);
   };
 
   return (
@@ -44,8 +83,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           id="set-chips"
           type="number"
           min={1}
-          value={value.chipsPerRound}
-          onChange={(e) => set({ chipsPerRound: num(e.target.value, value.chipsPerRound) })}
+          value={displayNum(value.chipsPerRound)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ chipsPerRound: n }))}
         />
         <small>Ante every seated player pays into the pot each round.</small>
       </div>
@@ -57,8 +96,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           type="number"
           min={1}
           max={10}
-          value={value.maxRolls}
-          onChange={(e) => set({ maxRolls: num(e.target.value, value.maxRolls) })}
+          value={displayNum(value.maxRolls)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ maxRolls: n }))}
         />
         <small>
           Roll ceiling for the round's first player; later players are capped by the leader.
@@ -73,8 +112,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           min={0}
           max={10000}
           step={100}
-          value={value.afterRollDelayMs}
-          onChange={(e) => set({ afterRollDelayMs: num(e.target.value, value.afterRollDelayMs) })}
+          value={displayNum(value.afterRollDelayMs)}
+          onChange={(e) => onNum(e.target.value, (n) => set({ afterRollDelayMs: n }))}
         />
         <small>Time to inspect settled dice before payouts, effects, or turn changes.</small>
       </div>
@@ -86,8 +125,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
             id="set-minbuyin"
             type="number"
             min={1}
-            value={value.minBuyIn}
-            onChange={(e) => set({ minBuyIn: num(e.target.value, value.minBuyIn) })}
+            value={displayNum(value.minBuyIn)}
+            onChange={(e) => onNum(e.target.value, (n) => set({ minBuyIn: n }))}
           />
         </div>
         <div className="field">
@@ -96,8 +135,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
             id="set-maxbuyin"
             type="number"
             min={1}
-            value={value.maxBuyIn}
-            onChange={(e) => set({ maxBuyIn: num(e.target.value, value.maxBuyIn) })}
+            value={displayNum(value.maxBuyIn)}
+            onChange={(e) => onNum(e.target.value, (n) => set({ maxBuyIn: n }))}
           />
         </div>
       </div>
@@ -127,14 +166,9 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
                 id="set-first-roll-yahtzee-amount"
                 type="number"
                 min={0}
-                value={value.firstRollYahtzeePayout.amountPerPlayer}
+                value={displayNum(value.firstRollYahtzeePayout.amountPerPlayer)}
                 onChange={(e) =>
-                  setFirstRollYahtzee({
-                    amountPerPlayer: num(
-                      e.target.value,
-                      value.firstRollYahtzeePayout.amountPerPlayer,
-                    ),
-                  })
+                  onNum(e.target.value, (n) => setFirstRollYahtzee({ amountPerPlayer: n }))
                 }
               />
             </div>
@@ -167,12 +201,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
                 id="set-payout-amount"
                 type="number"
                 min={0}
-                value={value.straightPayout.amountPerPlayer}
-                onChange={(e) =>
-                  setPayout({
-                    amountPerPlayer: num(e.target.value, value.straightPayout.amountPerPlayer),
-                  })
-                }
+                value={displayNum(value.straightPayout.amountPerPlayer)}
+                onChange={(e) => onNum(e.target.value, (n) => setPayout({ amountPerPlayer: n }))}
               />
             </div>
             <small className="field-help">
@@ -205,12 +235,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
                 id="set-classic-donation"
                 type="number"
                 min={0}
-                value={value.classicPot.donationAmount}
-                onChange={(e) =>
-                  setClassic({
-                    donationAmount: num(e.target.value, value.classicPot.donationAmount),
-                  })
-                }
+                value={displayNum(value.classicPot.donationAmount)}
+                onChange={(e) => onNum(e.target.value, (n) => setClassic({ donationAmount: n }))}
               />
             </div>
             <small className="field-help">
@@ -242,12 +268,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
                 id="set-yahtzee-amount"
                 type="number"
                 min={0}
-                value={value.yahtzeeBonus.amountPerPlayer}
-                onChange={(e) =>
-                  setYahtzee({
-                    amountPerPlayer: num(e.target.value, value.yahtzeeBonus.amountPerPlayer),
-                  })
-                }
+                value={displayNum(value.yahtzeeBonus.amountPerPlayer)}
+                onChange={(e) => onNum(e.target.value, (n) => setYahtzee({ amountPerPlayer: n }))}
               />
             </div>
             <small className="field-help">
