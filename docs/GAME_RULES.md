@@ -227,9 +227,12 @@ mirrored client and server.
 - Host disconnect → host transfers to the longest-seated connected player. Rooms empty for
   30 minutes are destroyed (log deleted).
 - Seated players pick their own buy-in within `minBuyIn`/`maxBuyIn`.
-- Round-end delay: 8s after `round:ended` before the next round auto-starts. The configured
-  after-roll delay has already left the final hand unobstructed; the winner recap appears when
-  the delayed round result arrives, with no separate client-only reveal timer.
+- Round handoff: the configured after-roll delay applies to the final dice **before**
+  `round:ended`; it is not applied again afterward. The winner recap appears with that delayed
+  result and auto-dismisses after 2.8s (or may be dismissed earlier). The first seated client's
+  dismissal immediately starts the next round and passes the koozie to its first roller.
+  Duplicate dismissals are harmless. An 8s server timer is retained only as a failure fallback
+  if no seated client can deliver the dismissal.
 
 ## Room settings
 

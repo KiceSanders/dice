@@ -41,7 +41,7 @@ describe('GameEngine: full scripted round', () => {
     expect(engine.phase).toBe('roundEnd');
   });
 
-  it('next round starts after the delay, first roller rotated counter-clockwise', () => {
+  it('modal dismissal starts the next round immediately and rotates the first roller', () => {
     const players = makePlayers();
     const { engine } = makeEngine(players);
     engine.start();
@@ -55,7 +55,8 @@ describe('GameEngine: full scripted round', () => {
     engine.stand('p2');
 
     expect(engine.phase).toBe('roundEnd');
-    vi.advanceTimersByTime(5_000);
+    engine.continueRound();
+    engine.continueRound(); // late dismissals from other clients are harmless
     expect(engine.phase).toBe('playing');
     expect(engine.roundNumber).toBe(2);
     // Counter-clockwise of seat 0 is seat 2, then clockwise: p2 → p0 → p1.
@@ -68,8 +69,23 @@ describe('GameEngine: full scripted round', () => {
     engine.stand('p0');
     roll(engine, 'p1', [1, 1, 2, 3, 5]);
     engine.stand('p1');
-    vi.advanceTimersByTime(5_000);
+    engine.continueRound();
     expect(engine.currentTurnPlayerId).toBe('p1');
+  });
+
+  it('retains the server fallback if no seated client can dismiss the modal', () => {
+    const players = makePlayers([100, 100]);
+    const { engine } = makeEngine(players);
+    engine.start();
+    roll(engine, 'p0', [4, 4, 3, 2, 6]);
+    engine.stand('p0');
+    roll(engine, 'p1', [3, 3, 2, 4, 6]);
+
+    expect(engine.phase).toBe('roundEnd');
+    vi.advanceTimersByTime(4_999);
+    expect(engine.phase).toBe('roundEnd');
+    vi.advanceTimersByTime(1);
+    expect(engine.phase).toBe('playing');
   });
 });
 

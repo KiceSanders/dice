@@ -99,7 +99,7 @@ export function sanitizeName(name: string): string {
 }
 
 export type RoomError = {
-  code: 'BAD_REQUEST' | 'ROOM_FULL' | 'NOT_HOST' | 'BANNED' | 'RATE_LIMITED';
+  code: 'BAD_REQUEST' | 'ROOM_FULL' | 'NOT_HOST' | 'NOT_SEATED' | 'BANNED' | 'RATE_LIMITED';
   message: string;
 };
 const err = (code: RoomError['code'], message: string): RoomError => ({ code, message });
@@ -423,6 +423,18 @@ export class Room {
 
     this.commit({ type: 'gameStarted' });
     this.engine!.start();
+    return null;
+  }
+
+  /** A seated client's results modal closed; hand the koozie to the next round immediately. */
+  continueRound(byPlayerId: PlayerId): RoomError | null {
+    const player = this.players.get(byPlayerId);
+    if (!player) return err('BAD_REQUEST', 'unknown player');
+    if (player.seat === null) return err('NOT_SEATED', 'only seated players can continue a round');
+    if (!this.engine) return err('BAD_REQUEST', 'no game in progress');
+    // Multiple seated clients auto-dismiss at nearly the same time. The first
+    // starts the round; later requests are harmless and must not produce errors.
+    this.engine.continueRound();
     return null;
   }
 

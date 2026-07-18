@@ -190,6 +190,7 @@ describe('parseClientMessage', () => {
 
   it('validates payload-less messages', () => {
     expect(parse({ type: 'game:start' })).toMatchObject({ ok: true });
+    expect(parse({ type: 'round:continue' })).toMatchObject({ ok: true });
     expect(parse({ type: 'turn:stand' })).toMatchObject({ ok: true });
   });
 

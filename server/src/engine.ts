@@ -989,7 +989,15 @@ export class GameEngine {
     this.phase = 'roundEnd';
   }
 
-  /** Cancel the round-end delay and begin the next round now (replay path). */
+  /** Cancel the round-end fallback and begin the next round now. Idempotent for late clients. */
+  continueRound(): void {
+    if (this.phase !== 'roundEnd') return;
+    if (this.roundTimer) clearTimeout(this.roundTimer);
+    this.roundTimer = null;
+    this.startRound();
+  }
+
+  /** Apply a persisted round boundary during replay. */
   advanceRound(): void {
     if (this.roundTimer) clearTimeout(this.roundTimer);
     this.roundTimer = null;

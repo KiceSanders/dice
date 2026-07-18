@@ -34,6 +34,8 @@ export type ClientMessage =
   /** Room capacity is fixed and cannot be changed through settings. */
   | { type: 'settings:update'; settings: RoomSettings }
   | { type: 'game:start' }
+  /** A seated player dismissed the round-results modal; begin the next round now. */
+  | { type: 'round:continue' }
   /** Physics roll, phase 1: koozie released. Locks the keep set (ADR 004). */
   | { type: 'turn:throwStart'; keepIndices: number[] }
   /**

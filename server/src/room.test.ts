@@ -402,7 +402,7 @@ describe('Room mid-game settings', () => {
     // Second player auto-stands at the one-roll cap.
 
     expect(room.phase).toBe('roundEnd');
-    vi.advanceTimersByTime(8_000);
+    expect(room.continueRound(player.id)).toBeNull();
     expect(room.phase).toBe('playing');
 
     const round2 = link.ofType('round:started').at(-1)!;
@@ -412,6 +412,29 @@ describe('Room mid-game settings', () => {
       { playerId: player.id, amount: 5 },
     ]);
     expect(host.chips + player.chips + room.engine!.pot).toBe(chipsBefore);
+  });
+
+  it('allows only seated players to dismiss the recap and tolerates duplicate dismissals', () => {
+    const { room, host } = makeRoom();
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const { player } = seatPlayer(room, 'P1', 100);
+    const spectator = room.addPlayer('Watcher', new FakeLink());
+    expect(room.startGame(host.id)).toBeNull();
+
+    const engine = room.engine!;
+    expect(engine.beginThrow(host.id, [])).toBeNull();
+    expect(engine.commitThrow(host.id, [4, 4, 3, 2, 6])).toBeNull();
+    expect(engine.stand(host.id)).toBeNull();
+    expect(engine.beginThrow(player.id, [])).toBeNull();
+    expect(engine.commitThrow(player.id, [3, 3, 2, 4, 6])).toBeNull();
+    expect(room.phase).toBe('roundEnd');
+
+    expect(room.continueRound(spectator.id)).toMatchObject({ code: 'NOT_SEATED' });
+    expect(room.continueRound(player.id)).toBeNull();
+    expect(room.phase).toBe('playing');
+    expect(engine.roundNumber).toBe(2);
+    expect(room.continueRound(host.id)).toBeNull();
+    expect(engine.roundNumber).toBe(2);
   });
 });
 

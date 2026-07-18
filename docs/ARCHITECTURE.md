@@ -66,10 +66,13 @@ its face is sent in `turn:bonusThrowResult`. The sixth die is then removed, the 
 five-die rest pose remains authoritative, and the engine stands the roller automatically.
 
 After-roll delay: configurable per room (default 2s) and captured at normal/bonus settlement;
-live outcomes wait, while crash replay resolves recorded rolls synchronously. Round-end delay:
-8s (`ROUND_END_DELAY_MS`) after the delayed result → next round auto-starts. There is no extra
-client recap timer. Disconnect/kick during the quiet window queues the forced stand until the
-roll resolves; otherwise `forceStand` stands on settled dice or forfeits if none.
+live outcomes wait, while crash replay resolves recorded rolls synchronously. When the final
+delayed result emits `round:ended`, clients show the recap; its manual/automatic dismissal sends
+`round:continue`, and the first seated request immediately starts the next round. The after-roll
+delay is never applied again between recap dismissal and the next koozie owner. The engine's 8s
+round-end timer is failure fallback only. Disconnect/kick during the quiet window queues the
+forced stand until the roll resolves; otherwise `forceStand` stands on settled dice or forfeits
+if none.
 
 ## Seat/view transform
 

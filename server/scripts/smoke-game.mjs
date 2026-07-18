@@ -187,13 +187,13 @@ const totalChips =
   (state.snapshot.game?.classicPot ?? 0);
 assert(totalChips === 200, `chips conserved (${totalChips})`);
 
-// Next round auto-starts after ~8s; leave scheduling/network headroom.
+// Dismissing the recap starts the next round immediately (the 8s timer is fallback-only).
+host.send({ type: 'round:continue' });
 state = await host.stateWhere(
   (s) => s.phase === 'playing' && s.game?.roundNumber === 2,
-  'round 2 auto-started',
-  11000,
+  'round 2 started after recap dismissal',
 );
-assert(state.snapshot.game.roundNumber === 2, 'round 2 started automatically');
+assert(state.snapshot.game.roundNumber === 2, 'round 2 started immediately after recap dismissal');
 
 // -- Round 2: Yahtzee bonus flow (docs/GAME_RULES.md "Yahtzee bonus") --------
 state = await host.stateWhere(

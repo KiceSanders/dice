@@ -1,6 +1,6 @@
 // biome-ignore-all lint/a11y/noAutofocus: the join form's name field is this page's single purpose
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ChatPanel from '../components/ChatPanel';
 import ConnectionBanner from '../components/ConnectionBanner';
@@ -27,6 +27,13 @@ export default function Room() {
   const joinSentRef = useRef(false);
   const connected = state.connection === 'open';
   const snapshot = state.snapshot;
+  const canContinueRound =
+    snapshot?.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
+    false;
+  const dismissRoundEnd = useCallback(() => {
+    if (canContinueRound) send({ type: 'round:continue' });
+    dispatch({ type: 'dismiss-round-end' });
+  }, [canContinueRound, dispatch, send]);
 
   const { roll3d, remoteRoll, heldPose, showHeldPose, standControl, inGame, turn } = useTableScene(
     state.snapshot,
@@ -154,7 +161,7 @@ export default function Room() {
         <RoundEndModal
           roundEnd={state.roundEnd}
           players={snapshot.players}
-          onDismiss={() => dispatch({ type: 'dismiss-round-end' })}
+          onDismiss={dismissRoundEnd}
         />
       )}
 

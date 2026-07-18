@@ -135,6 +135,13 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       // Engine events handle the broadcasts.
     },
 
+    'round:continue': (conn) => {
+      const c = ctx(conn);
+      if (!c) return;
+      failed(conn, c.room.continueRound(c.playerId));
+      // Engine events handle the broadcasts.
+    },
+
     'turn:throwStart': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;

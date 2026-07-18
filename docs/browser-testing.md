@@ -310,7 +310,10 @@ running counter.
 5. **Losing hand + round end:** establish a roll to beat, then let the next/final roller
    lose. Both tabs keep that newest losing layout on the felt (never the earlier winning
    hand), leave it unobstructed for the configured After Roll Delay (2s by default), then show
-   the winner recap and pot movement together.
+   the winner recap and pot movement together. Dismiss the recap early in one seated tab:
+   both tabs must enter the next round immediately, and the new first roller's koozie must
+   appear without another After Roll Delay. Repeat using the 2.8s auto-dismiss. A spectator
+   dismissing their own recap must not advance the room.
 6. **Last-player beat auto-stand:** with a roll-to-beat set, the final roller beats it (not
    merely ties). Both tabs: koozie stays locked during the After Roll Delay; no further keep
    / throw is possible; after the delay the roller stands automatically without clicking

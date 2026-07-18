@@ -128,6 +128,7 @@ const validators: Record<ClientMessage['type'], Validator> = {
   'settings:update': (m) =>
     isRoomSettings(m.settings) ? null : 'settings is missing or malformed',
   'game:start': () => null,
+  'round:continue': () => null,
   'turn:throwStart': (m) =>
     isIndexArray(m.keepIndices)
       ? null

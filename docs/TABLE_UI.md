@@ -117,6 +117,13 @@ conditions from the just-settled dice and returns the lock synchronously to `Dic
 prevents a one-frame cup flash before the authoritative snapshot arrives. Bonus-die settlement
 always keeps the cup hidden. Stand stays disabled until every pending outcome resolves.
 
+At round end, the recap modal owns the handoff. The final roll's after-roll delay completes
+before the modal appears. Closing it—manually or via its 2.8s auto-dismiss—sends
+`round:continue` from seated clients and clears the local recap. The first request starts the
+next authoritative round immediately, so the new first roller receives the koozie without a
+second after-roll wait; `round:started` clears the modal in every other tab. Spectators may
+dismiss their own recap but cannot advance the room.
+
 ## Audio — impacts, rattle, and adding a sound
 
 All audio lives in `client/src/table3d/audio/` and plays through one Web Audio graph

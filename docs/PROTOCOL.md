@@ -17,6 +17,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `player:kick` | `{ playerId }` | Host only |
 | `settings:update` | `{ settings }` | Host only (anytime; `afterRollDelayMs` applies to the next settled roll; chip amounts apply at next ante / payout; capacity is fixed) |
 | `game:start` | `{}` | Host only, ≥2 seated |
+| `round:continue` | `{}` | Seated player dismissed the round-results modal; idempotently starts the next round immediately when the room is in `roundEnd` |
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
 | `turn:bonusThrowStart` | `{}` | Yahtzee bonus phase 1: koozie released with a temporary sixth die; all 5 hand dice stay railed |

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import type { RoundEndInfo } from '../state/store';
 import { describeScore } from './GameHud';
 
-/** Mounted after a 5s dice-view window; clear just before the server's 8s next-round timer. */
+/** Modal display time; dismissal immediately asks the server to begin the next round. */
 const AUTO_DISMISS_MS = 2_800;
 
 interface Props {
@@ -59,7 +59,7 @@ export default function RoundEndModal({ roundEnd, players, onDismiss }: Props) {
             </li>
           ))}
         </ul>
-        <small className="muted">Next round starting…</small>
+        <small className="muted">Next round starts when this closes…</small>
       </div>
     </div>
   );
