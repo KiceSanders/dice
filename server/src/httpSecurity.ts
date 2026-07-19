@@ -1,7 +1,8 @@
 import type { RequestHandler } from 'express';
 
 export const WEBSOCKET_PATH = '/ws';
-export const WEBSOCKET_MAX_PAYLOAD_BYTES = 64 * 1024;
+/** Allows one canonical three-second WAV encoded as base64 plus JSON overhead. */
+export const WEBSOCKET_MAX_PAYLOAD_BYTES = 192 * 1024;
 
 /** Parse explicitly trusted browser origins from a comma-separated env value. */
 export function parseAllowedOrigins(value: string | undefined): Set<string> {
@@ -44,7 +45,7 @@ export const securityHeaders: RequestHandler = (_req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader('Origin-Agent-Cluster', '?1');
-  res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
+  res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=(self)');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');

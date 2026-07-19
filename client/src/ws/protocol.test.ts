@@ -103,4 +103,27 @@ describe('parseServerMessage', () => {
     );
     expect(result.ok).toBe(true);
   });
+
+  it('validates special-sound profile and authoritative hit messages', () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          type: 'special-sound:updated',
+          playerId: 'p1',
+          kind: 'classic',
+          wavBase64: 'encoded',
+        }),
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseServerMessage(
+        JSON.stringify({ type: 'special-moment:hit', playerId: 'p1', kind: 'overtime-win' }),
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseServerMessage(
+        JSON.stringify({ type: 'special-moment:hit', playerId: 'p1', kind: 'round-win' }),
+      ).ok,
+    ).toBe(false);
+  });
 });

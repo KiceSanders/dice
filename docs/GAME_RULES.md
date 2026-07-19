@@ -160,6 +160,27 @@ Instant side bet on rolling a Yahtzee. Detection lives in
   bonus commit, so disabling between offer and commit pays nothing. A later edit during the
   bonus die's quiet window applies to the following roll.
 
+## Player-recorded special moments
+
+Players may attach a device-local recording to each exceptional moment below. The moment is
+an authoritative game fact broadcast after the same outcome barrier as its reveal; recordings
+never affect chips, scoring, or turn flow.
+
+- **Straight**: the first straight in a turn while `straightPayout.enabled` is true.
+- **Classic**: eligible first-roll three 6s while `classicPot.enabled` is true, including when
+  the Classic Pot is empty. A four-of-a-kind donation is not a Classic sound trigger.
+- **First-roll Yahtzee**: a qualifying first-roll quint while
+  `firstRollYahtzeePayout.enabled` is true.
+- **Yahtzee bonus match**: the sixth die literally matches the target while
+  `yahtzeeBonus.enabled` is true.
+- **Overtime win**: the eventual winner of any round that entered at least one tie-breaker /
+  sub-round, including nested tie-breakers. An ordinary round win is not a trigger.
+
+An enabled instant bet still triggers its moment when the financial result is zero (empty
+Classic Pot, zero configured amount, or broke payers): the recording celebrates the result on
+the dice, not the number of chips transferred. The first four moments reveal after their
+normal/bonus-die quiet window; overtime reveals with the tie-breaker round winner.
+
 ## Stakes: multiplier and auto-raise
 
 Logic lives in `shared/src/game/stakes.ts` (`shouldRaiseStakes`, `raiseStakes`), applied by

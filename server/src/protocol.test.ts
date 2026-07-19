@@ -1,8 +1,31 @@
-import { DEFAULT_SETTINGS } from '@dice/shared';
+import { DEFAULT_SETTINGS, SPECIAL_SOUND_SAMPLE_RATE } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
 import { parseClientMessage } from './protocol.js';
 
 const parse = (v: unknown) => parseClientMessage(JSON.stringify(v));
+
+function validWavBase64(): string {
+  const bytes = new Uint8Array(46);
+  const view = new DataView(bytes.buffer);
+  for (const [offset, text] of [
+    [0, 'RIFF'],
+    [8, 'WAVE'],
+    [12, 'fmt '],
+    [36, 'data'],
+  ] as const) {
+    for (let i = 0; i < text.length; i++) bytes[offset + i] = text.charCodeAt(i);
+  }
+  view.setUint32(4, bytes.length - 8, true);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, SPECIAL_SOUND_SAMPLE_RATE, true);
+  view.setUint32(28, SPECIAL_SOUND_SAMPLE_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  view.setUint32(40, 2, true);
+  return Buffer.from(bytes).toString('base64');
+}
 
 describe('parseClientMessage', () => {
   it('rejects malformed JSON without throwing', () => {
@@ -202,6 +225,21 @@ describe('parseClientMessage', () => {
       ok: false,
     });
     expect(parse({ type: 'turn:stand', restPose: 'nope' })).toMatchObject({ ok: false });
+  });
+
+  it('validates canonical special-sound updates and clears', () => {
+    expect(
+      parse({ type: 'special-sound:update', kind: 'straight', wavBase64: validWavBase64() }),
+    ).toMatchObject({ ok: true });
+    expect(
+      parse({ type: 'special-sound:update', kind: 'overtime-win', wavBase64: null }),
+    ).toMatchObject({ ok: true });
+    expect(
+      parse({ type: 'special-sound:update', kind: 'round-win', wavBase64: validWavBase64() }),
+    ).toMatchObject({ ok: false });
+    expect(
+      parse({ type: 'special-sound:update', kind: 'straight', wavBase64: 'not-a-wav' }),
+    ).toMatchObject({ ok: false });
   });
 
   it('validates chat:send length bounds', () => {

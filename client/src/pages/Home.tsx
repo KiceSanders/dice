@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ConnectionStatus from '../components/ConnectionStatus';
 import SettingsFields, { fillEmptySettings } from '../components/SettingsFields';
+import SpecialSoundSettings from '../components/SpecialSoundSettings';
 import Toasts from '../components/Toasts';
 import { useApp } from '../state/context';
 import { loadName, saveName } from '../state/persist';
@@ -122,6 +123,8 @@ export default function Home() {
           </button>
         </form>
       </div>
+
+      <SpecialSoundSettings showAudioControls />
     </main>
   );
 }

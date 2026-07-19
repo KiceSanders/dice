@@ -6,7 +6,7 @@ import { audioUrl, SOUND_MANIFEST } from './sampleManifest';
  * The one impure audio module: owns the Web Audio graph. Everything that
  * decides WHAT to play lives in the pure modules (cues/impactRules/
  * poseImpacts); this only realizes PlaySpecs. Per-play chain:
- * source → gain → stereo panner → master gain → destination.
+ * source → voice gain → stereo panner → effects/recordings bus → master → destination.
  *
  * Browser autoplay policy: the context starts suspended until a user
  * gesture. `unlock()` is called from a gesture listener (TableAudio);
@@ -16,11 +16,17 @@ import { audioUrl, SOUND_MANIFEST } from './sampleManifest';
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private effectsBus: GainNode | null = null;
+  private recordingsBus: GainNode | null = null;
   private buffers = new Map<string, AudioBuffer>();
   private loading = new Set<string>();
+  private customData = new Map<string, Uint8Array>();
+  private customBuffers = new Map<string, AudioBuffer>();
+  private customLoading = new Map<string, Promise<AudioBuffer | null>>();
   private liveVoices = 0;
   private rattleGain: GainNode | null = null;
-  private volume = AUDIO_TUNING.settings.defaultVolume;
+  private effectsVolume = AUDIO_TUNING.settings.defaultVolume;
+  private recordingsVolume = AUDIO_TUNING.settings.defaultVolume;
   private muted = false;
   private hidden = false;
   private watchingVisibility = false;
@@ -31,8 +37,12 @@ class AudioEngine {
     if (this.ctx === null) {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
+      this.effectsBus = this.ctx.createGain();
+      this.recordingsBus = this.ctx.createGain();
+      this.effectsBus.connect(this.master);
+      this.recordingsBus.connect(this.master);
       this.master.connect(this.ctx.destination);
-      this.applyMasterGain();
+      this.applyBusGains();
     }
     if (this.ctx.state === 'suspended') {
       void this.ctx.resume().catch(() => {});
@@ -42,10 +52,11 @@ class AudioEngine {
       // Duck to silence in hidden tabs so the rattle loop can't drone on.
       document.addEventListener('visibilitychange', () => {
         this.hidden = document.visibilityState === 'hidden';
-        this.applyMasterGain();
+        this.applyBusGains();
       });
     }
     this.preload();
+    this.preloadCustom();
   }
 
   /** Fetch + decode every manifest sample (~1 MB total); safe to re-call. */
@@ -75,24 +86,74 @@ class AudioEngine {
   /** Play a resolved cue. `spec.whenMs` is on the performance.now() clock. */
   play(spec: PlaySpec): void {
     const ctx = this.ctx;
-    const master = this.master;
-    if (ctx === null || master === null || ctx.state !== 'running') return;
-    if (this.muted || this.hidden || this.volume <= 0) return;
-    if (this.liveVoices >= AUDIO_TUNING.impact.maxVoices) return;
+    const bus = this.effectsBus;
+    if (ctx === null || bus === null || ctx.state !== 'running') return;
+    if (this.muted || this.hidden || this.effectsVolume <= 0) return;
     const file = SOUND_MANIFEST[spec.soundId].files[spec.fileIndex];
     const buffer = file !== undefined ? this.buffers.get(file) : undefined;
     if (buffer === undefined) return;
 
+    this.playBuffer(buffer, bus, spec.gain, spec.playbackRate, spec.pan, spec.whenMs);
+  }
+
+  /** Register/replace one room-scoped player recording for later playback. */
+  registerCustomSound(key: string, bytes: Uint8Array): void {
+    this.customData.set(key, bytes);
+    this.customBuffers.delete(key);
+    this.customLoading.delete(key);
+    if (this.ctx !== null) void this.decodeCustom(key, bytes);
+  }
+
+  unregisterCustomSound(key: string): void {
+    this.customData.delete(key);
+    this.customBuffers.delete(key);
+    this.customLoading.delete(key);
+  }
+
+  clearCustomSounds(): void {
+    this.customData.clear();
+    this.customBuffers.clear();
+    this.customLoading.clear();
+  }
+
+  /**
+   * Play a registered player recording. `true` means a custom clip owns this
+   * moment (including when muted); `false` lets the caller use a built-in fallback.
+   */
+  async playCustom(key: string): Promise<boolean> {
+    const bytes = this.customData.get(key);
+    if (!bytes) return false;
+    const ctx = this.ctx;
+    const bus = this.recordingsBus;
+    if (ctx === null || bus === null || ctx.state !== 'running') return true;
+    const buffer = this.customBuffers.get(key) ?? (await this.decodeCustom(key, bytes));
+    if (!buffer || this.customData.get(key) !== bytes) return false;
+    if (this.muted || this.hidden || this.recordingsVolume <= 0) return true;
+    this.playBuffer(buffer, bus, 1, 1, 0);
+    return true;
+  }
+
+  private playBuffer(
+    buffer: AudioBuffer,
+    bus: GainNode,
+    volume: number,
+    playbackRate: number,
+    pan: number,
+    whenMs?: number,
+  ): void {
+    const ctx = this.ctx;
+    if (ctx === null || this.liveVoices >= AUDIO_TUNING.impact.maxVoices) return;
+
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = spec.playbackRate;
+    source.playbackRate.value = playbackRate;
     const gain = ctx.createGain();
-    gain.gain.value = spec.gain;
+    gain.gain.value = volume;
     const panner = ctx.createStereoPanner();
-    panner.pan.value = spec.pan;
+    panner.pan.value = pan;
     source.connect(gain);
     gain.connect(panner);
-    panner.connect(master);
+    panner.connect(bus);
 
     this.liveVoices++;
     source.onended = () => {
@@ -102,10 +163,32 @@ class AudioEngine {
       panner.disconnect();
     };
     const startAt =
-      spec.whenMs === undefined
-        ? 0
-        : ctx.currentTime + Math.max(0, (spec.whenMs - performance.now()) / 1000);
+      whenMs === undefined ? 0 : ctx.currentTime + Math.max(0, (whenMs - performance.now()) / 1000);
     source.start(startAt);
+  }
+
+  private preloadCustom(): void {
+    for (const [key, bytes] of this.customData) void this.decodeCustom(key, bytes);
+  }
+
+  private decodeCustom(key: string, bytes: Uint8Array): Promise<AudioBuffer | null> {
+    const existing = this.customLoading.get(key);
+    if (existing) return existing;
+    const ctx = this.ctx;
+    if (ctx === null) return Promise.resolve(null);
+    const encoded = bytes.slice().buffer;
+    const loading = ctx
+      .decodeAudioData(encoded)
+      .then((buffer) => {
+        if (this.customData.get(key) === bytes) this.customBuffers.set(key, buffer);
+        return buffer;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (this.customLoading.get(key) === loading) this.customLoading.delete(key);
+      });
+    this.customLoading.set(key, loading);
+    return loading;
   }
 
   /**
@@ -115,8 +198,8 @@ class AudioEngine {
    */
   setRattleGain(level: number): void {
     const ctx = this.ctx;
-    const master = this.master;
-    if (ctx === null || master === null || ctx.state !== 'running') return;
+    const bus = this.effectsBus;
+    if (ctx === null || bus === null || ctx.state !== 'running') return;
     if (this.rattleGain === null) {
       const sample = SOUND_MANIFEST['cup-rattle-loop'];
       const file = sample.files[0];
@@ -128,7 +211,7 @@ class AudioEngine {
       this.rattleGain = ctx.createGain();
       this.rattleGain.gain.value = 0;
       source.connect(this.rattleGain);
-      this.rattleGain.connect(master);
+      this.rattleGain.connect(bus);
       source.start();
     }
     const target =
@@ -141,22 +224,30 @@ class AudioEngine {
     gain.linearRampToValueAtTime(target, ctx.currentTime + 0.05);
   }
 
-  setVolume(volume: number): void {
-    this.volume = Math.min(Math.max(volume, 0), 1);
-    this.applyMasterGain();
+  setEffectsVolume(volume: number): void {
+    this.effectsVolume = Math.min(Math.max(volume, 0), 1);
+    this.applyBusGains();
+  }
+
+  setRecordingsVolume(volume: number): void {
+    this.recordingsVolume = Math.min(Math.max(volume, 0), 1);
+    this.applyBusGains();
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
-    this.applyMasterGain();
+    this.applyBusGains();
   }
 
-  private applyMasterGain(): void {
+  private applyBusGains(): void {
     const ctx = this.ctx;
     const master = this.master;
-    if (ctx === null || master === null) return;
-    const target = this.muted || this.hidden ? 0 : this.volume;
-    master.gain.setTargetAtTime(target, ctx.currentTime, 0.02);
+    const effectsBus = this.effectsBus;
+    const recordingsBus = this.recordingsBus;
+    if (ctx === null || master === null || effectsBus === null || recordingsBus === null) return;
+    master.gain.setTargetAtTime(this.muted || this.hidden ? 0 : 1, ctx.currentTime, 0.02);
+    effectsBus.gain.setTargetAtTime(this.effectsVolume, ctx.currentTime, 0.02);
+    recordingsBus.gain.setTargetAtTime(this.recordingsVolume, ctx.currentTime, 0.02);
   }
 }
 

@@ -2,33 +2,42 @@ import { useSyncExternalStore } from 'react';
 import { AUDIO_TUNING } from './audioTuning';
 
 /**
- * Client-local audio preferences — per-user, persisted in localStorage,
+ * Client-local audio preferences — per-device/browser, persisted in localStorage,
  * never wire-synced (deliberately not a RoomSettings field). Same
  * useSyncExternalStore + guarded-storage shape as dice/tuning.ts.
  */
 
 export interface AudioSettings {
-  /** 0–1 master volume. */
-  volume: number;
+  /** 0–1 volume for dice, cup, chips, and built-in celebration cues. */
+  effectsVolume: number;
+  /** 0–1 volume for player-authored special-moment recordings. */
+  recordingsVolume: number;
   muted: boolean;
 }
 
 const STORAGE_KEY = 'dice:audio';
 
 export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
-  volume: AUDIO_TUNING.settings.defaultVolume,
+  effectsVolume: AUDIO_TUNING.settings.defaultVolume,
+  recordingsVolume: AUDIO_TUNING.settings.defaultVolume,
   muted: false,
 };
 
 /** Clamp/repair anything that came out of storage. */
 export function sanitizeAudioSettings(raw: unknown): AudioSettings {
   const source = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const volume =
-    typeof source.volume === 'number' && Number.isFinite(source.volume)
-      ? Math.min(Math.max(source.volume, 0), 1)
-      : DEFAULT_AUDIO_SETTINGS.volume;
+  // Migrate the former single `volume` preference into both buses.
+  const legacy = clampVolume(source.volume, AUDIO_TUNING.settings.defaultVolume);
+  const effectsVolume = clampVolume(source.effectsVolume, legacy);
+  const recordingsVolume = clampVolume(source.recordingsVolume, legacy);
   const muted = typeof source.muted === 'boolean' ? source.muted : DEFAULT_AUDIO_SETTINGS.muted;
-  return { volume, muted };
+  return { effectsVolume, recordingsVolume, muted };
+}
+
+function clampVolume(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(Math.max(value, 0), 1)
+    : fallback;
 }
 
 function loadStored(): AudioSettings {

@@ -7,6 +7,7 @@ import { AUDIO_TUNING } from './audioTuning';
 import { resolveCue } from './cues';
 import { tableRattle } from './rattle';
 import type { SoundId } from './sampleManifest';
+import { specialSoundKey } from './useSpecialSoundRoom';
 
 /**
  * The one audio subscriber — mounted once per Room, OUTSIDE the canvas, so
@@ -17,6 +18,8 @@ import type { SoundId } from './sampleManifest';
  * - audioBus cues (physics impacts, pose-derived impacts) → engine.
  * - tableEvents game moments → one-shot cues. Future game SFX: emit the
  *   tableEvents member as usual and add one subscription line here.
+ * - authoritative special moments → triggering player's registered recording,
+ *   with the built-in straight bell as the only fallback cue today.
  * - Polls the shared rattle level into the loop gain (~30 Hz).
  * - Unlocks/preloads the engine on the first user gesture (autoplay policy).
  */
@@ -29,7 +32,8 @@ export default function TableAudio() {
   const settings = useAudioSettings();
 
   useEffect(() => {
-    audioEngine.setVolume(settings.volume);
+    audioEngine.setEffectsVolume(settings.effectsVolume);
+    audioEngine.setRecordingsVolume(settings.recordingsVolume);
     audioEngine.setMuted(settings.muted);
   }, [settings]);
 
@@ -53,7 +57,15 @@ export default function TableAudio() {
   }, []);
 
   const oneShot = (id: SoundId) => audioBus.emit({ kind: 'one-shot', id });
-  useTableEvent('straight', () => oneShot('straight-bell'), { replayLastMs: ONE_SHOT_REPLAY_MS });
+  useTableEvent(
+    'special-moment',
+    (event) => {
+      void audioEngine.playCustom(specialSoundKey(event.playerId, event.kind)).then((custom) => {
+        if (!custom && event.kind === 'straight') oneShot('straight-bell');
+      });
+    },
+    { replayLastMs: ONE_SHOT_REPLAY_MS },
+  );
   useTableEvent('chips-to-pot', () => oneShot('chip-stack'), { replayLastMs: ONE_SHOT_REPLAY_MS });
   useTableEvent('chips-to-classic-pot', () => oneShot('chip-stack'), {
     replayLastMs: ONE_SHOT_REPLAY_MS,

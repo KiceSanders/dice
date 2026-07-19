@@ -17,6 +17,7 @@ import { assertNever, DEFAULT_SETTINGS, MAX_SEATED_PLAYERS } from '@dice/shared'
 import { type EngineOptions, GameEngine } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
 import { handleEngineEvent } from './roomGameBridge.js';
+import { SpecialSoundProfiles } from './specialSoundProfiles.js';
 
 /** Anything that can receive server messages (Connection in prod, fakes in tests). */
 export interface ClientLink {
@@ -107,6 +108,7 @@ const err = (code: RoomError['code'], message: string): RoomError => ({ code, me
 export class Room {
   readonly players = new Map<PlayerId, PlayerRecord>();
   readonly seatRequests = new Map<PlayerId, number>(); // playerId → buyIn
+  readonly specialSoundProfiles = new SpecialSoundProfiles();
   hostId: PlayerId = '';
   phase: RoomPhase = 'lobby';
   settings: RoomSettings;

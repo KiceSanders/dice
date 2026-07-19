@@ -1,11 +1,14 @@
-import type {
-  AutoIncrementConfig,
-  ClassicPotConfig,
-  ClientMessage,
-  FirstRollYahtzeePayoutConfig,
-  RoomSettings,
-  StraightPayoutConfig,
-  YahtzeeBonusConfig,
+import {
+  type AutoIncrementConfig,
+  type ClassicPotConfig,
+  type ClientMessage,
+  type FirstRollYahtzeePayoutConfig,
+  isSpecialMomentKind,
+  isValidSpecialSoundWav,
+  type RoomSettings,
+  SPECIAL_SOUND_MAX_BASE64_LENGTH,
+  type StraightPayoutConfig,
+  type YahtzeeBonusConfig,
 } from '@dice/shared';
 
 export type ParseResult = { ok: true; message: ClientMessage } | { ok: false; error: string };
@@ -98,6 +101,20 @@ function isPoseFrame(v: unknown): boolean {
   );
 }
 
+function isSpecialSoundBase64(v: unknown): v is string {
+  if (
+    typeof v !== 'string' ||
+    v.length === 0 ||
+    v.length > SPECIAL_SOUND_MAX_BASE64_LENGTH ||
+    v.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(v)
+  ) {
+    return false;
+  }
+  const bytes = Buffer.from(v, 'base64');
+  return isValidSpecialSoundWav(bytes);
+}
+
 type Validator = (m: Record<string, unknown>) => string | null;
 
 /** Per-type payload validators. Return an error string or null if valid. */
@@ -161,6 +178,13 @@ const validators: Record<ClientMessage['type'], Validator> = {
       if (!Array.isArray(m.restPose) || m.restPose.length !== 5 || !m.restPose.every(isBodyPose)) {
         return 'restPose must be exactly 5 body poses when present';
       }
+    }
+    return null;
+  },
+  'special-sound:update': (m) => {
+    if (!isSpecialMomentKind(m.kind)) return 'kind is not a known special moment';
+    if (m.wavBase64 !== null && !isSpecialSoundBase64(m.wavBase64)) {
+      return 'wavBase64 must be a valid canonical special-sound WAV or null';
     }
     return null;
   },

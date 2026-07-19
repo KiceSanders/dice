@@ -7,6 +7,7 @@
  * see docs/CODING_GUIDELINES.md §1).
  */
 
+import type { SpecialMomentKind } from './specialMoments.js';
 import type {
   BodyPose,
   Die,
@@ -52,6 +53,8 @@ export type ClientMessage =
   | { type: 'dice:frames'; frames: PoseFrame[] }
   /** Voluntary stand; optional final selecting layout for the settled hand (ADR 005). */
   | { type: 'turn:stand'; restPose?: BodyPose[] }
+  /** Publish or clear one device-local player recording for this room (ephemeral). */
+  | { type: 'special-sound:update'; kind: SpecialMomentKind; wavBase64: string | null }
   | { type: 'chat:send'; text: string };
 
 // ---------------------------------------------------------------------------
@@ -163,5 +166,14 @@ export type ServerMessage =
       /** Actual per-payer transfers; min(amount, payer, roller) for short stacks. */
       payments: { playerId: PlayerId; amount: number }[];
     }
+  /** One player's current custom recording changed; ephemeral and room-scoped. */
+  | {
+      type: 'special-sound:updated';
+      playerId: PlayerId;
+      kind: SpecialMomentKind;
+      wavBase64: string | null;
+    }
+  /** An authoritative special moment occurred after its outcome barrier. */
+  | { type: 'special-moment:hit'; playerId: PlayerId; kind: SpecialMomentKind }
   | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }
   | { type: 'error'; code: ErrorCode; message: string };

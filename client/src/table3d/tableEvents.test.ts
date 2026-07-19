@@ -62,4 +62,16 @@ describe('tableEvents', () => {
     expect(anteHandler).toHaveBeenCalledExactlyOnceWith(ante, 1_000);
     expect(awardHandler).toHaveBeenCalledExactlyOnceWith(award, 1_100);
   });
+
+  it('retains authoritative special moments for the audio subscriber', () => {
+    const event: TableEvent = {
+      type: 'special-moment',
+      playerId: 'p1',
+      kind: 'overtime-win',
+    };
+    tableEvents.emit(event, 1_000);
+    const handler = vi.fn();
+    tableEvents.on('special-moment', handler, { replayLastMs: 500, now: 1_100 });
+    expect(handler).toHaveBeenCalledExactlyOnceWith(event, 1_000);
+  });
 });

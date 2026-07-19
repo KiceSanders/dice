@@ -20,6 +20,7 @@ describe('after-roll delay', () => {
     expect(ofType(events, 'rolled')).toHaveLength(1);
     expect(ofType(events, 'rollResolved')).toHaveLength(0);
     expect(ofType(events, 'straightPaid')).toHaveLength(0);
+    expect(ofType(events, 'specialMomentHit')).toHaveLength(0);
     expect(players.map((player) => player.chips)).toEqual([99, 99]);
     expect(engine.publicState().currentTurn?.resolving).toBe(true);
     expect(engine.publicState().currentTurn?.koozieLocked).toBe(false);
@@ -28,6 +29,7 @@ describe('after-roll delay', () => {
 
     vi.advanceTimersByTime(1_999);
     expect(ofType(events, 'straightPaid')).toHaveLength(0);
+    expect(ofType(events, 'specialMomentHit')).toHaveLength(0);
     expect(players.map((player) => player.chips)).toEqual([99, 99]);
 
     vi.advanceTimersByTime(1);
@@ -41,6 +43,11 @@ describe('after-roll delay', () => {
       },
     ]);
     expect(ofType(events, 'straightPaid')).toHaveLength(1);
+    expect(ofType(events, 'specialMomentHit')).toContainEqual({
+      type: 'specialMomentHit',
+      playerId: 'p0',
+      kind: 'straight',
+    });
     expect(players.map((player) => player.chips)).toEqual([102, 96]);
     expect(engine.publicState().currentTurn?.resolving).toBe(false);
   });
@@ -59,9 +66,15 @@ describe('after-roll delay', () => {
     expect(yahtzee.engine.publicState().currentTurn?.koozieLocked).toBe(true);
     expect(ofType(yahtzee.events, 'firstRollYahtzeePaid')).toHaveLength(0);
     expect(ofType(yahtzee.events, 'bonusOffered')).toHaveLength(0);
+    expect(ofType(yahtzee.events, 'specialMomentHit')).toHaveLength(0);
     vi.advanceTimersByTime(2_000);
     expect(ofType(yahtzee.events, 'firstRollYahtzeePaid')).toHaveLength(1);
     expect(ofType(yahtzee.events, 'bonusOffered')).toHaveLength(1);
+    expect(ofType(yahtzee.events, 'specialMomentHit')).toContainEqual({
+      type: 'specialMomentHit',
+      playerId: 'p0',
+      kind: 'first-roll-yahtzee',
+    });
   });
 
   it('also delays bonus-die outcomes, chip transfers, and the automatic stand', () => {
@@ -87,12 +100,20 @@ describe('after-roll delay', () => {
     ]);
     expect(ofType(events, 'bonusRolled')).toHaveLength(0);
     expect(ofType(events, 'yahtzeeBonusPaid')).toHaveLength(0);
+    expect(ofType(events, 'specialMomentHit').some((event) => event.kind === 'yahtzee-bonus')).toBe(
+      false,
+    );
     expect(engine.currentTurnPlayerId).toBe('p0');
     expect(players.map((player) => player.chips)).toEqual([99, 99]);
 
     vi.advanceTimersByTime(2_000);
     expect(ofType(events, 'bonusRolled')[0]).toMatchObject({ matched: true });
     expect(ofType(events, 'yahtzeeBonusPaid')).toHaveLength(1);
+    expect(ofType(events, 'specialMomentHit')).toContainEqual({
+      type: 'specialMomentHit',
+      playerId: 'p0',
+      kind: 'yahtzee-bonus',
+    });
     expect(players.map((player) => player.chips)).toEqual([102, 96]);
     expect(engine.currentTurnPlayerId).toBe('p1');
   });
