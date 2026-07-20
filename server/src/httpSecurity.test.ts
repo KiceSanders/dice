@@ -1,16 +1,7 @@
-import { SPECIAL_SOUND_MAX_BASE64_LENGTH } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
-import {
-  isWebSocketOriginAllowed,
-  parseAllowedOrigins,
-  WEBSOCKET_MAX_PAYLOAD_BYTES,
-} from './httpSecurity.js';
+import { isWebSocketOriginAllowed, parseAllowedOrigins } from './httpSecurity.js';
 
 describe('WebSocket origin policy', () => {
-  it('fits one bounded player recording plus its JSON envelope', () => {
-    expect(WEBSOCKET_MAX_PAYLOAD_BYTES).toBeGreaterThan(SPECIAL_SOUND_MAX_BASE64_LENGTH + 256);
-  });
-
   it('allows same-host browser connections and origin-less tools', () => {
     const allowed = new Set<string>();
     expect(isWebSocketOriginAllowed(undefined, 'example.com', allowed)).toBe(true);

@@ -58,6 +58,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `special-sound:updated` | `{ playerId, kind, wavBase64 }` | One player's current room recording changed; `null` clears it. Late joiners receive the live room's current profiles |
 | `special-moment:hit` | `{ playerId, kind }` | Authoritative recording trigger after the outcome barrier. Kinds: straight, Classic, first-roll Yahtzee, Yahtzee bonus match, and overtime win |
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
+| `stakes:raised` | `{ roundNumber, incrementBy }` | Auto-raise added `incrementBy` chips to every effective stake at this round boundary |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
 | `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual equal-floor payments (may be below `anteAmount`) |
 | `chat:message` | `{ playerId, playerName, chipsAtSend, text, ts }` | `chipsAtSend` is the authoritative stack when accepted; `null` only for legacy persisted messages |
@@ -90,7 +91,7 @@ to any column, update this table.**
 
 | `EngineEvent` (engine.ts) | `RoomEvent` (events.ts, persisted log) | `ServerMessage` (wire) | Client handling (store.ts) |
 |---|---|---|---|
-| `stakesRaised` | — (deterministic from round number; replayed round starts re-derive it) | — (settings ride the `room:state` snapshot) | via `room:state` |
+| `stakesRaised` | — (derived from settings and round number) | `stakes:raised` | toast + game-log line |
 | `roundStarted` | `roundStarted` ✓ | `round:started` | `lastAnte` (table chip animation) |
 | `throwStarted` | — (not recorded) | `turn:throwStarted` | ignored by reducer; 3D table consumes off the socket |
 | `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |

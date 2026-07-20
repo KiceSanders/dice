@@ -73,6 +73,10 @@ const validators: Record<ServerMessage['type'], Validator> = {
     isNonEmptyString(m.playerId) ? null : 'turn:forfeited missing playerId',
   'round:started': (m) =>
     isFiniteNumber(m.roundNumber) && Array.isArray(m.antes) ? null : 'round:started missing fields',
+  'stakes:raised': (m) =>
+    isFiniteNumber(m.roundNumber) && isFiniteNumber(m.incrementBy)
+      ? null
+      : 'stakes:raised missing fields',
   'round:ended': (m) =>
     isFiniteNumber(m.potWon) && Array.isArray(m.scores) ? null : 'round:ended missing fields',
   'subround:started': (m) =>

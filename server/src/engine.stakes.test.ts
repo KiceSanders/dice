@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS, type Die, type RoomSettings } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EnginePlayer, GameEngine } from './engine.js';
-import { makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
+import { bonusRoll, makeEngine, makePlayers, ofType, roll } from './engine.testkit.js';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -15,7 +15,7 @@ function stakesSettings(over: Partial<RoomSettings> = {}): RoomSettings {
   return {
     ...DEFAULT_SETTINGS,
     chipsPerRound: 1,
-    betMultiplier: 2,
+    betMultiplier: 1,
     autoIncrement: { enabled: false, everyRounds: 7 },
     ...over,
   };
@@ -33,89 +33,108 @@ const playRound = (engine: GameEngine, ids: string[]) => {
   vi.advanceTimersByTime(5_000);
 };
 
+describe('bet multiplier', () => {
+  it('scales the initial round and sub-round antes even when auto-raise is off', () => {
+    const players = makePlayers([100, 100]);
+    const { engine, events } = makeEngine(players, {
+      settings: stakesSettings({ betMultiplier: 2 }),
+    });
+    engine.start();
+    expect(players.map((p) => p.chips)).toEqual([98, 98]);
+
+    roll(engine, 'p0', JUNK);
+    engine.stand('p0');
+    roll(engine, 'p1', JUNK);
+    engine.stand('p1');
+
+    // Configured ante 1 × multiplier 2 × 2^depth(1) = 4.
+    expect(ofType(events, 'subRoundStarted')[0]).toMatchObject({ anteAmount: 4, depth: 1 });
+    expect(players.map((p) => p.chips)).toEqual([94, 94]);
+  });
+
+  it('scales all four initial side bets and conserves chips', () => {
+    const players = makePlayers([100, 100, 100]);
+    const { engine, events } = makeEngine(players, {
+      settings: stakesSettings({ betMultiplier: 2 }),
+    });
+    engine.start();
+    const before = totalChips(players) + engine.pot + engine.classicPot;
+
+    roll(engine, 'p0', JUNK);
+    roll(engine, 'p0', [2, 3, 4, 5, 6]);
+    expect(ofType(events, 'straightPaid')[0]).toMatchObject({ amountPerPlayer: 6, total: 12 });
+    engine.stand('p0');
+
+    roll(engine, 'p1', [4, 4, 4, 4, 2]);
+    expect(ofType(events, 'classicDonated')[0]).toMatchObject({ amount: 2 });
+    engine.stand('p1');
+
+    roll(engine, 'p2', [5, 5, 5, 5, 5]);
+    expect(ofType(events, 'firstRollYahtzeePaid')[0]).toMatchObject({
+      amountPerPlayer: 8,
+      total: 16,
+    });
+    bonusRoll(engine, 'p2', 5);
+    expect(ofType(events, 'yahtzeeBonusPaid')[0]).toMatchObject({
+      amountPerPlayer: 6,
+      total: 12,
+    });
+
+    expect(totalChips(players) + engine.pot + engine.classicPot).toBe(before);
+  });
+});
+
 describe('stakes auto-raise', () => {
-  it('does not scale anything while auto-increment is off', () => {
-    const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players, {
-      settings: stakesSettings({ betMultiplier: 5 }),
-    });
-    engine.start();
-    expect(players.map((p) => p.chips)).toEqual([99, 99]);
-    playRound(engine, ['p0', 'p1']);
-    expect(ofType(events, 'stakesRaised')).toHaveLength(0);
-    expect(ofType(events, 'roundStarted')[1]!.antes[0]).toMatchObject({ amount: 1 });
-  });
-
-  it('multiplies the stored amounts at each boundary and emits stakesRaised', () => {
-    const players = makePlayers([100, 100]);
-    const { engine, events } = makeEngine(players, {
-      settings: stakesSettings({ autoIncrement: { enabled: true, everyRounds: 2 } }),
-    });
-    engine.start();
-    playRound(engine, ['p0', 'p1']); // → round 2, no boundary yet
-    expect(ofType(events, 'stakesRaised')).toHaveLength(0);
-    expect(ofType(events, 'roundStarted')[1]!.antes[0]).toMatchObject({ amount: 1 });
-
-    playRound(engine, ['p1', 'p0']); // → round 3, ×2 raise
-    const raised = ofType(events, 'stakesRaised');
-    expect(raised).toHaveLength(1);
-    expect(raised[0]).toMatchObject({ roundNumber: 3 });
-    expect(raised[0]!.settings.chipsPerRound).toBe(2);
-    expect(raised[0]!.settings.straightPayout.amountPerPlayer).toBe(6);
-    expect(raised[0]!.settings.classicPot.donationAmount).toBe(2);
-    expect(raised[0]!.settings.yahtzeeBonus.amountPerPlayer).toBe(6);
-    expect(raised[0]!.settings.firstRollYahtzeePayout.amountPerPlayer).toBe(8);
-    expect(ofType(events, 'roundStarted')[2]!.antes[0]).toMatchObject({ amount: 2 });
-  });
-
-  it('instant bets and sub-round antes use the raised stored values', () => {
+  it('adds one chip to every configured stake after each period at multiplier 1', () => {
     const players = makePlayers([100, 100]);
     const { engine, events } = makeEngine(players, {
       settings: stakesSettings({ autoIncrement: { enabled: true, everyRounds: 1 } }),
     });
     engine.start();
-    const before = totalChips(players) + engine.pot;
-    playRound(engine, ['p0', 'p1']); // → round 2: amounts ×2
+    expect(ofType(events, 'roundStarted')[0]!.antes[0]).toMatchObject({ amount: 1 });
+    playRound(engine, ['p0', 'p1']);
+    expect(ofType(events, 'stakesRaised')).toEqual([
+      { type: 'stakesRaised', roundNumber: 2, incrementBy: 1 },
+    ]);
+    expect(ofType(events, 'roundStarted')[1]!.antes[0]).toMatchObject({ amount: 2 });
 
-    // Straight now pays the raised 3 × 2 = 6 per player.
     const roller = engine.currentTurnPlayerId!;
     roll(engine, roller, [2, 3, 4, 5, 6]);
-    expect(ofType(events, 'straightPaid')[0]).toMatchObject({ amountPerPlayer: 6 });
-    engine.stand(roller);
-
-    // The other player ties the straight's weak group → sub-round with the
-    // raised ante: 2 × 2^1 = 4.
-    const other = engine.currentTurnPlayerId!;
-    roll(engine, other, [2, 3, 4, 5, 6]);
-    engine.stand(other);
-    expect(ofType(events, 'subRoundStarted')[0]).toMatchObject({ anteAmount: 4 });
-
-    expect(totalChips(players) + engine.pot + engine.classicPot).toBe(before);
+    expect(ofType(events, 'straightPaid')[0]).toMatchObject({ amountPerPlayer: 4 });
   });
 
-  it('a manual edit between raises sticks; the next raise builds on it', () => {
-    const players = makePlayers([100, 100]);
-    const settings = stakesSettings({ autoIncrement: { enabled: true, everyRounds: 1 } });
-    const { engine, events } = makeEngine(players, { settings });
-    engine.start();
-    playRound(engine, ['p0', 'p1']); // → round 2: ante raised to 2
-
-    // Host lowers the ante back to 1 (and the raise interval stays).
-    engine.updateSettings({ ...ofType(events, 'stakesRaised')[0]!.settings, chipsPerRound: 1 });
-    playRound(engine, ['p1', 'p0']); // → round 3: raise builds on the edit → 2, not 4
-    expect(ofType(events, 'roundStarted')[2]!.antes[0]).toMatchObject({ amount: 2 });
-  });
-
-  it('betMultiplier 1 keeps auto-increment a no-op', () => {
-    const players = makePlayers([100, 100]);
+  it('scales the initial stakes and adds multiplier-sized steps at multiplier 2', () => {
+    const players = makePlayers([200, 200]);
     const { engine, events } = makeEngine(players, {
       settings: stakesSettings({
-        betMultiplier: 1,
+        betMultiplier: 2,
         autoIncrement: { enabled: true, everyRounds: 1 },
       }),
     });
     engine.start();
+    expect(ofType(events, 'roundStarted')[0]!.antes[0]).toMatchObject({ amount: 2 });
     playRound(engine, ['p0', 'p1']);
-    expect(ofType(events, 'roundStarted')[1]!.antes[0]).toMatchObject({ amount: 1 });
+    expect(ofType(events, 'stakesRaised')).toEqual([
+      { type: 'stakesRaised', roundNumber: 2, incrementBy: 2 },
+    ]);
+    expect(ofType(events, 'roundStarted')[1]!.antes[0]).toMatchObject({ amount: 4 });
+
+    const roller = engine.currentTurnPlayerId!;
+    roll(engine, roller, [6, 6, 6, 6, 6]);
+    expect(ofType(events, 'firstRollYahtzeePaid')[0]).toMatchObject({ amountPerPlayer: 10 });
+  });
+
+  it('does not add periodic steps when auto-raise is disabled', () => {
+    const players = makePlayers([100, 100]);
+    const { engine, events } = makeEngine(players, {
+      settings: stakesSettings({
+        betMultiplier: 2,
+        autoIncrement: { enabled: false, everyRounds: 1 },
+      }),
+    });
+    engine.start();
+    playRound(engine, ['p0', 'p1']);
+    expect(ofType(events, 'stakesRaised')).toHaveLength(0);
+    expect(ofType(events, 'roundStarted')[1]!.antes[0]).toMatchObject({ amount: 2 });
   });
 });

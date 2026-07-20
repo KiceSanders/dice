@@ -8,7 +8,7 @@ import type {
   RoomSnapshot,
   ServerMessage,
 } from '@dice/shared';
-import { assertUnreachable } from '@dice/shared';
+import { assertUnreachable, effectiveStakeAmount } from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
 export const CHAT_BUFFER_SIZE = 200;
@@ -359,6 +359,15 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         },
       };
 
+    case 'stakes:raised': {
+      const text = `Auto-raise: all bets increased by ${msg.incrementBy} chip${msg.incrementBy === 1 ? '' : 's'} for round ${msg.roundNumber}`;
+      return {
+        ...state,
+        toasts: pushToast(state.toasts, 'info', text),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
+      };
+    }
+
     case 'subround:started':
       return {
         ...state,
@@ -457,7 +466,15 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     }
 
     case 'turn:bonusOffered': {
-      const amount = state.snapshot?.settings.yahtzeeBonus.amountPerPlayer;
+      const snapshot = state.snapshot;
+      const amount =
+        snapshot?.game?.roundNumber === undefined
+          ? undefined
+          : effectiveStakeAmount(
+              snapshot.settings.yahtzeeBonus.amountPerPlayer,
+              snapshot.settings,
+              snapshot.game.roundNumber,
+            );
       const text = `${playerName(state, msg.playerId)} rolled a Yahtzee — bonus throw: match a ${msg.face}${amount ? ` to collect ${amount} per player` : ''}`;
       return {
         ...state,

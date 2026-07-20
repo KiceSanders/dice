@@ -414,7 +414,7 @@ describe('Room mid-game settings', () => {
     expect(host.chips + player.chips + room.engine!.pot).toBe(chipsBefore);
   });
 
-  it('mirrors engine auto-raises into room.settings so hosts can edit them', () => {
+  it('keeps configured stake settings stable while effective stakes auto-raise', () => {
     const { room, host } = makeRoom(undefined, {
       ...DEFAULT_SETTINGS,
       betMultiplier: 2,
@@ -434,16 +434,21 @@ describe('Room mid-game settings', () => {
     expect(room.phase).toBe('roundEnd');
     expect(room.continueRound(player.id)).toBeNull();
 
-    // Round 2 crossed the every-1-round boundary: stored amounts doubled and
-    // are visible on the room (settings panel / snapshots).
-    expect(room.settings.chipsPerRound).toBe(2);
+    // Round 2 crossed the every-1-round boundary. The editable configured
+    // amounts stay stable while the effective ante gains a multiplier-sized step.
+    expect(room.settings.chipsPerRound).toBe(1);
     expect(room.settings.straightPayout.amountPerPlayer).toBe(
-      DEFAULT_SETTINGS.straightPayout.amountPerPlayer * 2,
+      DEFAULT_SETTINGS.straightPayout.amountPerPlayer,
     );
+    expect(link.ofType('stakes:raised').at(-1)).toEqual({
+      type: 'stakes:raised',
+      roundNumber: 2,
+      incrementBy: 2,
+    });
     const round2 = link.ofType('round:started').at(-1)!;
     expect(round2.antes).toEqual([
-      { playerId: host.id, amount: 2 },
-      { playerId: player.id, amount: 2 },
+      { playerId: host.id, amount: 4 },
+      { playerId: player.id, amount: 4 },
     ]);
   });
 

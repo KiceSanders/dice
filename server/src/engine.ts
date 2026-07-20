@@ -14,13 +14,13 @@ import {
   canStandVoluntarily,
   compareHands,
   detectStraight,
+  effectiveStakeAmount,
   HAND_SIZE,
+  isAutoRaiseRound,
   mustAutoStandLastPlayerBeat,
   orderPlayersFromFirstRollerSeat,
-  raiseStakes,
   resolveRound,
   scoreHand,
-  shouldRaiseStakes,
   yahtzeeBonusTarget,
 } from '@dice/shared';
 import { DelayedActions } from './delayedAction.js';
@@ -43,12 +43,7 @@ export interface EnginePlayer {
 }
 
 export type EngineEvent =
-  /**
-   * Auto-raise fired at a round boundary: the stored bet amounts were
-   * multiplied in place (docs/GAME_RULES.md "Stakes: multiplier and
-   * auto-raise"). Not persisted — replayed round starts re-derive it.
-   */
-  | { type: 'stakesRaised'; roundNumber: number; settings: RoomSettings }
+  | { type: 'stakesRaised'; roundNumber: number; incrementBy: number }
   | { type: 'roundStarted'; roundNumber: number; antes: { playerId: PlayerId; amount: number }[] }
   | { type: 'throwStarted'; playerId: PlayerId; kept: number[]; rollNumber: number }
   | {
@@ -252,23 +247,26 @@ export class GameEngine {
 
   // -- rounds ----------------------------------------------------------------
 
-  /**
-   * Auto-raise (docs/GAME_RULES.md "Stakes: multiplier and auto-raise"):
-   * at each boundary the stored ante and instant-bet amounts are multiplied by
-   * `betMultiplier` and written back into the settings, so hosts can see and
-   * manually re-edit the live amounts between raises. Deterministic from the
-   * round number, so crash-recovery replay re-derives it — never persisted.
-   */
-  private maybeRaiseStakes(roundNumber: number): void {
-    if (!shouldRaiseStakes(this.settings.autoIncrement, roundNumber)) return;
-    this.settings = raiseStakes(this.settings);
-    this.emit({ type: 'stakesRaised', roundNumber, settings: this.settings });
+  /** Resolve a configured ante or side bet for this round. */
+  private stakeAmount(
+    configuredAmount: number,
+    settings = this.settings,
+    roundNumber = this.roundNumber,
+  ): number {
+    return effectiveStakeAmount(configuredAmount, settings, roundNumber);
   }
 
   private startRound(): void {
-    // roundNumber increments below, so the starting round is +1.
-    this.maybeRaiseStakes(this.roundNumber + 1);
-    const ante = this.settings.chipsPerRound;
+    // roundNumber increments below, so the starting round's stakes use +1.
+    const nextRoundNumber = this.roundNumber + 1;
+    if (isAutoRaiseRound(this.settings, nextRoundNumber)) {
+      this.emit({
+        type: 'stakesRaised',
+        roundNumber: nextRoundNumber,
+        incrementBy: this.settings.betMultiplier,
+      });
+    }
+    const ante = this.stakeAmount(this.settings.chipsPerRound, this.settings, nextRoundNumber);
     const seated = this.getSeated().filter((p) => p.seat !== null);
 
     // Zero-chip players sit out; everyone else antes the same short-stack floor.
@@ -303,7 +301,7 @@ export class GameEngine {
 
   /**
    * Tie → sub-round among only the tied players, same pot, ante doubling each
-   * level (chipsPerRound * 2^depth, equal floor to the shortest tied stack).
+   * level (effective chipsPerRound * 2^depth, equal floor to the shortest tied stack).
    * Past MAX_SUBROUND_DEPTH: sudden death — no ante, single roll each, repeat
    * until broken.
    */
@@ -316,7 +314,7 @@ export class GameEngine {
     let anteAmount = 0;
     const antes: { playerId: PlayerId; amount: number }[] = [];
     if (!suddenDeath) {
-      anteAmount = this.settings.chipsPerRound * 2 ** depth;
+      anteAmount = this.stakeAmount(this.settings.chipsPerRound) * 2 ** depth;
       const effectiveAnte = Math.min(anteAmount, ...tied.map((p) => p.chips));
       for (const p of tied) {
         p.chips -= effectiveAnte;
@@ -589,11 +587,28 @@ export class GameEngine {
     })) {
       this.emit({ type: 'specialMomentHit', playerId: turn.playerId, kind });
     }
-    this.applyStraightPayout(turn, resolution, settings.straightPayout, seated);
-    this.applyClassicDonation(turn, resolution, settings.classicPot);
+    this.applyStraightPayout(
+      turn,
+      resolution,
+      {
+        ...settings.straightPayout,
+        amountPerPlayer: this.stakeAmount(settings.straightPayout.amountPerPlayer, settings),
+      },
+      seated,
+    );
+    this.applyClassicDonation(turn, resolution, {
+      ...settings.classicPot,
+      donationAmount: this.stakeAmount(settings.classicPot.donationAmount, settings),
+    });
     this.applyClassicPayout(turn, resolution, settings.classicPot);
     const firstRollYahtzeePayout = applyFirstRollYahtzeePayout(
-      settings.firstRollYahtzeePayout,
+      {
+        ...settings.firstRollYahtzeePayout,
+        amountPerPlayer: this.stakeAmount(
+          settings.firstRollYahtzeePayout.amountPerPlayer,
+          settings,
+        ),
+      },
       resolution.score,
       this.participantById(turn.playerId),
       seated,
@@ -845,7 +860,10 @@ export class GameEngine {
     if (!turn.bonus) return err('BAD_REQUEST', 'no bonus throw pending');
     const { face } = turn.bonus;
     const settings = this.settings;
-    const config = settings.yahtzeeBonus;
+    const config = {
+      ...settings.yahtzeeBonus,
+      amountPerPlayer: this.stakeAmount(settings.yahtzeeBonus.amountPerPlayer, settings),
+    };
     const seated = this.getSeated().filter((player) => player.seat !== null);
     turn.bonus.throwing = false;
     const delayedId = delayConsequences ? this.postRoll.arm(turn, true) : null;

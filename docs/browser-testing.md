@@ -127,8 +127,8 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 13. Tab B: **Room settings** → all fields disabled (read-only), with no configurable
     max-player field in either tab.
-14. Tab A: change **Chips per round** (e.g. 2) → **Save settings** → Tab B read-only panel shows updated value.
-14b. After the game has started (mid-round): Tab A host opens **Room settings**, changes **Chips per round** (e.g. 4) → **Save** → Tab B shows the new value immediately; the **current** pot is unchanged. On the **next** round, both players ante the new amount.
+14. Tab A: change **Starting chips per round** (e.g. 2) → **Save settings** → Tab B read-only panel shows updated value.
+14b. After the game has started (mid-round): Tab A host opens **Room settings**, changes **Starting chips per round** (e.g. 4) → **Save** → Tab B shows the new value immediately; the **current** pot is unchanged. On the **next** round, both players ante the corresponding effective amount.
 14c. Set **After Roll Delay (ms)** to 3000 mid-game. The next settled roll stays quiet for
     about 3 seconds before any payout/effect/turn change. Change it to 500 during that quiet
     window: the current roll still waits about 3 seconds; the following roll waits about 0.5s.
@@ -274,7 +274,7 @@ same override; switch **View as** to check the passive glow.
 1. Confirm **First-roll Yahtzee payout** and Yahtzee bonus are enabled. In the roller tab, force
    a first-throw quint with
    `window.__forceSettleFaces = [6, 6, 6, 6, 6]`, then throw the koozie.
-2. After the main roll's configured delay, every other seated player's chips fall by the configured first-roll amount,
+2. After the main roll's configured delay, every other seated player's chips fall by the effective first-roll amount,
    the roller's chips rise by the same total, and both tabs show the transfer toast/game-log line.
    Repeat with `[6, 6, 6, 1, 1]` to confirm wild-composed Yahtzees qualify; a Yahtzee made on a
    second roll must not pay this rule.
@@ -289,6 +289,27 @@ same override; switch **View as** to check the passive glow.
    **Stand**. The next player's turn should begin (or the round should resolve).
 6. Repeat from the other player seat and check both consoles for errors or
    `[dice] slot-layout fallback` warnings. Then `delete window.__forceSettleFaces`.
+
+---
+
+## Stake multiplier + auto-raise — 2 tabs
+
+Use **Every N rounds = 1** so each completed round exercises a raise boundary quickly.
+Keep the starting ante at 1 and first-roll Yahtzee payout at 4.
+
+1. Create a room with **Bet multiplier = 1**, seat two players, and start. Confirm the
+   round-1 ante is 1 per player. Force a first-roll Yahtzee and confirm its payout is 4 per payer.
+2. Finish/dismiss round 1. Confirm the round-2 ante is 2 per player. Force another first-roll
+   Yahtzee and confirm its payout is 5 per payer. Both tabs must show **Auto-raise: all bets
+   increased by 1 chip for round 2**. The settings panel must still label/show the editable
+   starting amounts as ante 1 and payout 4.
+3. Repeat in a fresh room with **Bet multiplier = 2**. Confirm round 1 uses ante 2 and
+   first-roll payout 8; round 2 uses ante 4 and first-roll payout 10, with a notification that
+   all bets increased by 2 chips.
+4. Disable auto-raise in another fresh multiplier-2 room. Confirm the initial scaling remains
+   (ante 2 / first-roll payout 8) but round 2 does not add another step.
+5. On both tabs, confirm the exact effective amounts appear in ante and payout activity lines,
+   chip totals remain conserved, and neither console reports errors.
 
 ---
 

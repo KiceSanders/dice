@@ -97,6 +97,16 @@ describe('parseServerMessage', () => {
     ).toBe(false);
   });
 
+  it('validates stake raise notifications', () => {
+    expect(
+      parseServerMessage(JSON.stringify({ type: 'stakes:raised', roundNumber: 8, incrementBy: 2 }))
+        .ok,
+    ).toBe(true);
+    expect(parseServerMessage(JSON.stringify({ type: 'stakes:raised', roundNumber: 8 })).ok).toBe(
+      false,
+    );
+  });
+
   it('accepts room:state with a snapshot object', () => {
     const result = parseServerMessage(
       JSON.stringify({ type: 'room:state', snapshot: { roomId: 'ABC' } }),

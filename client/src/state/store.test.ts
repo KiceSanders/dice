@@ -122,6 +122,16 @@ describe('ante announcements', () => {
   });
 });
 
+describe('stake raise announcements', () => {
+  it('shows the increment in a toast and the game log', () => {
+    const state = receive({ type: 'stakes:raised', roundNumber: 8, incrementBy: 2 });
+    expect(state.toasts.at(-1)?.text).toBe('Auto-raise: all bets increased by 2 chips for round 8');
+    expect(state.activityLog.at(-1)?.text).toBe(
+      'Auto-raise: all bets increased by 2 chips for round 8',
+    );
+  });
+});
+
 describe('active room directory', () => {
   it('stores the latest public room list', () => {
     const rooms = [
@@ -212,10 +222,23 @@ describe('instant transfers', () => {
 
 describe('yahtzee bonus messages', () => {
   it('turn:bonusOffered announces the offer without touching lastRoll', () => {
-    const state = receive({ type: 'turn:bonusOffered', playerId: 'p1', face: 5 });
+    const snap = snapshot({
+      players: [player('p1', { seat: 0 })],
+      settings: {
+        ...snapshot({ players: [] }).settings,
+        betMultiplier: 2,
+        autoIncrement: { enabled: true, everyRounds: 7 },
+        yahtzeeBonus: { enabled: true, amountPerPlayer: 3 },
+      },
+      game: { roundNumber: 8 } as RoomSnapshot['game'],
+    });
+    const state = receive(
+      { type: 'turn:bonusOffered', playerId: 'p1', face: 5 },
+      { ...initialState, snapshot: snap },
+    );
     expect(state.lastRoll).toBeNull();
     expect(state.toasts).toHaveLength(1);
-    expect(state.activityLog.at(-1)?.text).toContain('Yahtzee');
+    expect(state.activityLog.at(-1)?.text).toContain('collect 8 per player');
   });
 
   it('turn:bonusThrowStarted is state-neutral (socket-direct, like throwStarted)', () => {

@@ -95,8 +95,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           onChange={(e) => onNum(e.target.value, (n) => set({ betMultiplier: n }))}
         />
         <small>
-          Each auto-raise multiplies the ante, straight payout, Classic Pot donation, Yahtzee bonus,
-          and first-roll Yahtzee payout by this factor, updating the values in these settings.
+          Scales the starting ante and every side bet. Each auto-raise then adds this many chips to
+          every effective amount.
         </small>
       </div>
 
@@ -110,8 +110,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           Auto-raise stakes
         </label>
         <small>
-          Applies the bet multiplier to all bet amounts at a fixed round interval so games don't
-          drag on. The raised amounts show up here and can be edited back down anytime.
+          Adds the bet multiplier to every effective bet amount at a fixed round interval so games
+          don't drag on. The editable amounts below remain the starting values.
         </small>
 
         {value.autoIncrement.enabled && (
@@ -127,15 +127,15 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
               />
             </div>
             <small className="field-help">
-              With the defaults (every 7 rounds, multiplier 2), rounds 1–7 use the amounts above,
-              rounds 8–14 double them, rounds 15–21 double them again, and so on.
+              With the defaults (every 7 rounds, multiplier 1), rounds 1–7 use the amounts below,
+              then every effective amount gains 1 chip on rounds 8, 15, 22, and so on.
             </small>
           </div>
         )}
       </div>
 
       <div className="field">
-        <label htmlFor="set-chips">Chips per round</label>
+        <label htmlFor="set-chips">Starting chips per round</label>
         <input
           id="set-chips"
           type="number"
@@ -143,7 +143,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
           value={displayNum(value.chipsPerRound)}
           onChange={(e) => onNum(e.target.value, (n) => set({ chipsPerRound: n }))}
         />
-        <small>Ante every seated player pays into the pot each round.</small>
+        <small>Base ante before the multiplier and auto-raise steps.</small>
       </div>
 
       <div className="settings-bonus">
@@ -163,7 +163,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         {value.firstRollYahtzeePayout.enabled && (
           <div className="bonus-grid">
             <div className="field">
-              <label htmlFor="set-first-roll-yahtzee-amount">Chips per player</label>
+              <label htmlFor="set-first-roll-yahtzee-amount">Starting chips per player</label>
               <input
                 id="set-first-roll-yahtzee-amount"
                 type="number"
@@ -175,8 +175,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
               />
             </div>
             <small className="field-help">
-              This instant payout is separate from the Yahtzee bonus throw. Payments are capped by
-              what a player has.
+              Base payout before stake scaling. This is separate from the Yahtzee bonus throw;
+              payments are capped by what a player has.
             </small>
           </div>
         )}
@@ -198,7 +198,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         {value.straightPayout.enabled && (
           <div className="bonus-grid">
             <div className="field">
-              <label htmlFor="set-payout-amount">Chips per player</label>
+              <label htmlFor="set-payout-amount">Starting chips per player</label>
               <input
                 id="set-payout-amount"
                 type="number"
@@ -208,8 +208,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
               />
             </div>
             <small className="field-help">
-              Each other seated player pays the base amount when a straight is rolled. Payments are
-              capped by what a player has.
+              Base payout before stake scaling. Payments are capped by what a player has.
             </small>
           </div>
         )}
@@ -232,7 +231,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         {value.classicPot.enabled && (
           <div className="bonus-grid">
             <div className="field">
-              <label htmlFor="set-classic-donation">Donation amount</label>
+              <label htmlFor="set-classic-donation">Starting donation amount</label>
               <input
                 id="set-classic-donation"
                 type="number"
@@ -242,7 +241,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
               />
             </div>
             <small className="field-help">
-              Chips moved from the roller into the Classic Pot on a first-roll four of a kind.
+              Base donation before stake scaling, moved into the pot on a first-roll four of a kind.
             </small>
           </div>
         )}
@@ -265,7 +264,7 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
         {value.yahtzeeBonus.enabled && (
           <div className="bonus-grid">
             <div className="field">
-              <label htmlFor="set-yahtzee-amount">Chips per player</label>
+              <label htmlFor="set-yahtzee-amount">Starting chips per player</label>
               <input
                 id="set-yahtzee-amount"
                 type="number"
@@ -275,8 +274,8 @@ export default function SettingsFields({ value, onChange, disabled = false }: Pr
               />
             </div>
             <small className="field-help">
-              The bonus die must literally match the quint's face — a rolled 1 is not wild here.
-              Payments are capped by what a player has.
+              Base payout before stake scaling. The bonus die must literally match the quint's face;
+              payments are capped by what a player has.
             </small>
           </div>
         )}

@@ -466,9 +466,6 @@ export class Room {
       recorder: this.recorder,
       broadcast: (msg) => this.broadcast(msg),
       broadcastState: () => this.broadcastState(),
-      syncSettings: (settings) => {
-        this.settings = settings;
-      },
       setPhasePlaying: () => {
         this.phase = 'playing';
       },

@@ -56,7 +56,8 @@ function client(name) {
 const settings = {
   chipsPerRound: 2,
   betMultiplier: 1,
-  autoIncrement: { enabled: true, everyRounds: 7 },
+  // Exercise the auto-raise notification as soon as round 2 starts.
+  autoIncrement: { enabled: true, everyRounds: 1 },
   maxRolls: 3,
   afterRollDelayMs: 2000,
   minBuyIn: 10,
@@ -189,6 +190,17 @@ assert(totalChips === 200, `chips conserved (${totalChips})`);
 
 // Dismissing the recap starts the next round immediately (the 8s timer is fallback-only).
 host.send({ type: 'round:continue' });
+const [hostRaised, annRaised] = await Promise.all([
+  host.next('stakes:raised'),
+  ann.next('stakes:raised'),
+]);
+assert(
+  hostRaised.roundNumber === 2 &&
+    hostRaised.incrementBy === 1 &&
+    annRaised.roundNumber === 2 &&
+    annRaised.incrementBy === 1,
+  'both players notified that all bets increased by 1',
+);
 state = await host.stateWhere(
   (s) => s.phase === 'playing' && s.game?.roundNumber === 2,
   'round 2 started after recap dismissal',
@@ -220,7 +232,7 @@ const standBlocked = await r2Roller.nextWhere(
 );
 assert(standBlocked.code === 'STAND_NOT_ALLOWED', 'stand while bonus pending → STAND_NOT_ALLOWED');
 
-// Single-die bonus throw: a literal match pays 10 from the other player.
+// Single-die bonus throw: round 2 auto-raised the configured 10-chip payout to 11.
 r2Roller.send({ type: 'turn:bonusThrowStart' });
 await r2Roller.nextWhere(
   (m) => m.type === 'turn:bonusThrowStarted' && m.playerId === r2First,
@@ -234,8 +246,8 @@ const bonusRolled = await r2Roller.nextWhere(
 assert(bonusRolled.matched === true, 'bonus die matched the quint face');
 const paid = await r2Other.next('yahtzee:paid');
 assert(
-  paid.playerId === r2First && paid.total === 10 && paid.payments.length === 1,
-  `yahtzee bonus paid 10 to the roller (${paid.total})`,
+  paid.playerId === r2First && paid.total === 11 && paid.payments.length === 1,
+  `yahtzee bonus paid 11 to the roller (${paid.total})`,
 );
 
 // Bonus resolution auto-stands the roller; the other player is capped at 1.

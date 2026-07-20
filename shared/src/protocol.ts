@@ -106,6 +106,8 @@ export type ServerMessage =
       roundNumber: number;
       antes: { playerId: PlayerId; amount: number }[];
     }
+  /** Auto-raise advanced every effective stake at this round boundary. */
+  | { type: 'stakes:raised'; roundNumber: number; incrementBy: number }
   | {
       type: 'round:ended';
       /** null when every turn was forfeited — no hands, the pot carries over. */
