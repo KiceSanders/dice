@@ -55,7 +55,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
 | `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual equal-floor payments (may be below `anteAmount`) |
-| `chat:message` | `{ playerId, playerName, text, ts }` | |
+| `chat:message` | `{ playerId, playerName, chipsAtSend, text, ts }` | `chipsAtSend` is the authoritative stack when accepted; `null` only for legacy persisted messages |
 | `error` | `{ code, message }` | `ErrorCode` union in protocol.ts |
 
 Egress is lightly validated by the client in `client/src/ws/protocol.ts`
@@ -86,18 +86,18 @@ to any column, update this table.**
 | `rolled` | `rolled` ✓ (`restPose?` optional so old logs parse) | `turn:rolled` | `lastRoll` (animation + settled layout) |
 | `rollResolved` | — | `turn:rollResolved` | `lastRollResolution` (outcome-only effects, including straight glow/bell) |
 | `stood` | `stood` ✓ (`restPose?` optional so old logs parse) | — (snapshot only) | via `room:state` |
-| `forfeited` | `forfeited` ✓ | `turn:forfeited` | system chat line |
-| `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + chat line |
+| `forfeited` | `forfeited` ✓ | `turn:forfeited` | game-log line |
+| `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + game-log line |
 | `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + toast |
-| `straightPaid` | `straightPaid` ✓ | `straight:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
-| `classicDonated` | `classicDonated` ✓ | `classic:donated` | `lastClassicDonate` (seat → classic pot chip animation) + toast + chat line |
-| `classicWon` | `classicWon` ✓ | `classic:won` | `lastClassicWin` (classic pot → seat chip animation) + toast + chat line |
-| `bonusOffered` | — (replaying the quint `rolled` re-offers) | `turn:bonusOffered` | toast + chat line |
+| `straightPaid` | `straightPaid` ✓ | `straight:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
+| `classicDonated` | `classicDonated` ✓ | `classic:donated` | `lastClassicDonate` (seat → classic pot chip animation) + toast + game-log line |
+| `classicWon` | `classicWon` ✓ | `classic:won` | `lastClassicWin` (classic pot → seat chip animation) + toast + game-log line |
+| `bonusOffered` | — (replaying the quint `rolled` re-offers) | `turn:bonusOffered` | toast + game-log line |
 | `bonusThrowStarted` | — (not recorded) | `turn:bonusThrowStarted` | ignored by reducer; 3D table consumes off the socket |
 | `bonusSettled` | `bonusRolled` ✓ (die only; replayed via `replayBonusRolled`) | — | — (persisted immediately, outcome still hidden) |
-| `bonusRolled` | — | `turn:bonusRolled` | delayed chat line on a miss; never touches `lastRoll` |
-| `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
-| `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + toast + chat line |
+| `bonusRolled` | — | `turn:bonusRolled` | delayed game-log line on a miss; never touches `lastRoll` |
+| `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
+| `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |
 
@@ -119,6 +119,12 @@ marker. Bonus frames temporarily carry the cup plus six dice; the bonus die resu
 rest pose and the sixth die is discarded after its quiet window, so the quint's settled five-die
 pose remains the between-turns layout. Everything a recovered room needs lives in the `RoomEvent` log
 (`server/logs/<roomId>.log`, JSON Lines, compacted to a snapshot at each round end).
+
+Player conversation and game activity are separate client buffers. Only `chat:message` enters
+the chat panel; outcome messages and membership diffs enter the collapsible game log. Each
+persisted chat entry captures `chipsAtSend` before broadcast so later antes and payouts cannot
+change the count displayed beside that message. Pre-change chat history is replayed with
+`chipsAtSend: null` and omits the count in the UI.
 
 The settled **rest pose** is the exception that proves the rule (ADR 005): unlike the
 frame stream, the final layout IS state. It rides `turn:rolled`, can be refined by

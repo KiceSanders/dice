@@ -106,6 +106,7 @@ const validators: Record<ServerMessage['type'], Validator> = {
   'chat:message': (m) =>
     isNonEmptyString(m.playerId) &&
     isNonEmptyString(m.playerName) &&
+    (m.chipsAtSend === null || isFiniteNumber(m.chipsAtSend)) &&
     typeof m.text === 'string' &&
     isFiniteNumber(m.ts)
       ? null

@@ -11,12 +11,21 @@ import { assertUnreachable } from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
 export const CHAT_BUFFER_SIZE = 200;
+export const ACTIVITY_LOG_BUFFER_SIZE = 200;
 const MAX_TOASTS = 5;
 
-export type ChatEntry =
-  | { kind: 'chat'; playerId: PlayerId; playerName: string; text: string; ts: number }
-  /** Muted inline lines: joins, kicks, round winners. */
-  | { kind: 'system'; text: string; ts: number };
+export interface ChatEntry {
+  playerId: PlayerId;
+  playerName: string;
+  chipsAtSend: number | null;
+  text: string;
+  ts: number;
+}
+
+export interface ActivityLogEntry {
+  text: string;
+  ts: number;
+}
 
 export interface Toast {
   id: number;
@@ -98,6 +107,7 @@ export interface AppState {
   roomId: string | null;
   snapshot: RoomSnapshot | null;
   chat: ChatEntry[];
+  activityLog: ActivityLogEntry[];
   lastRoll: LastRoll | null;
   lastRollResolution: RollResolutionInfo | null;
   lastAnte: AnteInfo | null;
@@ -116,6 +126,7 @@ export const initialState: AppState = {
   roomId: null,
   snapshot: null,
   chat: [],
+  activityLog: [],
   lastRoll: null,
   lastRollResolution: null,
   lastAnte: null,
@@ -146,8 +157,16 @@ function pushChat(chat: ChatEntry[], entries: ChatEntry[]): ChatEntry[] {
   return [...chat, ...entries].slice(-CHAT_BUFFER_SIZE);
 }
 
-function systemLine(text: string): ChatEntry {
-  return { kind: 'system', text, ts: Date.now() };
+function pushActivityLog(
+  activityLog: ActivityLogEntry[],
+  entries: ActivityLogEntry[],
+): ActivityLogEntry[] {
+  if (entries.length === 0) return activityLog;
+  return [...activityLog, ...entries].slice(-ACTIVITY_LOG_BUFFER_SIZE);
+}
+
+function activityLine(text: string): ActivityLogEntry {
+  return { text, ts: Date.now() };
 }
 
 function playerName(state: AppState, id: PlayerId): string {
@@ -212,7 +231,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
 
     case 'room:state': {
       let toasts = state.toasts;
-      const systemLines: ChatEntry[] = [];
+      const activityLines: ActivityLogEntry[] = [];
       const prev = state.snapshot;
       const next = msg.snapshot;
       if (prev && state.me) {
@@ -231,18 +250,23 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
             next.hostId === myId ? 'You are now the host' : `${hostName} is now the host`,
           );
         }
-        // System chat lines: joins and kicks (diffed against the last snapshot).
+        // Activity lines: joins and kicks (diffed against the last snapshot).
         const prevById = new Map(prev.players.map((p) => [p.id, p]));
         for (const p of next.players) {
           const before = prevById.get(p.id);
           if (!before) {
-            systemLines.push(systemLine(`${p.name} joined`));
+            activityLines.push(activityLine(`${p.name} joined`));
           } else if (!before.banned && p.banned) {
-            systemLines.push(systemLine(`${p.name} was kicked`));
+            activityLines.push(activityLine(`${p.name} was kicked`));
           }
         }
       }
-      return { ...state, snapshot: next, toasts, chat: pushChat(state.chat, systemLines) };
+      return {
+        ...state,
+        snapshot: next,
+        toasts,
+        activityLog: pushActivityLog(state.activityLog, activityLines),
+      };
     }
 
     // Physics-roll messages (ADR 004): the 3D table consumes these directly
@@ -281,20 +305,16 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'chat:message': {
       // The server replays history on rejoin; skip messages we already have.
       const duplicate = state.chat.some(
-        (e) =>
-          e.kind === 'chat' &&
-          e.ts === msg.ts &&
-          e.playerId === msg.playerId &&
-          e.text === msg.text,
+        (e) => e.ts === msg.ts && e.playerId === msg.playerId && e.text === msg.text,
       );
       if (duplicate) return state;
       return {
         ...state,
         chat: pushChat(state.chat, [
           {
-            kind: 'chat',
             playerId: msg.playerId,
             playerName: msg.playerName,
+            chipsAtSend: msg.chipsAtSend,
             text: msg.text,
             ts: msg.ts,
           },
@@ -368,15 +388,17 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           scores: msg.scores,
           receivedAt: Date.now(),
         },
-        chat: pushChat(state.chat, [systemLine(line)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(line)]),
       };
     }
 
     case 'turn:forfeited':
       return {
         ...state,
-        chat: pushChat(state.chat, [
-          systemLine(`${playerName(state, msg.playerId)}'s turn was forfeited — no roll completed`),
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(
+            `${playerName(state, msg.playerId)}'s turn was forfeited — no roll completed`,
+          ),
         ]),
       };
 
@@ -392,7 +414,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),
-        chat: pushChat(state.chat, [systemLine(text)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
 
@@ -407,7 +429,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),
-        chat: pushChat(state.chat, [systemLine(text)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
 
@@ -421,7 +443,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),
-        chat: pushChat(state.chat, [systemLine(text)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
 
@@ -431,7 +453,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       return {
         ...state,
         toasts: pushToast(state.toasts, 'info', text),
-        chat: pushChat(state.chat, [systemLine(text)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
 
@@ -440,7 +462,10 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
       // lastRoll — that drives the 5-dice static view of the settled hand.
       if (msg.matched) return state;
       const text = `${playerName(state, msg.playerId)}'s bonus die shows ${msg.die} — no match (needed ${msg.face})`;
-      return { ...state, chat: pushChat(state.chat, [systemLine(text)]) };
+      return {
+        ...state,
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
+      };
     }
 
     case 'yahtzee:paid': {
@@ -453,7 +478,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),
-        chat: pushChat(state.chat, [systemLine(text)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
 
@@ -467,7 +492,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           receivedAt: Date.now(),
         },
         toasts: pushToast(state.toasts, 'info', text),
-        chat: pushChat(state.chat, [systemLine(text)]),
+        activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
 

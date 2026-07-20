@@ -42,6 +42,8 @@ export interface PersistedGame {
 export interface ChatHistoryEntry {
   playerId: PlayerId;
   playerName: string;
+  /** Chip stack when the message was accepted; null for pre-change history. */
+  chipsAtSend: number | null;
   text: string;
   ts: number;
 }
@@ -145,7 +147,15 @@ export type RoomEvent =
     }
   | { type: 'roundEnded'; winnerId: PlayerId | null; potWon: number }
   // -- chat (Phase 10) ---------------------------------------------------------
-  | { type: 'chat'; playerId: PlayerId; playerName: string; text: string; ts: number };
+  | {
+      type: 'chat';
+      playerId: PlayerId;
+      playerName: string;
+      /** Optional only so logs written before chip snapshots still replay. */
+      chipsAtSend?: number;
+      text: string;
+      ts: number;
+    };
 
 /** Sink the room writes its events to (a `RoomLogStore` binding in prod). */
 export interface RoomRecorder {

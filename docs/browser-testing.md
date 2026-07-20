@@ -141,6 +141,27 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ---
 
+## Chat + game log — 3 tabs
+
+1. With Alice, Bob, and Carol in one room, send a chat message from each tab. Confirm the
+   floating chat contains only player messages and its unread badge increases only for those
+   messages—not for joins, kicks, rolls, or payouts.
+2. Seat Alice and Bob, note Alice's chips, and send from Alice. Start a round or trigger a
+   payout so Alice's stack changes, then send again. Both tabs must show the original chip
+   count beside the first message and the new count beside the second.
+3. Trigger membership and game events (join, kick, forfeit, round result, or side payout).
+   Confirm they appear in **Game log** immediately above **Room settings** and never appear in
+   chat. The log should be collapsible and display timestamps.
+4. After more than ten activity entries, expand **Game log**. Confirm it starts with the newest
+   ten in chronological order and **Show 10 more** reveals older entries without losing the
+   newer ones.
+5. Refresh/rejoin one tab. Player chat history, including chip snapshots, must replay without
+   duplicates; entries written before chip snapshots may omit the count. Check all consoles for
+   errors and repeat once at ≤640px to confirm chat remains a bottom sheet while the log stays in
+   normal page flow above settings.
+
+---
+
 ## Eight-seat capacity + in-game reflow — 3 tabs
 
 1. In Tab A, create a room and seat Alice. In Tab B, join and seat Bob. Before starting,
@@ -225,7 +246,7 @@ same override; switch **View as** to check the passive glow.
 1. Confirm Classic Pot is enabled in settings (default on; donation amount 1).
 2. On the first throw of a turn, force four of a kind (e.g.
    `window.__forceSettleFaces = [3, 3, 3, 3, 2]`). After the configured delay: roller loses 1 chip, Classic
-   Pot (top-band right of roll-to-beat) increments, toast/chat announce the donation, and a
+   Pot (top-band right of roll-to-beat) increments, toast/game log announce the donation, and a
    chip flies seat → Classic Pot.
 3. Yahtzee on first roll (`[4,4,4,4,4]`) must **not** donate. A four-of-a-kind on the second
    roll of a turn must **not** donate.
@@ -246,7 +267,7 @@ same override; switch **View as** to check the passive glow.
    a first-throw quint with
    `window.__forceSettleFaces = [6, 6, 6, 6, 6]`, then throw the koozie.
 2. After the main roll's configured delay, every other seated player's chips fall by the configured first-roll amount,
-   the roller's chips rise by the same total, and both tabs show the transfer toast/chat line.
+   the roller's chips rise by the same total, and both tabs show the transfer toast/game-log line.
    Repeat with `[6, 6, 6, 1, 1]` to confirm wild-composed Yahtzees qualify; a Yahtzee made on a
    second roll must not pay this rule.
 3. When the bonus is offered, confirm **all five** Yahtzee dice move to/stay on the rail

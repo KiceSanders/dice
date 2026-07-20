@@ -201,7 +201,7 @@ describe('yahtzee bonus messages', () => {
     const state = receive({ type: 'turn:bonusOffered', playerId: 'p1', face: 5 });
     expect(state.lastRoll).toBeNull();
     expect(state.toasts).toHaveLength(1);
-    expect(state.chat.at(-1)).toMatchObject({ kind: 'system' });
+    expect(state.activityLog.at(-1)?.text).toContain('Yahtzee');
   });
 
   it('turn:bonusThrowStarted is state-neutral (socket-direct, like throwStarted)', () => {
@@ -209,7 +209,7 @@ describe('yahtzee bonus messages', () => {
     expect(state).toBe(initialState);
   });
 
-  it('a missed bonus die gets a chat line and never sets lastRoll', () => {
+  it('a missed bonus die gets an activity line and never sets lastRoll', () => {
     const state = receive({
       type: 'turn:bonusRolled',
       playerId: 'p1',
@@ -218,7 +218,7 @@ describe('yahtzee bonus messages', () => {
       matched: false,
     });
     expect(state.lastRoll).toBeNull();
-    expect(state.chat.at(-1)).toMatchObject({ kind: 'system' });
+    expect(state.activityLog.at(-1)?.text).toContain('no match');
   });
 
   it('a matched bonus die is silent — yahtzee:paid announces it', () => {
@@ -265,7 +265,7 @@ describe('classic pot messages', () => {
       amount: 4,
       receivedAt: 5_678,
     });
-    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('classic'))).toBe(true);
+    expect(state.activityLog.some((entry) => entry.text.includes('classic'))).toBe(true);
   });
 });
 
@@ -287,7 +287,8 @@ describe('room:state diffs', () => {
       { ...initialState, me: { playerId: 'me', rejoinToken: 't' }, snapshot: prev },
     );
     expect(state.toasts.some((t) => t.text.includes('kicked'))).toBe(true);
-    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('was kicked'))).toBe(true);
+    expect(state.activityLog.some((entry) => entry.text.includes('was kicked'))).toBe(true);
+    expect(state.chat).toHaveLength(0);
   });
 
   it('toasts on host transfer', () => {
@@ -315,7 +316,8 @@ describe('room:state diffs', () => {
       { type: 'room:state', snapshot: next },
       { ...initialState, me: { playerId: 'host', rejoinToken: 't' }, snapshot: prev },
     );
-    expect(state.chat.some((c) => c.kind === 'system' && c.text === 'New joined')).toBe(true);
+    expect(state.activityLog.some((entry) => entry.text === 'New joined')).toBe(true);
+    expect(state.chat).toHaveLength(0);
   });
 });
 
@@ -412,7 +414,7 @@ describe('turn and round messages', () => {
     expect(receive({ type: 'dice:frames', playerId: 'p1', frames: [] }, before)).toBe(before);
   });
 
-  it('records round:ended and a system chat line', () => {
+  it('records round:ended and an activity line without polluting chat', () => {
     const snap = snapshot({
       players: [player('winner', { seat: 0, name: 'Winner' })],
     });
@@ -427,9 +429,8 @@ describe('turn and round messages', () => {
     );
     expect(state.roundEnd?.winnerId).toBe('winner');
     expect(state.roundEnd?.potWon).toBe(4);
-    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('wins the round'))).toBe(
-      true,
-    );
+    expect(state.activityLog.some((entry) => entry.text.includes('wins the round'))).toBe(true);
+    expect(state.chat).toHaveLength(0);
   });
 
   it('records a forfeit system line', () => {
@@ -438,7 +439,8 @@ describe('turn and round messages', () => {
       { type: 'turn:forfeited', playerId: 'p1' },
       { ...initialState, snapshot: snap },
     );
-    expect(state.chat.some((c) => c.kind === 'system' && c.text.includes('forfeited'))).toBe(true);
+    expect(state.activityLog.some((entry) => entry.text.includes('forfeited'))).toBe(true);
+    expect(state.chat).toHaveLength(0);
   });
 });
 
@@ -463,12 +465,15 @@ describe('errors and chat', () => {
       type: 'chat:message',
       playerId: 'p1',
       playerName: 'Pat',
+      chipsAtSend: 12,
       text: 'hi',
       ts: 100,
     };
     const once = receive(msg);
     const twice = receive(msg, once);
-    expect(twice.chat.filter((c) => c.kind === 'chat')).toHaveLength(1);
+    expect(twice.chat).toHaveLength(1);
+    expect(twice.chat[0]?.chipsAtSend).toBe(12);
+    expect(twice.activityLog).toHaveLength(0);
   });
 
   it('toasts seat request and denial', () => {

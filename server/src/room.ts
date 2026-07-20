@@ -195,6 +195,7 @@ export class Room {
         this.chatHistory.push({
           playerId: event.playerId,
           playerName: event.playerName,
+          chipsAtSend: event.chipsAtSend ?? null,
           text: event.text,
           ts: event.ts,
         });
@@ -507,11 +508,20 @@ export class Room {
     stamps.push(now);
     this.chatStamps.set(playerId, stamps);
 
-    this.commit({ type: 'chat', playerId, playerName: player.name, text: clean, ts: now });
+    const chipsAtSend = player.chips;
+    this.commit({
+      type: 'chat',
+      playerId,
+      playerName: player.name,
+      chipsAtSend,
+      text: clean,
+      ts: now,
+    });
     this.broadcast({
       type: 'chat:message',
       playerId,
       playerName: player.name,
+      chipsAtSend,
       text: clean,
       ts: now,
     });
@@ -563,7 +573,14 @@ export class Room {
     for (const p of state.players) this.players.set(p.id, { ...p, connected: true });
     this.hostId = state.hostId;
     this.chatHistory.length = 0;
-    if (state.chat) this.chatHistory.push(...state.chat);
+    if (state.chat) {
+      this.chatHistory.push(
+        ...state.chat.map((entry) => ({
+          ...entry,
+          chipsAtSend: entry.chipsAtSend ?? null,
+        })),
+      );
+    }
     if (state.game) {
       this.attachEngine();
       this.engine!.restore(state.game);

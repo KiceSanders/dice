@@ -2,6 +2,7 @@
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import ActivityLogPanel from '../components/ActivityLogPanel';
 import ChatPanel from '../components/ChatPanel';
 import ConnectionBanner from '../components/ConnectionBanner';
 import ConnectionStatus from '../components/ConnectionStatus';
@@ -253,6 +254,7 @@ export default function Room() {
           </div>
         </section>
 
+        <ActivityLogPanel />
         <SettingsPanel snapshot={snapshot} isHost={isHost} />
       </section>
 

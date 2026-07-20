@@ -341,7 +341,9 @@ Room chrome: the table frame sits at the very top of the page (no header above i
 vertical space is play space). The room code / invite link / connection text live in a
 `.room-info` card at the bottom of the page (visible on scroll); the always-visible
 connection signal is the `.conn-corner` red/green dot in the frame's top-right corner
-(Table's `connection` prop). At ≤640px (`SEAT_STACK_QUERY`) seat overlays unmount and
+(Table's `connection` prop). A collapsible game log follows the room-info card immediately
+above room settings; it is normal document flow and progressively reveals older entries, never
+an overlay on the table or chat. At ≤640px (`SEAT_STACK_QUERY`) seat overlays unmount and
 seats flow below the canvas; the band overlays the canvas's top edge at every size.
 
 ## DicePhysics.tsx — edit with care (and usually, don't)

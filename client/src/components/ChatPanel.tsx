@@ -9,8 +9,8 @@ function formatTime(ts: number): string {
 
 /**
  * Collapsible room chat (Phase 10.2): right-side panel on desktop, bottom
- * sheet on mobile (CSS). Autoscrolls while pinned to the bottom; shows an
- * unread badge while collapsed. System lines render muted inline.
+ * sheet on mobile (CSS). Autoscrolls while pinned to the bottom and shows an
+ * unread badge while collapsed. Game activity lives in ActivityLogPanel.
  */
 export default function ChatPanel() {
   const { state, send } = useApp();
@@ -75,21 +75,20 @@ export default function ChatPanel() {
 
       <div className="chat-list" ref={listRef} onScroll={onScroll}>
         {chat.length === 0 && <p className="muted chat-empty">No messages yet.</p>}
-        {chat.map((entry, i) =>
-          entry.kind === 'system' ? (
-            <p key={i} className="chat-line chat-system">
-              {entry.text}
-            </p>
-          ) : (
-            <p key={i} className="chat-line">
-              <span className="chat-meta">
-                <span className="chat-name">{entry.playerName}</span>
-                <span className="chat-time">{formatTime(entry.ts)}</span>
-              </span>
-              <span className="chat-text">{entry.text}</span>
-            </p>
-          ),
-        )}
+        {chat.map((entry, i) => (
+          <p key={`${entry.ts}-${entry.playerId}-${i}`} className="chat-line">
+            <span className="chat-meta">
+              <span className="chat-name">{entry.playerName}</span>
+              {entry.chipsAtSend !== null && (
+                <span className="chat-chips">
+                  {entry.chipsAtSend} chip{entry.chipsAtSend === 1 ? '' : 's'}
+                </span>
+              )}
+              <span className="chat-time">{formatTime(entry.ts)}</span>
+            </span>
+            <span className="chat-text">{entry.text}</span>
+          </p>
+        ))}
       </div>
 
       <form className="chat-form" onSubmit={submit}>

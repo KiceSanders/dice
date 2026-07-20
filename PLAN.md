@@ -187,7 +187,9 @@ Conventions for all phases:
 - [x] **6.3 Log hygiene** — destroy-room also deletes the log. Compact on round end: rewrite log as a single `snapshot` event + subsequent events (prevents unbounded growth).
 - [x] **6.4 Recovery test** — integration test: play half a round, simulate restart (new RoomManager from logs), rejoin with tokens, assert chips/pot/seats/settings/streak survived and play can continue.
 
-**Verification:** ✅ 4 recovery tests in `server/src/persistence.test.ts` (log replay, rejoin with tokens, chips/pot/seats/settings/streak survival) — 112 tests total across all workspaces. Notes: chat logging deferred to Phase 10 (the `chat` event type exists for replay but nothing emits it yet); manual smoke script `server/scripts/smoke-recovery.mjs` exists but isn't in `npm test`.
+**Verification:** recovery tests in `server/src/persistence.test.ts` cover log replay, rejoin
+tokens, chips/pot/seats/settings/streak survival; `server/src/chat.test.ts` covers chat replay and
+round-end compaction. Manual `server/scripts/smoke-recovery.mjs` exists but isn't in `npm test`.
 
 ---
 
@@ -196,7 +198,7 @@ Conventions for all phases:
 **Goal:** Typed WebSocket client, app state, and routing — no real UI yet.
 
 - [ ] **7.1 WS client** — `ws/client.ts`: connect to `ws://<host>:3001` in dev (Vite proxy or env var `VITE_WS_URL`), same-origin in prod. Typed `send(msg: ClientMessage)`, message listener dispatching `ServerMessage`s, auto-reconnect with exponential backoff (1s → 30s), resends `room:join` with stored `rejoinToken` on reconnect.
-- [ ] **7.2 App state** — `state/store.ts`: `useReducer` + context (no extra state lib). State: `connection`, `me { playerId, rejoinToken }`, latest `RoomSnapshot`, chat log (client-side ring buffer of 200), transient UI events (last roll for animation, errors/toasts). `rejoinToken` + `roomId` persisted to `localStorage` keyed by room.
+- [ ] **7.2 App state** — `state/store.ts`: `useReducer` + context (no extra state lib). State: `connection`, `me { playerId, rejoinToken }`, latest `RoomSnapshot`, separate chat and activity buffers (200 each), transient UI events (last roll for animation, errors/toasts). `rejoinToken` + `roomId` persisted to `localStorage` keyed by room.
 - [ ] **7.3 Routing** — React Router: `/` (home: create or join) and `/room/:roomId` (joins on mount, prompting for a display name if none stored). Unknown room → error screen with link home.
 - [ ] **7.4 Dev plumbing** — Vite dev proxy for `/health` and WS; confirm `npm run dev` at root runs server (3001) + client (5173) together with live reload.
 
@@ -227,7 +229,7 @@ Conventions for all phases:
 - [ ] **9.2 Koozie animation** — `Koozie.tsx`: an animated cup that, on `turn:rolled`, shakes (CSS keyframes, ~900ms), slams down, lifts to reveal the dice with a slight stagger. Pure CSS/`framer-motion`-free (keep deps light). Skipped (instant reveal) for `prefers-reduced-motion`.
 - [ ] **9.3 Turn controls** — for the active player: Roll button (shows rolls used / cap), Stand button, keep-toggling enabled between rolls. 60s turn timer ring. For others: whose turn it is, live roll results via `turn:rolled`.
 - [ ] **9.4 Game HUD** — pot size (chip stack visual), roll-to-beat (dice + holder name), round number, sub-round banner with depth & doubled ante when active, per-seat chip counts updating live.
-- [ ] **9.5 Round & straight moments** — `round:ended`: winner highlight + pot-slide animation + scores recap modal (dismissal immediately starts the next round; 8s server fallback only); null winner renders the pot-carryover state. `straight:paid`: celebration moment showing kind (little/big), total collected, and per-player payments (currently a toast + chat line; a richer banner is open work).
+- [ ] **9.5 Round & straight moments** — `round:ended`: winner highlight + pot-slide animation + scores recap modal (dismissal immediately starts the next round; 8s server fallback only); null winner renders the pot-carryover state. `straight:paid`: celebration moment showing kind (little/big), total collected, and per-player payments (currently a toast + game-log line; a richer banner is open work).
 - [ ] **9.6 Spectator view** — spectators see everything read-only; seat-request remains available between rounds.
 - [x] **9.7 Central after-roll delay** — host-configurable quiet window after every normal/bonus
   roll (default 2000ms) before payouts, celebrations, bonus offers/results, automatic stands,
@@ -243,8 +245,8 @@ Conventions for all phases:
 
 **Goal:** Lightweight room chat.
 
-- [ ] **10.1 Server** — `chat:send`: validate ≤500 chars, non-empty, rate-limit 5 msgs / 5s per player; broadcast `chat:message`; include in persistence log (Phase 6 writer).
-- [ ] **10.2 Client** — collapsible chat panel (right side desktop, bottom sheet mobile): message list with name + timestamp, autoscroll (pinned to bottom unless user scrolled up), unread badge when collapsed. System lines (joins, kicks, round winners) rendered inline in a muted style.
+- [ ] **10.1 Server** — `chat:send`: validate ≤500 chars, non-empty, rate-limit 5 msgs / 5s per player; snapshot the sender's current chips, broadcast `chat:message`; include in persistence log (Phase 6 writer).
+- [ ] **10.2 Client** — collapsible chat panel (right side desktop, bottom sheet mobile): player messages only, with name + chips-at-send + timestamp, autoscroll (pinned to bottom unless user scrolled up), unread badge when collapsed. System activity (joins, kicks, round outcomes) renders in a separate collapsible, progressively revealed game log above room settings.
 
 **Verification:** chat works across 3 tabs; rate limit returns an `error` toast; messages survive a server restart (replayed from log).
 

@@ -111,6 +111,12 @@ reducers the live path uses (`applyReplayEvent` → engine `replayRolled`/`stand
 `forceStand`, everything else → `room.applyEvent`). Replay re-applies straight payouts and
 Classic Pot donations/wins — chip movements are reproduced, not stored.
 
+Chat history is the persisted exception to live-only client presentation: each accepted chat
+event stores the sender's name and chip stack at send time, and rejoin history broadcasts that
+snapshot with the text. The client reducer keeps player conversation in `chat` and derives
+game/membership announcements into a separate 200-entry `activityLog`, rendered above room
+settings with progressive disclosure.
+
 Production is deliberately **single-instance**: rooms, connections, timers, and live pose
 relay state are in memory. `LOG_DIR` must be on a persistent volume (the container default
 is `/data`) so a restart can recover room logs. Do not add replicas or zero-downtime overlap

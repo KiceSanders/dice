@@ -103,4 +103,17 @@ describe('parseServerMessage', () => {
     );
     expect(result.ok).toBe(true);
   });
+
+  it('requires a chat chip snapshot and accepts null for legacy history', () => {
+    const base = {
+      type: 'chat:message',
+      playerId: 'p1',
+      playerName: 'Pat',
+      text: 'hello',
+      ts: 123,
+    };
+    expect(parseServerMessage(JSON.stringify({ ...base, chipsAtSend: 17 })).ok).toBe(true);
+    expect(parseServerMessage(JSON.stringify({ ...base, chipsAtSend: null })).ok).toBe(true);
+    expect(parseServerMessage(JSON.stringify(base)).ok).toBe(false);
+  });
 });

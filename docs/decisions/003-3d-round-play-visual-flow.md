@@ -52,6 +52,10 @@ Positions use world/table constants from [`layout.ts`](../../client/src/table3d/
 
 The old 2D `DiceRow` path was removed; 3D dice are the sole keep UI. Instruction copy lives
 in [`GameArea.tsx`](../../client/src/components/GameArea.tsx) and the Playground hint bar.
+Below the table, player conversation remains in the floating chat panel while game and
+membership announcements live in a separate collapsible log immediately above room settings.
+That log uses normal page flow and reveals older entries in pages of ten so it cannot compete
+with the table viewport or chat sheet.
 
 ## Rejected alternatives
 

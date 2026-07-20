@@ -163,5 +163,13 @@ export type ServerMessage =
       /** Actual per-payer transfers; min(amount, payer, roller) for short stacks. */
       payments: { playerId: PlayerId; amount: number }[];
     }
-  | { type: 'chat:message'; playerId: PlayerId; playerName: string; text: string; ts: number }
+  | {
+      type: 'chat:message';
+      playerId: PlayerId;
+      playerName: string;
+      /** Authoritative chip stack when the server accepted the message; null for legacy history. */
+      chipsAtSend: number | null;
+      text: string;
+      ts: number;
+    }
   | { type: 'error'; code: ErrorCode; message: string };

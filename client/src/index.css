@@ -222,6 +222,46 @@ code {
   font-weight: 600;
 }
 
+/* ---- Game activity log ---- */
+
+.activity-log-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.activity-log-empty {
+  margin-bottom: 0;
+}
+
+.activity-log-list {
+  max-height: 22rem;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.activity-log-line {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: baseline;
+  gap: 0.65rem;
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.activity-log-time {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-log-more {
+  margin-top: 0.75rem;
+}
+
 /* ---- Room ---- */
 
 /* No top padding — the table frame owns the top of the page; everything
@@ -1351,10 +1391,9 @@ button.die:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.chat-system {
+.chat-chips {
   color: var(--muted);
-  font-size: 0.8rem;
-  font-style: italic;
+  font-size: 0.7rem;
 }
 
 .chat-form {
