@@ -380,11 +380,9 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           potBefore: state.snapshot?.game?.pot ?? 0,
           receivedAt: Date.now(),
         },
-        toasts: pushToast(
-          state.toasts,
-          'info',
-          `Tie! Sub-round (depth ${msg.depth}) — ante ${msg.anteAmount}`,
-        ),
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(`Tie! Sub-round (depth ${msg.depth}) — ante ${msg.anteAmount}`),
+        ]),
       };
 
     case 'error':
@@ -431,7 +429,6 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           payments: msg.payments,
           receivedAt: Date.now(),
         },
-        toasts: pushToast(state.toasts, 'info', text),
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
@@ -446,7 +443,6 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           classicPotBefore: msg.classicPot - msg.amount,
           receivedAt: Date.now(),
         },
-        toasts: pushToast(state.toasts, 'info', text),
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
@@ -460,7 +456,6 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           amount: msg.amount,
           receivedAt: Date.now(),
         },
-        toasts: pushToast(state.toasts, 'info', text),
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
@@ -503,7 +498,6 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           payments: msg.payments,
           receivedAt: Date.now(),
         },
-        toasts: pushToast(state.toasts, 'info', text),
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
@@ -517,7 +511,6 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           payments: msg.payments,
           receivedAt: Date.now(),
         },
-        toasts: pushToast(state.toasts, 'info', text),
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }

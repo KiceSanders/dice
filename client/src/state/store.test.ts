@@ -192,7 +192,7 @@ describe('instant transfers', () => {
       ],
       receivedAt: 5_678,
     });
-    expect(state.toasts).toHaveLength(1);
+    expect(state.toasts).toHaveLength(0);
   });
 
   it('retains first-roll Yahtzee payments as a player-to-player transfer', () => {
@@ -216,7 +216,7 @@ describe('instant transfers', () => {
       ],
       receivedAt: 6_789,
     });
-    expect(state.toasts).toHaveLength(1);
+    expect(state.toasts).toHaveLength(0);
   });
 });
 
@@ -300,7 +300,8 @@ describe('classic pot messages', () => {
       classicPotBefore: 3,
       receivedAt: 4_567,
     });
-    expect(state.toasts.some((t) => t.text.includes('Classic Pot'))).toBe(true);
+    expect(state.toasts).toHaveLength(0);
+    expect(state.activityLog.some((entry) => entry.text.includes('Classic Pot'))).toBe(true);
   });
 
   it('retains a classic win', () => {

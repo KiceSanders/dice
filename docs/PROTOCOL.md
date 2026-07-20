@@ -99,16 +99,16 @@ to any column, update this table.**
 | `stood` | `stood` ✓ (`restPose?` optional so old logs parse) | — (snapshot only) | via `room:state` |
 | `forfeited` | `forfeited` ✓ | `turn:forfeited` | game-log line |
 | `roundEnded` | `roundEnded` ✓ (then log compaction) | `round:ended` | `roundEnd` (recap modal) + game-log line |
-| `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + toast |
-| `straightPaid` | `straightPaid` ✓ | `straight:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
-| `classicDonated` | `classicDonated` ✓ | `classic:donated` | `lastClassicDonate` (seat → classic pot chip animation) + toast + game-log line |
-| `classicWon` | `classicWon` ✓ | `classic:won` | `lastClassicWin` (classic pot → seat chip animation) + toast + game-log line |
+| `subRoundStarted` | `subRoundStarted` ✓ | `subround:started` | `lastAnte` (table chip animation) + game-log line |
+| `straightPaid` | `straightPaid` ✓ | `straight:paid` | `lastTransfer` (seat-to-seat chip animation) + game-log line |
+| `classicDonated` | `classicDonated` ✓ | `classic:donated` | `lastClassicDonate` (seat → classic pot chip animation) + game-log line |
+| `classicWon` | `classicWon` ✓ | `classic:won` | `lastClassicWin` (classic pot → seat chip animation) + game-log line |
 | `bonusOffered` | — (replaying the quint `rolled` re-offers) | `turn:bonusOffered` | toast + game-log line |
 | `bonusThrowStarted` | — (not recorded) | `turn:bonusThrowStarted` | ignored by reducer; 3D table consumes off the socket |
 | `bonusSettled` | `bonusRolled` ✓ (die only; replayed via `replayBonusRolled`) | — | — (persisted immediately, outcome still hidden) |
 | `bonusRolled` | — | `turn:bonusRolled` | delayed game-log line on a miss; never touches `lastRoll` |
-| `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
-| `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
+| `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + game-log line |
+| `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + game-log line |
 | `specialMomentHit` | — (ephemeral celebration; replays have no connected viewers) | `special-moment:hit` | socket-direct → `special-moment` table event → player-recording audio bus |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |
