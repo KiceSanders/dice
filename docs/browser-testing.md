@@ -49,7 +49,8 @@ localStorage.setItem('dice:name', 'Bob');
 location.href = 'http://localhost:5173/room/<ROOM_ID>';
 ```
 
-To test a completely fresh second player: `localStorage.clear()` in that tab only, set the new name, then join from home with the room code.
+To test a completely fresh second player: `localStorage.clear()` in that tab only, enter the
+new name on Home, then click the active room.
 
 **Avoid reloading the host tab during tests** — a reload disconnects the host briefly and can trigger **host transfer** to a seated player or spectator, invalidating host-only steps.
 
@@ -69,7 +70,8 @@ To test a completely fresh second player: `localStorage.clear()` in that tab onl
 ### Tab B (second player)
 
 5. Set `localStorage.setItem('dice:name', 'Bob')`, then open home `http://localhost:5173/`.
-6. Enter room code, click **Join** (or go directly to `/room/<code>` after setting the name).
+6. Confirm Alice's room appears with her name and **Lobby**, then click it. (You can still go
+   directly to `/room/<code>` after setting the name.)
 7. Confirm Tab B snapshot lists **both** Alice and Bob in `players`.
 
 ### Tab A (live update)
@@ -81,7 +83,12 @@ To test a completely fresh second player: `localStorage.clear()` in that tab onl
 9. In Tab B, navigate to `http://localhost:5173/room/ZZZZZZ`.
 10. Confirm **Room not found** and a link back home.
 
-**Pass criteria:** Each step above succeeds; no console errors; connection stays `open`.
+11. Keep Home open in a third tab, then close both room tabs. Home should omit the room on its
+    next five-second refresh. The room itself remains recoverable by direct URL for 30 minutes,
+    after which the reaper deletes it.
+
+**Pass criteria:** Each step above succeeds; the room directory reflects live players/rounds;
+no console errors; connection stays `open`.
 
 ---
 
@@ -100,7 +107,8 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ### Tab B — Bob
 
-5. `localStorage.setItem('dice:name', 'Bob')` → join `/room/<CODE>`.
+5. `localStorage.setItem('dice:name', 'Bob')` → Home → confirm Alice and **Lobby** are listed →
+   click the room.
 6. Confirm Bob is a **spectator** (not Alice) in both tabs.
 7. Request seat (e.g. buy-in 50) → Tab B shows **Waiting for the host**.
 8. Tab A: **Seat requests** panel + toast → **Approve** → Bob seated in both tabs → **Start game** enabled on Tab A.

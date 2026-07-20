@@ -53,6 +53,10 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
   }
 
   return {
+    'room:list': (conn) => {
+      conn.send({ type: 'rooms:list', rooms: rooms.listActiveRooms() });
+    },
+
     'room:create': (conn, msg) => {
       if (conn.roomId) {
         conn.sendError('BAD_REQUEST', 'already in a room');

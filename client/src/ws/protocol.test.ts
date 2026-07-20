@@ -104,6 +104,31 @@ describe('parseServerMessage', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('validates active room directory entries', () => {
+    const valid = {
+      type: 'rooms:list',
+      rooms: [
+        {
+          roomId: 'ABC234',
+          phase: 'playing',
+          roundNumber: 3,
+          playerNames: ['Alice', 'Bob'],
+        },
+      ],
+    };
+    expect(parseServerMessage(JSON.stringify(valid)).ok).toBe(true);
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...valid, rooms: [{ ...valid.rooms[0], roundNumber: 0 }] }),
+      ).ok,
+    ).toBe(false);
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...valid, rooms: [{ ...valid.rooms[0], playerNames: 'Alice' }] }),
+      ).ok,
+    ).toBe(false);
+  });
+
   it('requires a chat chip snapshot and accepts null for legacy history', () => {
     const base = {
       type: 'chat:message',

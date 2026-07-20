@@ -102,6 +102,7 @@ type Validator = (m: Record<string, unknown>) => string | null;
 
 /** Per-type payload validators. Return an error string or null if valid. */
 const validators: Record<ClientMessage['type'], Validator> = {
+  'room:list': () => null,
   'room:create': (m) => {
     if (!isNonEmptyString(m.playerName, 24)) return 'playerName must be a 1-24 char string';
     if (!isRoomSettings(m.settings)) return 'settings is missing or malformed';

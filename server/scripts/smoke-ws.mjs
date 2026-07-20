@@ -25,8 +25,12 @@ function assert(cond, label) {
 ws.on('open', async () => {
   console.log(`connected to ${url}`);
 
-  ws.send('{not json');
+  ws.send(JSON.stringify({ type: 'room:list' }));
   let msg = await reply();
+  assert(msg.type === 'rooms:list' && Array.isArray(msg.rooms), 'room directory request');
+
+  ws.send('{not json');
+  msg = await reply();
   assert(msg.type === 'error' && msg.code === 'BAD_REQUEST', `malformed JSON → ${msg.message}`);
 
   ws.send(JSON.stringify({ type: 'no:such:type' }));

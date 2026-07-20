@@ -1,4 +1,5 @@
 import type {
+  ActiveRoomSummary,
   BodyPose,
   Die,
   ErrorCode,
@@ -103,6 +104,8 @@ export interface ClassicWinInfo {
 
 export interface AppState {
   connection: ConnectionStatus;
+  /** Null until the first room-directory response arrives. */
+  activeRooms: ActiveRoomSummary[] | null;
   me: { playerId: PlayerId; rejoinToken: string } | null;
   roomId: string | null;
   snapshot: RoomSnapshot | null;
@@ -122,6 +125,7 @@ export interface AppState {
 
 export const initialState: AppState = {
   connection: 'closed',
+  activeRooms: null,
   me: null,
   roomId: null,
   snapshot: null,
@@ -206,6 +210,9 @@ export function reducer(state: AppState, action: AppAction): AppState {
 
 function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
   switch (msg.type) {
+    case 'rooms:list':
+      return { ...state, activeRooms: msg.rooms };
+
     case 'room:created':
       return {
         ...state,

@@ -123,6 +123,16 @@ is `/data`) so a restart can recover room logs. Do not add replicas or zero-down
 without first moving coordination and persistence to shared infrastructure; two instances
 would route players in the same room to different authoritative engines.
 
+## Active room directory
+
+The home page polls over the existing WebSocket every five seconds: `room:list` →
+`RoomManager.listActiveRooms()` → `rooms:list`. A directory entry exposes only its room code,
+phase, current round number, and connected player names. Rooms with no live connections are
+omitted immediately; their normal 30-minute recovery/rejoin grace period and eventual log
+deletion remain unchanged. The client stores only the latest directory snapshot in
+`AppState.activeRooms`; clicking an entry persists the entered display name and follows the
+existing `/room/:roomId` join flow.
+
 ## Big files — extract, don't grow
 
 | File | Lines | Role |

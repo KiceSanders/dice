@@ -7,12 +7,13 @@ import Toasts from '../components/Toasts';
 import { useApp } from '../state/context';
 import { loadName, saveName } from '../state/persist';
 
-/** Home: create a room (with full settings) or join one by code. */
+const ROOM_LIST_REFRESH_MS = 5_000;
+
+/** Home: create a room (with full settings) or join an active room. */
 export default function Home() {
-  const { state, send } = useApp();
+  const { state, send, ws } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState(loadName() ?? '');
-  const [code, setCode] = useState('');
   const [settings, setSettings] = useState<RoomSettings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -21,6 +22,13 @@ export default function Home() {
   useEffect(() => {
     document.title = 'Dice — create or join a room';
   }, []);
+
+  useEffect(() => {
+    if (state.connection !== 'open') return;
+    ws.send({ type: 'room:list' });
+    const refresh = setInterval(() => ws.send({ type: 'room:list' }), ROOM_LIST_REFRESH_MS);
+    return () => clearInterval(refresh);
+  }, [state.connection, ws]);
 
   const created = creating && state.roomId !== null;
   const inviteUrl = state.roomId ? `${window.location.origin}/room/${state.roomId}` : '';
@@ -35,11 +43,9 @@ export default function Home() {
     if (send({ type: 'room:create', playerName, settings: next })) setCreating(true);
   }
 
-  function joinRoom(e: FormEvent) {
-    e.preventDefault();
+  function joinRoom(roomId: string) {
     const playerName = name.trim();
-    const roomId = code.trim().toUpperCase();
-    if (!playerName || !roomId) return;
+    if (!playerName) return;
     saveName(playerName);
     navigate(`/room/${roomId}`);
   }
@@ -106,22 +112,41 @@ export default function Home() {
           </button>
         </form>
 
-        <form className="card" onSubmit={joinRoom}>
+        <section className="card active-rooms-card">
           <h2>Join a room</h2>
-          <label className="field">
-            <span>Room code</span>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              maxLength={6}
-              placeholder="e.g. A7K2QF"
-            />
-          </label>
-          <button type="submit" disabled={!name.trim() || !code.trim()}>
-            Join
-          </button>
-        </form>
+          <p className="muted active-rooms-help">Enter your name, then choose a live game.</p>
+          {state.activeRooms === null ? (
+            <p className="muted">Loading active rooms…</p>
+          ) : state.activeRooms.length === 0 ? (
+            <p className="muted">No active rooms yet. Create one to get started.</p>
+          ) : (
+            <ul className="active-room-list">
+              {state.activeRooms.map((room) => (
+                <li key={room.roomId}>
+                  <button
+                    type="button"
+                    className="active-room"
+                    disabled={!name.trim() || state.connection !== 'open'}
+                    onClick={() => joinRoom(room.roomId)}
+                  >
+                    <span className="active-room-heading">
+                      <strong className="room-code">{room.roomId}</strong>
+                      <span>{roomLabel(room.phase, room.roundNumber)}</span>
+                    </span>
+                    <span className="active-room-players">{room.playerNames.join(', ')}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </main>
   );
+}
+
+function roomLabel(phase: 'lobby' | 'playing' | 'roundEnd', roundNumber: number | null): string {
+  if (phase === 'lobby' || roundNumber === null) return 'Lobby';
+  if (phase === 'roundEnd') return `Round ${roundNumber} complete`;
+  return `Round ${roundNumber}`;
 }

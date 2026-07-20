@@ -10,6 +10,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 
 | Type | Payload | Notes |
 |---|---|---|
+| `room:list` | `{}` | Requests the public directory of rooms with at least one connected player |
 | `room:create` | `{ playerName, settings }` | Replies `room:created`; capacity is always 8 and is not a setting |
 | `room:join` | `{ roomId, playerName, rejoinToken? }` | Join as spectator; token reclaims identity |
 | `seat:request` | `{ buyIn }` | Spectator asks for a seat |
@@ -34,6 +35,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 
 | Type | Payload | Notes |
 |---|---|---|
+| `rooms:list` | `{ rooms: ActiveRoomSummary[] }` | Requested directory snapshot: room code, phase, current round (or null in the lobby), and connected player names |
 | `room:created` | `{ roomId, playerId, rejoinToken }` | |
 | `room:joined` | `{ playerId, rejoinToken, snapshot }` | Full snapshot on join/rejoin |
 | `room:state` | `{ snapshot }` | Authoritative snapshot after every state change |
@@ -64,6 +66,11 @@ Egress is lightly validated by the client in `client/src/ws/protocol.ts`
 fails `npm run check:client`. Unknown runtime messages are dropped before the reducer; known
 messages still rely on the reducer's `assertUnreachable` default in
 `client/src/state/store.ts` for exhaustive state handling.
+
+The home page requests `room:list` when its socket opens and every five seconds while it
+remains open. `rooms:list` includes only rooms with a live connection and only the names of
+currently connected players. Empty rooms are therefore hidden immediately even though the
+30-minute empty-room grace period keeps them recoverable before the reaper destroys them.
 
 `RoomSnapshot.game.currentTurn` exposes both `resolving` and `koozieLocked`. `resolving`
 means one or more delayed outcomes are pending and blocks Stand; it does not by itself block

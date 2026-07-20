@@ -169,6 +169,16 @@ export interface PlayerPublic {
 
 export type RoomPhase = 'lobby' | 'playing' | 'roundEnd';
 
+/** Public lobby-directory entry for a room with at least one connected player. */
+export interface ActiveRoomSummary {
+  roomId: RoomId;
+  phase: RoomPhase;
+  /** Null until the host starts the first game. */
+  roundNumber: number | null;
+  /** Connected players only, in join order. */
+  playerNames: string[];
+}
+
 export interface TurnState {
   playerId: PlayerId;
   dice: Die[];

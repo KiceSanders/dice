@@ -14,9 +14,25 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0;
 }
 
+function isActiveRoomSummary(v: unknown): boolean {
+  return (
+    isRecord(v) &&
+    isNonEmptyString(v.roomId) &&
+    (v.phase === 'lobby' || v.phase === 'playing' || v.phase === 'roundEnd') &&
+    (v.roundNumber === null ||
+      (Number.isInteger(v.roundNumber) && (v.roundNumber as number) >= 1)) &&
+    Array.isArray(v.playerNames) &&
+    v.playerNames.every(isNonEmptyString)
+  );
+}
+
 type Validator = (m: Record<string, unknown>) => string | null;
 
 const validators: Record<ServerMessage['type'], Validator> = {
+  'rooms:list': (m) =>
+    Array.isArray(m.rooms) && m.rooms.every(isActiveRoomSummary)
+      ? null
+      : 'rooms:list missing or malformed rooms',
   'room:created': (m) =>
     isNonEmptyString(m.roomId) && isNonEmptyString(m.playerId) && isNonEmptyString(m.rejoinToken)
       ? null

@@ -12,7 +12,7 @@ const settings = {
   maxBuyIn: 1000,
 };
 
-describe('WS integration: throw handshake', () => {
+describe('WS integration: room directory and throw handshake', () => {
   let server: StartedServer;
   let host: FakeClient;
   let guest: FakeClient;
@@ -33,10 +33,25 @@ describe('WS integration: throw handshake', () => {
   });
 
   it('create → seat → start → throwStart/Result → stand', async () => {
+    host.send({ type: 'room:list' });
+    const emptyDirectory = await host.next('rooms:list');
+    expect(emptyDirectory.type === 'rooms:list' && emptyDirectory.rooms).toEqual([]);
+
     host.send({ type: 'room:create', playerName: 'Host', settings });
     const created = await host.next('room:created');
     expect(created.type).toBe('room:created');
     if (created.type !== 'room:created') return;
+
+    guest.send({ type: 'room:list' });
+    const lobbyDirectory = await guest.next('rooms:list');
+    expect(lobbyDirectory.type === 'rooms:list' && lobbyDirectory.rooms).toEqual([
+      {
+        roomId: created.roomId,
+        phase: 'lobby',
+        roundNumber: null,
+        playerNames: ['Host'],
+      },
+    ]);
 
     guest.send({ type: 'room:join', roomId: created.roomId, playerName: 'Guest' });
     await guest.next('room:joined');
@@ -66,6 +81,15 @@ describe('WS integration: throw handshake', () => {
     );
     expect(playing.type).toBe('room:state');
     if (playing.type !== 'room:state' || !playing.snapshot.game?.currentTurn) return;
+
+    guest.send({ type: 'room:list' });
+    const playingDirectory = await guest.next('rooms:list');
+    expect(playingDirectory.type === 'rooms:list' && playingDirectory.rooms[0]).toEqual({
+      roomId: created.roomId,
+      phase: 'playing',
+      roundNumber: 1,
+      playerNames: ['Host', 'Guest'],
+    });
 
     const rollerId = playing.snapshot.game.currentTurn.playerId;
     const roller = rollerId === created.playerId ? host : guest;

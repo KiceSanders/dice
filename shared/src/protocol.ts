@@ -8,6 +8,7 @@
  */
 
 import type {
+  ActiveRoomSummary,
   BodyPose,
   Die,
   HandScore,
@@ -24,6 +25,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
+  /** Request the public directory of rooms that currently have connected players. */
+  | { type: 'room:list' }
   /** Room capacity is fixed at MAX_SEATED_PLAYERS and is not part of settings. */
   | { type: 'room:create'; playerName: string; settings: RoomSettings }
   | { type: 'room:join'; roomId: RoomId; playerName: string; rejoinToken?: string }
@@ -71,6 +74,7 @@ export type ErrorCode =
   | 'INTERNAL';
 
 export type ServerMessage =
+  | { type: 'rooms:list'; rooms: ActiveRoomSummary[] }
   | { type: 'room:created'; roomId: RoomId; playerId: PlayerId; rejoinToken: string }
   | { type: 'room:joined'; playerId: PlayerId; rejoinToken: string; snapshot: RoomSnapshot }
   | { type: 'room:state'; snapshot: RoomSnapshot }

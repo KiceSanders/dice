@@ -210,7 +210,7 @@ round-end compaction. Manual `server/scripts/smoke-recovery.mjs` exists but isn'
 
 **Goal:** Everything before the first dice roll, fully usable and presentable.
 
-- [ ] **8.1 Home page** — create-room form (name + all settings from the table, with the documented defaults and inline help text) and join-room form (room code + name). Copyable invite URL (`/room/:roomId`) shown after creation.
+- [x] **8.1 Home page** — create-room form (name + all settings from the table, with the documented defaults and inline help text) and an auto-refreshing active-room directory (connected player names + lobby/current round; click to join). Copyable invite URL (`/room/:roomId`) shown after creation.
 - [ ] **8.2 Room lobby layout** — table view with 8 seat positions arranged around an oval table; seated players show name, chip count, connection dot, host badge. Spectator strip below. Responsive: stacks vertically under 640px.
 - [ ] **8.3 Seat flow** — spectator: "Request seat" with buy-in input (bounds shown). Host: approval queue panel (approve/deny per request) and kick controls in a per-player menu. Pending/denied/banned states surfaced to the requester.
 - [ ] **8.4 Host settings panel** — between rounds, host can edit settings (`settings:update`); read-only view of current settings for everyone else.

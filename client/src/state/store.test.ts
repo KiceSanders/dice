@@ -122,6 +122,20 @@ describe('ante announcements', () => {
   });
 });
 
+describe('active room directory', () => {
+  it('stores the latest public room list', () => {
+    const rooms = [
+      {
+        roomId: 'ABC234',
+        phase: 'playing' as const,
+        roundNumber: 2,
+        playerNames: ['Alice', 'Bob'],
+      },
+    ];
+    expect(receive({ type: 'rooms:list', rooms }).activeRooms).toEqual(rooms);
+  });
+});
+
 describe('instant transfers', () => {
   it('retains straight payments as a player-to-player transfer', () => {
     vi.spyOn(Date, 'now').mockReturnValue(3_456);

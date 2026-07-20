@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import type { RoomId, RoomSettings } from '@dice/shared';
+import type { ActiveRoomSummary, RoomId, RoomSettings } from '@dice/shared';
 import type { RoomLogStore } from './persistence.js';
 import { Room } from './room.js';
 
@@ -45,6 +45,23 @@ export class RoomManager {
 
   get(roomId: RoomId): Room | undefined {
     return this.rooms.get(roomId.toUpperCase());
+  }
+
+  /** Public directory entries for rooms that have at least one live connection. */
+  listActiveRooms(): ActiveRoomSummary[] {
+    const active: ActiveRoomSummary[] = [];
+    for (const room of this.rooms.values()) {
+      if (room.connectedCount() === 0) continue;
+      active.push({
+        roomId: room.id,
+        phase: room.phase,
+        roundNumber: room.engine?.roundNumber ?? null,
+        playerNames: [...room.players.values()]
+          .filter((player) => player.connected)
+          .map((player) => player.name),
+      });
+    }
+    return active;
   }
 
   destroy(roomId: RoomId): void {

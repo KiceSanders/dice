@@ -29,6 +29,10 @@ describe('parseClientMessage', () => {
     expect(result).toMatchObject({ ok: true, message: { type: 'room:create' } });
   });
 
+  it('accepts the payload-less room directory request', () => {
+    expect(parse({ type: 'room:list' })).toMatchObject({ ok: true });
+  });
+
   it('does not require a player-cap setting and tolerates the legacy field', () => {
     expect(
       parse({ type: 'room:create', playerName: 'Kice', settings: DEFAULT_SETTINGS }),

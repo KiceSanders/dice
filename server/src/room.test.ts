@@ -498,4 +498,38 @@ describe('RoomManager', () => {
     expect(mgr.get(room.id)).toBe(room);
     mgr.stop();
   });
+
+  it('lists only rooms with connected players and includes live round details', () => {
+    const mgr = new RoomManager();
+    const abandoned = mgr.create(DEFAULT_SETTINGS);
+    const room = mgr.create(DEFAULT_SETTINGS);
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    const guest = room.addPlayer('Guest', new FakeLink());
+
+    expect(mgr.listActiveRooms()).toEqual([
+      {
+        roomId: room.id,
+        phase: 'lobby',
+        roundNumber: null,
+        playerNames: ['Host', 'Guest'],
+      },
+    ]);
+
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    expect(room.requestSeat(guest.id, 100)).toBeNull();
+    expect(room.approveSeat(guest.id)).toBeNull();
+    expect(room.startGame(host.id)).toBeNull();
+    room.handleDisconnect(guest.id);
+
+    expect(mgr.listActiveRooms()).toEqual([
+      {
+        roomId: room.id,
+        phase: 'playing',
+        roundNumber: 1,
+        playerNames: ['Host'],
+      },
+    ]);
+    expect(abandoned.emptySince).not.toBeNull();
+    mgr.stop();
+  });
 });
