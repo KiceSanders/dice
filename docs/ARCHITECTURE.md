@@ -18,7 +18,8 @@ Consequence: a change in `shared/` immediately affects both sides — typecheck 
 Dev: `npm run dev` → server :3001, client :5173 (Vite proxies `/ws` + `/health`).
 Prod: `npm run build && npm start` → one server on :3001 serving the built client and the
 same-origin `/ws` endpoint. The public socket accepts only `/ws`, caps incoming frames at
-64 KiB, and rejects cross-site browser origins (extra trusted origins can be listed in
+192 KiB (enough for one bounded base64 player recording), and rejects cross-site browser
+origins (extra trusted origins can be listed in
 `ALLOWED_ORIGINS`).
 
 ## The roll data flow (the spine of the app)
@@ -45,6 +46,7 @@ pointer release on the koozie
          only for capped, Yahtzee-transition, and bonus-die results; ordinary rerolls may overlap)
       → emit 'rollResolved' → broadcast turn:rollResolved
       → apply straight / first-roll Yahtzee payouts and Classic Pot transfers
+      → emit authoritative special-moment hits (including zero-chip qualifications)
       → offer the Yahtzee bonus or auto-stand at rollCap / last-player beat
   → roomGameBridge.handleEngineEvent
                          (EngineEvent → RoomEvent log entry + ServerMessage broadcast)
@@ -94,12 +96,25 @@ Presentation angles are never streamed or persisted.
 ## Audio
 
 `client/src/table3d/audio/` — one Web Audio graph (`audioEngine.ts`, the only impure
-module) behind a single subscriber (`TableAudio`, mounted once in `Room.tsx`). Impact cues
+playback module) behind a single subscriber (`TableAudio`, mounted once in `Room.tsx`). Impact cues
 travel a dedicated non-replaying `audioBus`; game-moment one-shots ride the existing
 `tableEvents`. The roller derives impacts from rapier `onContactForce` on die colliders
 (`rollerImpacts.ts` + pure `impactRules.ts` gate); spectators derive them from the
 streamed pose frames (`useRemoteRoll` → `remotePoseAudio.ts` → pure `poseImpacts.ts`) —
-no protocol involvement. Constants in `audioTuning.ts`, samples + processing pipeline
+no protocol involvement.
+
+Player recordings take a separate, bounded path (ADR 006):
+`SPECIAL_MOMENT_DEFINITIONS` in `shared/src/specialMoments.ts` generates the Home/Room recorder
+rows; the engine emits `specialMomentHit`; the wire publishes `special-moment:hit`; and
+`useSpecialSoundRoom` emits one shared table event for `TableAudio`. Canonical three-second mono
+PCM WAV clips live in `localStorage['dice:special-moment-sounds:v1']` independent of player name.
+Joining clients publish them one at a time to a rate/size-bounded, memory-only room cache; late
+joiners receive that cache. Disconnect clears the live copies and reconnect republishes from that
+device, while no audio enters snapshots or recovery logs. The Web Audio graph
+has separate Effects and Player recordings gain buses under one global mute; the former single
+saved volume migrates into both.
+
+Constants in `audioTuning.ts`, built-in samples + processing pipeline
 documented in `client/public/audio/CREDITS.md`. Full rules and the add-a-sound recipe:
 [TABLE_UI.md § Audio](./TABLE_UI.md#audio--impacts-rattle-and-adding-a-sound).
 

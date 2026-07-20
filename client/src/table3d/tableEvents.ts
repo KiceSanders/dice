@@ -1,4 +1,4 @@
-import type { Die, PlayerId } from '@dice/shared';
+import type { Die, PlayerId, SpecialMomentKind } from '@dice/shared';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
  */
 export type TableEvent =
   | { type: 'straight'; dice: Die[] }
+  | { type: 'special-moment'; playerId: PlayerId; kind: SpecialMomentKind }
   | {
       type: 'chips-to-pot';
       contributions: { playerId: PlayerId; amount: number }[];

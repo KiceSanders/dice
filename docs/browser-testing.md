@@ -389,12 +389,29 @@ Sounds only start after a tab's first click/keypress (browser autoplay policy).
    throw is audible.
 5. **One-shots:** round ante → chip-stack sound once per tab (not doubled); round win →
    chip payout sound; a straight → bell, together with the glow.
-6. **Volume control:** HUD Sound cell — mute silences everything instantly, the slider
-   scales it, and both survive a reload (`localStorage['dice:audio']`). A hidden tab
+6. **Volume control:** HUD Sound cell — global mute silences everything instantly. The Effects
+   slider scales dice/cup/chip/built-in sounds without changing player recordings; the Player
+   recordings slider does the inverse. Both survive a reload (`localStorage['dice:audio']`). A hidden tab
    goes silent (switch away during a shake) and comes back on focus.
 7. **Calibration (optional):** `localStorage.setItem('dice:audio-debug', '1')` in A's
    console logs `[audio] <pair> force=…` per contact — use it to tune
    `AUDIO_TUNING.impact` if thuds feel too eager/shy.
+8. **Record on Home:** before joining, open **Special moment recordings** and confirm rows for
+   Straight, Classic, First-roll Yahtzee, Yahtzee bonus match, and Overtime win. Record a short
+   Straight clip, stop before (or at) the automatic 3s cap, preview it, reload, and confirm it
+   remains. Denying microphone permission must show a useful error without breaking the page.
+9. **Share the roller's clip:** join/start in both tabs and make at least one gesture in each to
+   unlock audio. Force A's straight. After the quiet window, both A and B hear A's recording
+   instead of the built-in straight bell; normal chip sounds still play. Set B's Player recordings
+   slider to zero and repeat: B hears effects but not A's clip.
+10. **Update live:** re-record A's Straight clip from the in-room editor, then force another
+    straight on A's next turn. Both tabs hear the replacement without reload. Remove it and force
+    again; both fall back to the built-in bell.
+11. **Device-wide, name-independent:** leave the room, change `dice:name`, and revisit Home. The
+    same five-slot pack remains available because it is keyed to the browser/site, not username.
+12. **Zero-chip and overtime triggers:** with Straight enabled and amount 0, a qualifying straight
+    still plays the recording. Force a tie, then resolve its tie-breaker: the winning player's
+    Overtime win recording plays once. A normal round win never plays that slot.
 
 ---
 

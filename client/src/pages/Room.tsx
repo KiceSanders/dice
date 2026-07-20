@@ -10,12 +10,14 @@ import GameArea from '../components/GameArea';
 import HostPanel from '../components/HostPanel';
 import RoundEndModal from '../components/RoundEndModal';
 import SettingsPanel from '../components/SettingsPanel';
+import SpecialSoundSettings from '../components/SpecialSoundSettings';
 import Table from '../components/Table';
 import Toasts from '../components/Toasts';
 import { useTableChipEvents, useTableScene } from '../game/useTableScene';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import TableAudio from '../table3d/audio/TableAudio';
+import { useSpecialSoundRoom } from '../table3d/audio/useSpecialSoundRoom';
 
 export default function Room() {
   const { roomId = '' } = useParams();
@@ -28,6 +30,7 @@ export default function Room() {
   const joinSentRef = useRef(false);
   const connected = state.connection === 'open';
   const snapshot = state.snapshot;
+  useSpecialSoundRoom(ws, roomId, state.me?.playerId ?? null, connected, send);
   const canContinueRound =
     snapshot?.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
     false;
@@ -256,6 +259,7 @@ export default function Room() {
 
         <ActivityLogPanel />
         <SettingsPanel snapshot={snapshot} isHost={isHost} />
+        <SpecialSoundSettings showAudioControls={snapshot.phase === 'lobby'} />
       </section>
 
       <details className="snapshot-debug-wrap">

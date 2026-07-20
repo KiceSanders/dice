@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from '@dice/shared';
+import { DEFAULT_SETTINGS, SPECIAL_SOUND_SAMPLE_RATE } from '@dice/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { StartedServer } from '../src/startServer.js';
 import { FakeClient, startTestServer } from './harness.js';
@@ -11,6 +11,29 @@ const settings = {
   minBuyIn: 10,
   maxBuyIn: 1000,
 };
+
+function tinyWavBase64(): string {
+  const bytes = new Uint8Array(46);
+  const view = new DataView(bytes.buffer);
+  for (const [offset, text] of [
+    [0, 'RIFF'],
+    [8, 'WAVE'],
+    [12, 'fmt '],
+    [36, 'data'],
+  ] as const) {
+    for (let i = 0; i < text.length; i++) bytes[offset + i] = text.charCodeAt(i);
+  }
+  view.setUint32(4, 38, true);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, SPECIAL_SOUND_SAMPLE_RATE, true);
+  view.setUint32(28, SPECIAL_SOUND_SAMPLE_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  view.setUint32(40, 2, true);
+  return Buffer.from(bytes).toString('base64');
+}
 
 describe('WS integration: room directory and throw handshake', () => {
   let server: StartedServer;
@@ -94,13 +117,28 @@ describe('WS integration: room directory and throw handshake', () => {
     const rollerId = playing.snapshot.game.currentTurn.playerId;
     const roller = rollerId === created.playerId ? host : guest;
 
+    const wavBase64 = tinyWavBase64();
+    roller.send({ type: 'special-sound:update', kind: 'straight', wavBase64 });
+    await Promise.all(
+      [host, guest].map((client) =>
+        client.nextWhere(
+          (message) =>
+            message.type === 'special-sound:updated' &&
+            message.playerId === rollerId &&
+            message.kind === 'straight' &&
+            message.wavBase64 === wavBase64,
+          `${client.name} received roller sound`,
+        ),
+      ),
+    );
+
     roller.send({ type: 'turn:throwStart', keepIndices: [] });
     await roller.nextWhere(
       (m) => m.type === 'turn:throwStarted' && m.playerId === rollerId,
       'throwStarted',
     );
 
-    const dice = [2, 2, 2, 4, 5] as const;
+    const dice = [1, 2, 3, 4, 5] as const;
     roller.send({ type: 'turn:throwResult', dice: [...dice] });
     const rolled = await roller.nextWhere(
       (m) => m.type === 'turn:rolled' && m.playerId === rollerId,
@@ -110,6 +148,13 @@ describe('WS integration: room directory and throw handshake', () => {
     if (rolled.type === 'turn:rolled') {
       expect(rolled.dice).toEqual([...dice]);
     }
+    await roller.nextWhere(
+      (message) =>
+        message.type === 'special-moment:hit' &&
+        message.playerId === rollerId &&
+        message.kind === 'straight',
+      'authoritative straight sound trigger',
+    );
 
     roller.send({ type: 'turn:stand' });
     await host.nextWhere(
@@ -118,6 +163,17 @@ describe('WS integration: room directory and throw handshake', () => {
         m.snapshot.game?.currentTurn?.playerId !== undefined &&
         m.snapshot.game.currentTurn.playerId !== rollerId,
       'turn advanced',
+    );
+
+    const listener = roller === host ? guest : host;
+    roller.close();
+    await listener.nextWhere(
+      (message) =>
+        message.type === 'special-sound:updated' &&
+        message.playerId === rollerId &&
+        message.kind === 'straight' &&
+        message.wavBase64 === null,
+      'disconnected roller sound cleared',
     );
   }, 20_000);
 });

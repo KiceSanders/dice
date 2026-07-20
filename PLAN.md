@@ -236,6 +236,11 @@ round-end compaction. Manual `server/scripts/smoke-recovery.mjs` exists but isn'
   turn/sub-round transitions, pot awards, or winner recap; replaces the client-only recap timer.
   Ordinary rolls return the koozie immediately for rapid same-player rerolls; capped/special
   rolls lock it without a transient dock flash.
+- [x] **9.8 Player-recorded special moments** — device-local, name-independent recordings for
+  Straight, Classic, first-roll Yahtzee, Yahtzee bonus match, and overtime/tie-breaker wins;
+  bounded ephemeral room sharing makes the triggering player's clip audible to every viewer.
+  Home and Room expose the registry-driven recorder, with separate Effects and Player recordings
+  volumes under one global mute.
 
 **Verification:** play 3 full rounds with 3 tabs including a tie and a straight (dice are client-reported — ADR 004 — so a tie/straight can be forced from the browser console by sending scripted `turn:throwResult` faces); record that animations fire and state never desyncs from a hard-refresh rejoin.
 

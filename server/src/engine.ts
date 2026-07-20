@@ -5,6 +5,7 @@ import type {
   HandScore,
   PlayerId,
   RoomSettings,
+  SpecialMomentKind,
   StraightKind,
   SubRoundState,
   TurnState,
@@ -25,6 +26,7 @@ import {
 import { DelayedActions } from './delayedAction.js';
 import { applyFirstRollYahtzeePayout } from './firstRollYahtzeePayout.js';
 import { collectSidePayment, donateToClassicPot, winClassicPot } from './rollSideEffects.js';
+import { isYahtzeeBonusSpecialMoment, specialMomentsForRoll } from './specialMoments.js';
 import {
   softGateRestPose,
   validateCommitDice,
@@ -129,6 +131,8 @@ export type EngineEvent =
       total: number;
       payments: { playerId: PlayerId; amount: number }[];
     }
+  /** Ephemeral player-authored sound trigger; never persisted. */
+  | { type: 'specialMomentHit'; playerId: PlayerId; kind: SpecialMomentKind }
   | { type: 'stateChanged' }
   | { type: 'gameEnded'; reason: string };
 
@@ -210,6 +214,8 @@ export class GameEngine {
   /** Seat that opened the previous round/sub-round (null = first round of a game). */
   private lastFirstRollerSeat: number | null = null;
   private subRound: SubRoundState | null = null;
+  /** True after this round has entered at least one tie-breaker. */
+  private overtime = false;
 
   /** In-flight physics throw (ADR 004): keeps locked at throwStart. */
   private pendingThrow: { playerId: PlayerId; keepIndices: number[] } | null = null;
@@ -280,6 +286,7 @@ export class GameEngine {
     this.roundNumber += 1;
     this.phase = 'playing';
     this.subRound = null;
+    this.overtime = false;
     this.hands.clear();
     this.rollToBeat = null;
     this.roundRollCap = null;
@@ -301,6 +308,7 @@ export class GameEngine {
    * until broken.
    */
   private startSubRound(tiedIds: PlayerId[]): void {
+    this.overtime = true;
     const depth = (this.subRound?.depth ?? 0) + 1;
     const suddenDeath = depth > MAX_SUBROUND_DEPTH;
     const tied = this.participants.filter((p) => tiedIds.includes(p.id));
@@ -389,6 +397,9 @@ export class GameEngine {
     const potWon = this.pot;
     if (winner) winner.chips += potWon;
     this.pot = 0;
+    if (this.overtime) {
+      this.emit({ type: 'specialMomentHit', playerId: winnerId, kind: 'overtime-win' });
+    }
     this.subRound = null;
     this.phase = 'roundEnd';
 
@@ -569,6 +580,15 @@ export class GameEngine {
       dice: [...resolution.dice],
       rollNumber: resolution.rollNumber,
     });
+    for (const kind of specialMomentsForRoll({
+      settings,
+      score: resolution.score,
+      straightKind: resolution.straightKind,
+      straightAwarded: resolution.straightAwarded,
+      classicWinEligible: resolution.classicWinEligible,
+    })) {
+      this.emit({ type: 'specialMomentHit', playerId: turn.playerId, kind });
+    }
     this.applyStraightPayout(turn, resolution, settings.straightPayout, seated);
     this.applyClassicDonation(turn, resolution, settings.classicPot);
     this.applyClassicPayout(turn, resolution, settings.classicPot);
@@ -824,7 +844,8 @@ export class GameEngine {
   ): EngineError | null {
     if (!turn.bonus) return err('BAD_REQUEST', 'no bonus throw pending');
     const { face } = turn.bonus;
-    const config = this.settings.yahtzeeBonus;
+    const settings = this.settings;
+    const config = settings.yahtzeeBonus;
     const seated = this.getSeated().filter((player) => player.seat !== null);
     turn.bonus.throwing = false;
     const delayedId = delayConsequences ? this.postRoll.arm(turn, true) : null;
@@ -837,6 +858,9 @@ export class GameEngine {
       turn.bonus = null;
       const matched = die === face;
       this.emit({ type: 'bonusRolled', playerId: turn.playerId, die, face, matched });
+      if (isYahtzeeBonusSpecialMoment(settings, matched)) {
+        this.emit({ type: 'specialMomentHit', playerId: turn.playerId, kind: 'yahtzee-bonus' });
+      }
       if (matched) this.applyYahtzeeBonusPayout(turn, config, seated);
       this.forceStandAfterRoll = false;
       this.standNow(turn);

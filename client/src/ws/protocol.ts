@@ -1,4 +1,8 @@
-import type { ServerMessage } from '@dice/shared';
+import {
+  isSpecialMomentKind,
+  type ServerMessage,
+  SPECIAL_SOUND_MAX_BASE64_LENGTH,
+} from '@dice/shared';
 
 export type ParseServerResult = { ok: true; message: ServerMessage } | { ok: false; error: string };
 
@@ -119,6 +123,17 @@ const validators: Record<ServerMessage['type'], Validator> = {
     Array.isArray(m.payments)
       ? null
       : 'yahtzee:first-roll-paid missing fields',
+  'special-sound:updated': (m) =>
+    isNonEmptyString(m.playerId) &&
+    isSpecialMomentKind(m.kind) &&
+    (m.wavBase64 === null ||
+      (typeof m.wavBase64 === 'string' && m.wavBase64.length <= SPECIAL_SOUND_MAX_BASE64_LENGTH))
+      ? null
+      : 'special-sound:updated missing or invalid fields',
+  'special-moment:hit': (m) =>
+    isNonEmptyString(m.playerId) && isSpecialMomentKind(m.kind)
+      ? null
+      : 'special-moment:hit missing or invalid fields',
   'chat:message': (m) =>
     isNonEmptyString(m.playerId) &&
     isNonEmptyString(m.playerName) &&

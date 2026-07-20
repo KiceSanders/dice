@@ -247,6 +247,20 @@ describe('yahtzee bonus messages', () => {
   });
 });
 
+describe('ephemeral special sounds', () => {
+  it('leaves large profile and hit payloads outside React state', () => {
+    const profile = receive({
+      type: 'special-sound:updated',
+      playerId: 'p1',
+      kind: 'classic',
+      wavBase64: 'encoded',
+    });
+    const hit = receive({ type: 'special-moment:hit', playerId: 'p1', kind: 'classic' });
+    expect(profile).toBe(initialState);
+    expect(hit).toBe(initialState);
+  });
+});
+
 describe('classic pot messages', () => {
   it('retains a classic donation with pot-before for chip flight', () => {
     vi.spyOn(Date, 'now').mockReturnValue(4_567);

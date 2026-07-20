@@ -216,6 +216,15 @@ export function handleEngineEvent(event: EngineEvent, ctx: EngineBridgeContext):
         payments: event.payments,
       });
       break;
+    case 'specialMomentHit':
+      // Ephemeral celebration/audio trigger. Replays have no connected viewers,
+      // so this deliberately does not enter the crash-recovery log.
+      ctx.broadcast({
+        type: 'special-moment:hit',
+        playerId: event.playerId,
+        kind: event.kind,
+      });
+      break;
     case 'roundEnded':
       ctx.setPhaseRoundEnd();
       ctx.recorder?.append({

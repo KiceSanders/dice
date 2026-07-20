@@ -196,6 +196,78 @@ code {
   overflow-wrap: anywhere;
 }
 
+.special-sound-intro {
+  margin: 0 0 0.9rem;
+}
+
+.special-sound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.special-sound-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  padding: 0.7rem;
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.special-sound-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.special-sound-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.special-sound-actions button {
+  padding: 0.4rem 0.7rem;
+}
+
+.special-sound-actions .recording-stop {
+  background: var(--danger);
+  color: var(--text);
+}
+
+.special-sound-actions .special-sound-remove {
+  color: var(--muted);
+}
+
+.special-sound-status {
+  margin: 0.8rem 0 0;
+  color: var(--accent);
+}
+
+.audio-settings-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.audio-volume-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.audio-settings-controls--compact {
+  flex-wrap: nowrap;
+}
+
 .name-field {
   max-width: 320px;
 }
@@ -1034,12 +1106,6 @@ code {
   gap: 0.5rem;
 }
 
-.hud-audio-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .hud-audio-mute {
   background: none;
   border: none;
@@ -1056,6 +1122,20 @@ code {
 
 .hud-audio-volume:disabled {
   opacity: 0.4;
+}
+
+@media (max-width: 560px) {
+  .special-sound-row {
+    grid-template-columns: 1fr;
+  }
+
+  .special-sound-actions {
+    justify-content: flex-start;
+  }
+
+  .audio-settings-controls--compact {
+    flex-wrap: wrap;
+  }
 }
 
 .chip-stack {

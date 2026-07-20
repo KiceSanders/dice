@@ -106,8 +106,10 @@ inside the band squashes it into the band's box and lands chips beside roll-to-b
 Outcome-only effects obey the room's after-roll barrier. `turn:rolled` still updates the
 settled/static dice immediately, but it must not emit celebrations. The delayed
 `turn:rollResolved` is reduced to `lastRollResolution`; `useTableScene` emits the `straight`
-table event from that marker, so glow and bell begin with chip/outcome messages after the quiet
-window. Do not derive a consequence effect directly from `lastRoll`.
+table event from that marker, so the glow begins with outcome messages after the quiet window.
+The built-in bell fallback now follows the authoritative `special-moment:hit` for the same
+boundary (and is replaced by that roller's recording when present). Do not derive a consequence
+effect directly from `lastRoll`.
 
 The koozie is the exception to the interaction barrier. Ordinary non-terminal rolls enter
 `selecting` and dock the cup immediately, even while `turn.resolving` remains true, so the same
@@ -132,7 +134,7 @@ unit-tested). The single subscriber is `TableAudio` (mounted once in `Room.tsx`,
 the canvas), so sound exists for the roller, spectators, and between turns regardless of
 which dice renderer is up — the three-renderer rule is satisfied by construction.
 
-**Two buses, on purpose:**
+**Two event paths, on purpose:**
 
 - `audioBus.ts` carries high-frequency impact/rattle cues (dozens per throw,
   renderer-local, never replayed — sticky replay would re-fire stale clacks).
@@ -167,12 +169,34 @@ which dice renderer is up — the three-renderer rule is satisfied by constructi
 `sampleManifest.test.ts` fails if a manifest file is missing on disk, and
 `cues.test.ts` fails if a cue maps to nothing — a broken step 1–3 cannot pass `npm test`.
 
+### Player recordings
+
+`shared/src/specialMoments.ts` owns `SPECIAL_MOMENT_DEFINITIONS`, the exhaustive recorder
+registry. `SpecialSoundSettings` maps it directly on both Home and Room, so adding a definition
+automatically creates its Record / Re-record / Preview / Remove row in both places. A new instant
+bet still must emit its matching authoritative `specialMomentHit` from the engine; the compiler
+then forces the bridge/wire handling, while the registry supplies the UI without another form edit.
+
+Capture uses Web Audio PCM and `specialSoundWav.ts` to produce one portable format: mono 22.05 kHz,
+16-bit PCM WAV, hard-capped at three seconds. The base64 pack is stored under
+`localStorage['dice:special-moment-sounds:v1']`, deliberately outside username/rejoin keys. In a
+room, `useSpecialSoundRoom` publishes each slot through `special-sound:update`; the server retains
+only a bounded memory copy and fans it out as `special-sound:updated`. On
+`special-moment:hit`, every client plays the triggering player's clip through `TableAudio`, so the
+roller, spectators, and static view share one implementation. The straight clip replaces the
+built-in bell; general chip/dice effects continue normally. Browser autoplay still applies.
+
+The authoritative trigger set is Straight, Classic (not four-of-a-kind donation), first-roll
+Yahtzee, matching Yahtzee bonus die, and overtime/tie-breaker win. Enabled instant bets trigger
+even when zero chips move; ordinary round wins do not. See GAME_RULES.md and ADR 006.
+
 **Tuning and settings:** every constant (force thresholds, cooldowns, pose-detector
 thresholds, pan width, pitch jitter) lives in `audioTuning.ts`. To recalibrate force
 thresholds against real contacts, set `localStorage['dice:audio-debug'] = '1'` and read
 the logged per-pair magnitudes. Volume/mute is a client-local preference
-(`audioSettings.ts`, key `dice:audio`, HUD control in `GameHud`) — personal, never a
-`RoomSettings` field. Browser autoplay: the context unlocks on the first
+(`audioSettings.ts`, key `dice:audio`, HUD control in `GameHud`) — separate Effects and Player
+recordings sliders under one global mute, personal and never a `RoomSettings` field. Stored legacy
+single-volume values migrate into both buses. Browser autoplay: the context unlocks on the first
 pointer/keyboard gesture; earlier cues are dropped silently.
 
 ## Adding a 3D object → place it at an anchor

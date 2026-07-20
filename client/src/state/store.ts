@@ -283,6 +283,8 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'turn:throwStarted':
     case 'turn:bonusThrowStarted':
     case 'dice:frames':
+    case 'special-sound:updated':
+    case 'special-moment:hit':
       return state;
 
     case 'turn:rolled':

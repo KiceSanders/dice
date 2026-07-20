@@ -40,6 +40,7 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
    */
   const FRAME_MSGS_PER_SECOND = 40;
   const frameBudgets = new WeakMap<Connection, { windowStart: number; count: number }>();
+  const soundBudgets = new WeakMap<Connection, { windowStart: number; count: number }>();
 
   function withinFrameBudget(conn: Connection): boolean {
     const now = Date.now();
@@ -50,6 +51,18 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
     }
     budget.count += 1;
     return budget.count <= FRAME_MSGS_PER_SECOND;
+  }
+
+  /** A full five-slot sync plus several in-room edits per ten-second window. */
+  function withinSoundBudget(conn: Connection): boolean {
+    const now = Date.now();
+    const budget = soundBudgets.get(conn);
+    if (!budget || now - budget.windowStart >= 10_000) {
+      soundBudgets.set(conn, { windowStart: now, count: 1 });
+      return true;
+    }
+    budget.count += 1;
+    return budget.count <= 12;
   }
 
   return {
@@ -99,6 +112,7 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
         snapshot: room.buildSnapshot(player.id),
       });
       room.sendChatHistory(player.id); // restart/rejoin survivors see prior chat
+      for (const message of room.specialSoundProfiles.messages()) conn.send(message);
       room.broadcastState();
     },
 
@@ -215,6 +229,25 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       if (error) conn.sendError(error.code, error.message);
     },
 
+    'special-sound:update': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!withinSoundBudget(conn)) {
+        conn.sendError('RATE_LIMITED', 'too many player recording updates');
+        return;
+      }
+      if (!c.room.specialSoundProfiles.update(c.playerId, msg.kind, msg.wavBase64)) {
+        conn.sendError('RATE_LIMITED', 'the room player-recording cache is full');
+        return;
+      }
+      c.room.broadcast({
+        type: 'special-sound:updated',
+        playerId: c.playerId,
+        kind: msg.kind,
+        wavBase64: msg.wavBase64,
+      });
+    },
+
     'chat:send': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;
@@ -228,6 +261,8 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
 export function handleDisconnect(rooms: RoomManager, conn: Connection): void {
   const room = conn.roomId ? rooms.get(conn.roomId) : undefined;
   if (!room || !conn.playerId) return;
+  const soundClears = room.specialSoundProfiles.clearPlayer(conn.playerId);
   room.handleDisconnect(conn.playerId);
+  for (const message of soundClears) room.broadcast(message);
   room.broadcastState();
 }

@@ -25,6 +25,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `turn:bonusThrowResult` | `{ die }` | Phase 2: the settled bonus face, integer in [1, 6]. The temporary die is removed and the roller auto-stands. Carries no `restPose` — the quint's pose stays the between-turns layout |
 | `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
 | `turn:stand` | `{ restPose? }` | Voluntary stand (gated by `canStandVoluntarily`); optional final selecting layout (canonical space, 5 dice, ADR 005) so dice stay exactly where they were when Stand was clicked. Invalid `restPose` is dropped server-side; the stand itself never fails on it |
+| `special-sound:update` | `{ kind, wavBase64 }` | Publish/replace one player recording in the current room, or clear it with `null`. `kind` comes from `SPECIAL_MOMENT_DEFINITIONS`; non-null data is a canonical ≤3s mono PCM WAV, base64 encoded. Ephemeral, rate/size bounded, never persisted |
 | `chat:send` | `{ text }` | ≤500 chars, rate-limited |
 
 Ingress is structurally validated in `server/src/protocol.ts` (`parseClientMessage`). The
@@ -54,6 +55,8 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:bonusRolled` | `{ playerId, die, face, matched }` | Sent only after the bonus die's configured delay; `matched = die === face` (a rolled 1 is NOT wild here) |
 | `yahtzee:paid` | `{ playerId, amountPerPlayer, total, payments }` | Yahtzee bonus hit: every other seated player paid the roller |
 | `yahtzee:first-roll-paid` | `{ playerId, amountPerPlayer, total, payments }` | First-roll Yahtzee instant payment (wild-composed quints count) |
+| `special-sound:updated` | `{ playerId, kind, wavBase64 }` | One player's current room recording changed; `null` clears it. Late joiners receive the live room's current profiles |
+| `special-moment:hit` | `{ playerId, kind }` | Authoritative recording trigger after the outcome barrier. Kinds: straight, Classic, first-roll Yahtzee, Yahtzee bonus match, and overtime win |
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
 | `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual equal-floor payments (may be below `anteAmount`) |
@@ -105,6 +108,7 @@ to any column, update this table.**
 | `bonusRolled` | — | `turn:bonusRolled` | delayed game-log line on a miss; never touches `lastRoll` |
 | `yahtzeeBonusPaid` | `yahtzeeBonusPaid` ✓ (audit-only, recomputed on replay) | `yahtzee:paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
 | `firstRollYahtzeePaid` | `firstRollYahtzeePaid` ✓ (audit-only, recomputed on replay) | `yahtzee:first-roll-paid` | `lastTransfer` (seat-to-seat chip animation) + toast + game-log line |
+| `specialMomentHit` | — (ephemeral celebration; replays have no connected viewers) | `special-moment:hit` | socket-direct → `special-moment` table event → player-recording audio bus |
 | `stateChanged` | — | — (triggers `room:state` broadcast) | snapshot merge |
 | `gameEnded` | `gameEnded` ✓ | — (snapshot only) | via `room:state` |
 
@@ -120,11 +124,16 @@ allowed to change room capacity.
 
 ## Ephemeral vs persisted
 
-`dice:frames`, `turn:throwStarted`, `turn:rollResolved`, and `turn:bonusThrowStarted` are
-streaming/transient — never persisted. `turn:rollResolved` is reduced only as a transient effect
-marker. Bonus frames temporarily carry the cup plus six dice; the bonus die result carries no
-rest pose and the sixth die is discarded after its quiet window, so the quint's settled five-die
-pose remains the between-turns layout. Everything a recovered room needs lives in the `RoomEvent` log
+`dice:frames`, `turn:throwStarted`, `turn:rollResolved`, `turn:bonusThrowStarted`,
+`special-sound:updated`, and `special-moment:hit` are streaming/transient — never persisted.
+`special-sound:update` populates a bounded in-memory room cache so late joiners can hear current
+profiles. Disconnecting clears that player's live copies for remaining listeners; reconnecting
+clients republish their device-local pack.
+`turn:rollResolved` is reduced only as a transient effect marker. Bonus frames temporarily carry
+the cup plus six dice;
+the bonus die result carries no rest pose and the sixth die is discarded after its quiet window,
+so the quint's settled five-die pose remains the between-turns layout. Everything a recovered room
+needs lives in the `RoomEvent` log
 (`server/logs/<roomId>.log`, JSON Lines, compacted to a snapshot at each round end).
 
 Player conversation and game activity are separate client buffers. Only `chat:message` enters
