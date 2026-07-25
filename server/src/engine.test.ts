@@ -90,7 +90,7 @@ describe('GameEngine: full scripted round', () => {
 });
 
 describe('GameEngine: roll-cap pressure', () => {
-  it("first finisher's roll count caps everyone after", () => {
+  it("the current roll-to-beat's roll count caps everyone after", () => {
     const players = makePlayers();
     const { engine } = makeEngine(players);
     engine.start();
@@ -104,6 +104,28 @@ describe('GameEngine: roll-cap pressure', () => {
     expect(engine.currentTurnPlayerId).toBe('p1');
     expect(bonusRoll(engine, 'p1', 3)).toBeNull(); // miss → deferred auto-stand fires
     expect(engine.currentTurnPlayerId).toBe('p2');
+  });
+
+  it('tightens the next player’s cap when a later player wins in fewer rolls', () => {
+    const players = makePlayers();
+    const { engine } = makeEngine(players);
+    engine.start();
+
+    // The opener uses all five allowed rolls, setting an initially loose target.
+    expect(roll(engine, 'p0', [2, 2, 3, 4, 6])).toBeNull();
+    expect(roll(engine, 'p0', [2, 2, 3, 4, 6])).toBeNull();
+    expect(roll(engine, 'p0', [2, 2, 3, 4, 6])).toBeNull();
+    expect(roll(engine, 'p0', [2, 2, 3, 4, 6])).toBeNull();
+    expect(roll(engine, 'p0', [2, 2, 3, 4, 6])).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p1');
+    expect(engine.publicState().currentTurn?.rollCap).toBe(5);
+
+    // p1 beats that hand in two rolls, so p2 inherits p1's two-roll cap.
+    expect(roll(engine, 'p1', [3, 3, 2, 4, 6])).toBeNull();
+    expect(roll(engine, 'p1', [3, 3, 3, 4, 6], [0, 1])).toBeNull();
+    expect(engine.standVoluntarily('p1')).toBeNull();
+    expect(engine.currentTurnPlayerId).toBe('p2');
+    expect(engine.publicState().currentTurn?.rollCap).toBe(2);
   });
 
   it('first player is capped by settings.maxRolls', () => {

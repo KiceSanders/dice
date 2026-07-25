@@ -32,8 +32,10 @@ every other seated player pay the roller.
 3. A turn is up to `rollCap` rolls of the 5 dice. After each roll the player may **keep**
    any of the five dice for the next throw — including releasing dice kept on earlier
    rolls of the same turn — and re-roll the rest. Keeping all 5 is rejected — stand instead.
-4. **Roll-count pressure**: the first player to stand sets the roll cap for everyone after
-   them that round. `settings.maxRolls` is the ceiling for the round's first player.
+4. **Roll-count pressure**: the current roll-to-beat sets the roll cap for everyone after
+   it that round. When a later player stands on a better hand in fewer rolls, their roll
+   count becomes the cap for the remaining players. `settings.maxRolls` is the ceiling for
+   the round's first player.
 5. Rolls are **physics throws reported by the roller's client** (ADR 004): `turn:throwStart`
    locks the keep set, `turn:throwResult` reports the settled faces. The server never rolls;
    its integrity checks are dice ∈ [1,6] and kept positions unchanged.

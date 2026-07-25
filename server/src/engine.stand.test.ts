@@ -29,7 +29,7 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(engine.currentTurnPlayerId).not.toBe('p2'); // bonus resolution auto-stands
   });
 
-  it('allows standing on a beat and on a full tie (tie starts the sub-round)', () => {
+  it('allows standing on a beat; a capped full tie starts the sub-round automatically', () => {
     const players = makePlayers();
     const { engine, events } = makeEngine(players);
     engine.start();
@@ -43,8 +43,8 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(engine.standVoluntarily('p1')).toBeNull();
     expect(engine.publicState().rollToBeat?.playerIds).toEqual(['p1']);
 
-    expect(roll(engine, 'p2', [4, 4, 4, 5, 3])).toBeNull(); // full tie with p1
-    expect(engine.standVoluntarily('p2')).toBeNull(); // full tie — allowed
+    // p1's one-roll win now sets p2's cap to one, so this full tie auto-stands.
+    expect(roll(engine, 'p2', [4, 4, 4, 5, 3])).toBeNull();
 
     // Round resolves into a sub-round (clears rollToBeat); leaders were p1 + p2.
     const subRound = events.find((e) => e.type === 'subRoundStarted');
@@ -128,13 +128,12 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(engine.currentTurnPlayerId).toBe('p2');
   });
 
-  it('lets the last player keep rolling on a mere tie', () => {
+  it('auto-stands a capped last player on a tie with the current roll-to-beat', () => {
     const players = makePlayers();
-    const { engine } = makeEngine(players);
+    const { engine, events } = makeEngine(players);
     engine.start();
 
-    // First stander sets a high roll cap; a later leader resets roll-to-beat
-    // without lowering the cap, leaving the last player room to keep rolling.
+    // The opener uses three rolls, then the next player sets a faster target.
     expect(roll(engine, 'p0', [3, 3, 2, 4, 5])).toBeNull();
     expect(roll(engine, 'p0', [3, 3, 3, 2, 4], [0, 1])).toBeNull();
     expect(roll(engine, 'p0', [3, 3, 3, 5, 6], [0, 1, 2])).toBeNull(); // three 3s in 3
@@ -143,10 +142,13 @@ describe('GameEngine: voluntary stand gating', () => {
     expect(roll(engine, 'p1', [4, 4, 4, 2, 5])).toBeNull(); // three 4s in 1 — new leader
     expect(engine.standVoluntarily('p1')).toBeNull();
 
-    expect(roll(engine, 'p2', [4, 4, 4, 5, 2])).toBeNull(); // full tie — may keep rolling
-    expect(engine.currentTurnPlayerId).toBe('p2');
+    // p2 inherits p1's one-roll cap. Their tie auto-stands and starts overtime.
+    expect(engine.publicState().currentTurn?.rollCap).toBe(1);
+    expect(roll(engine, 'p2', [4, 4, 4, 5, 2])).toBeNull();
     expect(engine.phase).toBe('playing');
-    expect(roll(engine, 'p2', [5, 5, 5, 1, 2])).toBeNull(); // full reroll beats → auto-stand
-    expect(engine.phase).toBe('roundEnd');
+    expect(events.find((event) => event.type === 'subRoundStarted')).toMatchObject({
+      type: 'subRoundStarted',
+      tiedPlayerIds: ['p1', 'p2'],
+    });
   });
 });

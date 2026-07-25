@@ -204,7 +204,7 @@ export class GameEngine {
     dice: Die[];
     restPose: BodyPose[] | null;
   } | null = null;
-  /** First finisher's rollsUsed caps everyone after them (roll-count pressure). */
+  /** The current roll-to-beat's rollsUsed caps everyone after it (roll-count pressure). */
   private roundRollCap: number | null = null;
   /** Seat that opened the previous round/sub-round (null = first round of a game). */
   private lastFirstRollerSeat: number | null = null;
@@ -712,7 +712,9 @@ export class GameEngine {
         this.rollToBeat.playerIds.push(playerId);
       }
     }
-    if (this.roundRollCap === null) this.roundRollCap = turn.rollsUsed;
+    // The active target, not the first completed hand, determines the pressure
+    // on the remaining players. A quicker new leader therefore tightens their cap.
+    this.roundRollCap = this.rollToBeat.score.rollsUsed;
 
     this.nextTurn();
     return null;
