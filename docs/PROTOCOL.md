@@ -49,7 +49,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:forfeited` | `{ playerId }` | Turn ended with no completed roll |
 | `straight:paid` | `{ playerId, kind, amountPerPlayer, total, payments }` | Instant side payment |
 | `classic:donated` | `{ playerId, amount, classicPot }` | First-roll four-of-a-kind → Classic Pot |
-| `classic:won` | `{ playerId, amount }` | First-roll three 6s while roll-to-beat unset takes Classic Pot |
+| `classic:won` | `{ playerId, amount }` | First-roll three 6s in a normal round while roll-to-beat is unset takes Classic Pot |
 | `turn:bonusOffered` | `{ playerId, face }` | A Yahtzee settled: the roller owes a temporary sixth-die throw before auto-standing |
 | `turn:bonusThrowStarted` | `{ playerId }` | A bonus throw is in flight |
 | `turn:bonusRolled` | `{ playerId, die, face, matched }` | Sent only after the bonus die's configured delay; `matched = die === face` (a rolled 1 is NOT wild here) |

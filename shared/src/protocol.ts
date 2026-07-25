@@ -141,7 +141,7 @@ export type ServerMessage =
       /** Classic pot total after the donation. */
       classicPot: number;
     }
-  /** Classic (first-roll three 6s while roll-to-beat unset) wins the Classic Pot. */
+  /** Classic (first-roll three 6s in a normal round while roll-to-beat is unset) wins the pot. */
   | {
       type: 'classic:won';
       playerId: PlayerId;

@@ -163,6 +163,29 @@ describe('classic pot', () => {
     expect(engine.classicPot).toBe(5);
   });
 
+  it('does not pay classic in a tie-breaker round', () => {
+    const players = makePlayers([100, 100]);
+    const { engine, events } = makeEngine(players, {
+      settings: classicSettings({ donationAmount: 1 }),
+    });
+    engine.start();
+    const tie: Die[] = [3, 3, 5, 2, 1];
+    expect(roll(engine, 'p0', tie)).toBeNull();
+    expect(engine.stand('p0')).toBeNull();
+    expect(roll(engine, 'p1', tie)).toBeNull();
+    expect(engine.publicState().subRound).not.toBeNull();
+
+    engine.classicPot = 5;
+    events.length = 0;
+    expect(roll(engine, 'p1', THREE_SIXES)).toBeNull();
+
+    expect(ofType(events, 'classicWon')).toHaveLength(0);
+    expect(ofType(events, 'specialMomentHit')).not.toContainEqual(
+      expect.objectContaining({ kind: 'classic' }),
+    );
+    expect(engine.classicPot).toBe(5);
+  });
+
   it('does not pay when disabled (pool freezes)', () => {
     const players = makePlayers([100, 100]);
     const { engine, events } = makeEngine(players, {

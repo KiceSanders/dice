@@ -206,8 +206,10 @@ export class GameEngine {
   } | null = null;
   /** The current roll-to-beat's rollsUsed caps everyone after it (roll-count pressure). */
   private roundRollCap: number | null = null;
-  /** Seat that opened the previous round/sub-round (null = first round of a game). */
-  private lastFirstRollerSeat: number | null = null;
+  /** Seat that opened the previous normal round (null = first round of a game). */
+  private lastRoundFirstRollerSeat: number | null = null;
+  /** Seat that opened the previous round or sub-round in this tie sequence. */
+  private lastSubRoundFirstRollerSeat: number | null = null;
   private subRound: SubRoundState | null = null;
   /** True after this round has entered at least one tie-breaker. */
   private overtime = false;
@@ -288,8 +290,8 @@ export class GameEngine {
     this.hands.clear();
     this.rollToBeat = null;
     this.roundRollCap = null;
-    this.queue = orderPlayersFromFirstRollerSeat(able, this.lastFirstRollerSeat);
-    this.rememberFirstRoller(this.queue[0] ?? null);
+    this.queue = orderPlayersFromFirstRollerSeat(able, this.lastRoundFirstRollerSeat);
+    this.rememberRoundFirstRoller(this.queue[0] ?? null);
     this.emit({
       type: 'roundStarted',
       roundNumber: this.roundNumber,
@@ -329,16 +331,24 @@ export class GameEngine {
     this.rollToBeat = null;
     // maxRolls resets; sudden death forces a single roll each.
     this.roundRollCap = suddenDeath ? 1 : null;
-    this.queue = orderPlayersFromFirstRollerSeat(tied, this.lastFirstRollerSeat);
-    this.rememberFirstRoller(this.queue[0] ?? null);
+    this.queue = orderPlayersFromFirstRollerSeat(tied, this.lastSubRoundFirstRollerSeat);
+    this.rememberSubRoundFirstRoller(this.queue[0] ?? null);
 
     this.emit({ type: 'subRoundStarted', tiedPlayerIds: tiedIds, anteAmount, depth, antes });
     this.emit({ type: 'stateChanged' });
     this.nextTurn();
   }
 
-  private rememberFirstRoller(player: EnginePlayer | null): void {
-    if (player?.seat != null) this.lastFirstRollerSeat = player.seat;
+  private rememberRoundFirstRoller(player: EnginePlayer | null): void {
+    if (player?.seat == null) return;
+    this.lastRoundFirstRollerSeat = player.seat;
+    // The first tie-breaker rotates from the normal round's opener. Subsequent
+    // tie-breakers update this independently, so they never affect normal play.
+    this.lastSubRoundFirstRollerSeat = player.seat;
+  }
+
+  private rememberSubRoundFirstRoller(player: EnginePlayer | null): void {
+    if (player?.seat != null) this.lastSubRoundFirstRollerSeat = player.seat;
   }
 
   private nextTurn(): void {
@@ -538,7 +548,7 @@ export class GameEngine {
       score: { ...score },
       straightKind,
       straightAwarded,
-      classicWinEligible: this.rollToBeat === null,
+      classicWinEligible: this.subRound === null && this.rollToBeat === null,
       bonusFace,
       bonusAwarded,
       atRollCap: turn.rollsUsed >= turn.rollCap,
@@ -777,7 +787,7 @@ export class GameEngine {
   }
 
   /**
-   * Classic win: first-roll three 6s while roll-to-beat is still unset
+   * Classic win: first-roll three 6s in a normal round while roll-to-beat is still unset
    * (docs/GAME_RULES.md "Classic Pot").
    */
   private applyClassicPayout(
@@ -1004,13 +1014,13 @@ export class GameEngine {
     roundNumber: number;
     pot: number;
     classicPot: number;
-    lastFirstRollerSeat: number | null;
+    lastRoundFirstRollerSeat: number | null;
   } {
     return {
       roundNumber: this.roundNumber,
       pot: this.pot,
       classicPot: this.classicPot,
-      lastFirstRollerSeat: this.lastFirstRollerSeat,
+      lastRoundFirstRollerSeat: this.lastRoundFirstRollerSeat,
     };
   }
 
@@ -1019,12 +1029,16 @@ export class GameEngine {
     roundNumber: number;
     pot: number;
     classicPot?: number;
+    lastRoundFirstRollerSeat?: number | null;
+    /** Legacy snapshots recorded the latest sub-round opener instead. */
     lastFirstRollerSeat?: number | null;
   }): void {
     this.roundNumber = state.roundNumber;
     this.pot = state.pot;
     this.classicPot = state.classicPot ?? 0;
-    this.lastFirstRollerSeat = state.lastFirstRollerSeat ?? null;
+    this.lastRoundFirstRollerSeat =
+      state.lastRoundFirstRollerSeat ?? state.lastFirstRollerSeat ?? null;
+    this.lastSubRoundFirstRollerSeat = this.lastRoundFirstRollerSeat;
     this.phase = 'roundEnd';
   }
 

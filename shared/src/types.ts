@@ -43,7 +43,7 @@ export interface StraightPayoutConfig {
 
 /**
  * Side pool funded by first-roll four-of-a-kind donations; paid out on a
- * "classic" (three 6s) while roll-to-beat is still unset. Separate from the
+ * "classic" (three 6s) in a normal round while roll-to-beat is still unset. Separate from the
  * round-winner ante pot. See docs/GAME_RULES.md "Classic Pot".
  */
 export interface ClassicPotConfig {

@@ -96,6 +96,24 @@ describe('sub-rounds: ties', () => {
     expect(engine.classicPot).toBe(1);
   });
 
+  it('continues normal-round opener rotation from the prior normal round', () => {
+    const players = makePlayers([100, 100, 100]);
+    const { engine } = makeEngine(players);
+    engine.start();
+    turn(engine, 'p0', TIE);
+    turn(engine, 'p1', TIE);
+    turn(engine, 'p2', [2, 2, 4, 5, 6]);
+
+    // The tie-breaker starts from p1, but its opener must not affect round 2.
+    turn(engine, 'p1', [6, 6, 6, 1, 2]);
+    turn(engine, 'p0', [5, 5, 1, 2, 3]);
+    expect(engine.phase).toBe('roundEnd');
+
+    vi.advanceTimersByTime(5_000);
+    // Normal round 1 opened at p0, so normal round 2 opens CCW at p2.
+    expect(engine.currentTurnPlayerId).toBe('p2');
+  });
+
   it('a short stack floors the sub-round ante for everyone and can win the whole pot', () => {
     const players = makePlayers([100, 4]); // p1 can ante round (3) but not full sub-round (6)
     const before = players.reduce((sum, p) => sum + p.chips, 0);

@@ -35,8 +35,10 @@ export interface PersistedGame {
   pot: number;
   /** Classic Pot side pool; optional so pre-classic logs still restore. */
   classicPot?: number;
-  /** Seat that opened the last round/sub-round; next opener is CCW from this. */
-  lastFirstRollerSeat: number | null;
+  /** Seat that opened the last normal round; the next normal opener is CCW from this. */
+  lastRoundFirstRollerSeat?: number | null;
+  /** Legacy snapshots recorded the latest sub-round opener instead. */
+  lastFirstRollerSeat?: number | null;
 }
 
 export interface ChatHistoryEntry {

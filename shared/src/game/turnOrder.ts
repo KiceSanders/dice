@@ -2,9 +2,9 @@
  * Round / sub-round turn order (docs/GAME_RULES.md).
  *
  * Seats increase clockwise. Within a round players act clockwise from the first
- * roller. The first roller itself rotates **counter-clockwise** from the previous
- * first roller each round and each sub-round, so the same seat never opens twice
- * in a row (including after a tie).
+ * roller. The caller supplies the opener from which to rotate: the previous normal
+ * round's opener for a normal round, or the prior opener in a tie sequence for a
+ * sub-round.
  */
 
 export interface SeatHolder {
@@ -13,7 +13,7 @@ export interface SeatHolder {
 
 /**
  * Order `players` clockwise starting at the seat counter-clockwise from
- * `lastFirstRollerSeat`. When `lastFirstRollerSeat` is null (first round of a
+ * `previousFirstRollerSeat`. When `previousFirstRollerSeat` is null (first round of a
  * game), start at the lowest seat.
  *
  * If the previous first roller is absent from `players` (sat out, or not in a
@@ -21,16 +21,16 @@ export interface SeatHolder {
  */
 export function orderPlayersFromFirstRollerSeat<T extends SeatHolder>(
   players: T[],
-  lastFirstRollerSeat: number | null,
+  previousFirstRollerSeat: number | null,
 ): T[] {
   const ordered = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
-  if (ordered.length === 0 || lastFirstRollerSeat == null) return ordered;
+  if (ordered.length === 0 || previousFirstRollerSeat == null) return ordered;
 
   // Ascending seats = clockwise. Counter-clockwise of `last` is the greatest
   // participant seat strictly below it, or the highest seat on wrap.
   let startIdx = ordered.length - 1;
   for (let i = ordered.length - 1; i >= 0; i--) {
-    if ((ordered[i]!.seat ?? 0) < lastFirstRollerSeat) {
+    if ((ordered[i]!.seat ?? 0) < previousFirstRollerSeat) {
       startIdx = i;
       break;
     }

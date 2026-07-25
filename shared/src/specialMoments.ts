@@ -15,7 +15,7 @@ export const SPECIAL_MOMENT_DEFINITIONS = [
   {
     kind: 'classic',
     label: 'Classic',
-    description: 'First-roll three 6s while no roll to beat is set.',
+    description: 'First-roll three 6s in a normal round while no roll to beat is set.',
     setting: 'classicPot',
   },
   {

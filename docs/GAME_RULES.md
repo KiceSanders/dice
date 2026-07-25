@@ -23,11 +23,12 @@ every other seated player pay the roller.
    same short-stack floor. The effective amount includes the bet multiplier and periodic
    auto-raises (see "Stakes: multiplier and auto-raise"). Players with 0 chips sit the round
    out (they keep their seat). If fewer than 2 players have chips, the game ends.
-2. Players act **clockwise** in seat order. The **first roller** rotates
-   **counter-clockwise** from the previous first roller each round and each
-   sub-round (so the same seat never opens twice in a row, including after a
-   tie). The first round of a game starts at the lowest seat. If the previous
-   first roller is sitting out or not in a tie, walk counter-clockwise until a
+2. Players act **clockwise** in seat order. The **first roller** for each normal
+   round rotates **counter-clockwise** from the previous normal round's first
+   roller. A sub-round rotates counter-clockwise from the preceding opener in
+   that tie sequence, but its opener never changes the normal-round rotation.
+   The first round of a game starts at the lowest seat. If the relevant previous
+   opener is sitting out or not in a tie, walk counter-clockwise until a
    participant is hit.
 3. A turn is up to `rollCap` rolls of the 5 dice. After each roll the player may **keep**
    any of the five dice for the next throw — including releasing dice kept on earlier
@@ -95,12 +96,12 @@ straight payout.
   OK — Yahtzee does not donate), the roller transfers
   `min(donationAmount, roller.chips)` into `classicPot`. Zero transfers are
   skipped. Fires at most once per first roll that qualifies.
-- **Payout**: when `rollToBeat` is still unset (nobody has stood yet this
-  round/sub-round) and the player's **first roll of their turn** scores three 6s
-  (`count === 3`, `face === 6`, wilds OK — a "classic"), the roller takes the
-  entire Classic Pot and the pool zeros. Later rolls of the turn that reach
-  three 6s do not win it. A zero pot skips the emit. The turn continues normally
-  either way.
+- **Payout**: only in a **normal round**, when `rollToBeat` is still unset
+  (nobody has stood yet) and the player's **first roll of their turn** scores
+  three 6s (`count === 3`, `face === 6`, wilds OK — a "classic"), the roller
+  takes the entire Classic Pot and the pool zeros. A Classic Pot cannot be
+  claimed in a sub-round. Later rolls of the turn that reach three 6s do not
+  win it. A zero pot skips the emit. The turn continues normally either way.
 - The Classic Pot **persists across rounds and sub-rounds** within a game and
   resets when a new game starts. It is zero-sum against player stacks (ante pot
   untouched).
@@ -169,8 +170,8 @@ an authoritative game fact broadcast after the same outcome barrier as its revea
 never affect chips, scoring, or turn flow.
 
 - **Straight**: the first straight in a turn while `straightPayout.enabled` is true.
-- **Classic**: eligible first-roll three 6s while `classicPot.enabled` is true, including when
-  the Classic Pot is empty. A four-of-a-kind donation is not a Classic sound trigger.
+- **Classic**: eligible first-roll three 6s in a normal round while `classicPot.enabled` is true,
+  including when the Classic Pot is empty. A four-of-a-kind donation is not a Classic sound trigger.
 - **First-roll Yahtzee**: a qualifying first-roll quint while
   `firstRollYahtzeePayout.enabled` is true.
 - **Yahtzee bonus match**: the sixth die literally matches the target while
