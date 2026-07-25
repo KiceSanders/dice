@@ -64,8 +64,12 @@ The server soft-gates it with the same rest-pose validator and, if valid, replac
 
 Yahtzee bonus throws temporarily extend only the live physics/pose stream to six dice:
 the five authoritative hand dice stay railed, a sixth die is created in the cup, and only
-its face is sent in `turn:bonusThrowResult`. The sixth die is then removed, the original
-five-die rest pose remains authoritative, and the engine stands the roller automatically.
+its face is sent in `turn:bonusThrowResult`. Entering bonus mode remounts the local dice
+runtime and restarts its stream-relative timestamps at zero without changing the current
+player; spectator visual and pose-audio feeds detect that timestamp rewind as a new stream
+epoch and re-anchor instead of mixing it with the prior five-die timeline. The sixth die is
+then removed, the original five-die rest pose remains authoritative, and the engine stands
+the roller automatically.
 
 After-roll delay: configurable per room (default 2s) and captured at normal/bonus settlement;
 live outcomes wait, while crash replay resolves recorded rolls synchronously. When the final

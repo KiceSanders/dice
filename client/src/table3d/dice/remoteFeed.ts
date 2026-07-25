@@ -28,10 +28,20 @@ export interface RemoteRollSample {
 export class RemoteRollFeed {
   private frames: BufferedFrame[] = [];
   private anchor: number | null = null;
+  private lastStreamT: number | null = null;
 
   push(frames: PoseFrame[], now: number = performance.now()): void {
     for (const frame of frames) {
+      // DicePhysics remounts for the Yahtzee bonus and its stream-relative
+      // clock starts over at zero. The player/seat does not change, so the
+      // spectator hook stays mounted: a timestamp rewind is the stream epoch
+      // boundary and must discard the prior hand's anchor and frames.
+      if (this.lastStreamT !== null && frame.t < this.lastStreamT) {
+        this.frames.length = 0;
+        this.anchor = null;
+      }
       if (this.anchor === null) this.anchor = now - frame.t;
+      this.lastStreamT = frame.t;
       this.frames.push({
         localT: this.anchor + frame.t,
         bodies: frame.bodies,
@@ -45,6 +55,7 @@ export class RemoteRollFeed {
   clear(): void {
     this.frames.length = 0;
     this.anchor = null;
+    this.lastStreamT = null;
   }
 
   get empty(): boolean {

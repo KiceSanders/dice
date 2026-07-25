@@ -45,6 +45,19 @@ describe('RemoteRollFeed', () => {
     expect(mid.bodies[0]![0]).toBeCloseTo(5);
   });
 
+  it('re-anchors when a remounted dice runtime restarts stream time', () => {
+    const feed = new RemoteRollFeed();
+    feed.push([frame(5000, 0), frame(5100, 10)], 5000);
+
+    // Yahtzee bonus mode remounts DicePhysics for the same roller, so t
+    // restarts at zero without useRemoteRoll itself remounting.
+    feed.push([frame(0, 20), frame(100, 30)], 6000);
+
+    // New anchor = 6000. Playback at local 6200 reads local 6050, halfway
+    // through the bonus frames; none of the old hand's timeline survives.
+    expect(feed.sample(6200, 150)!.bodies[0]![0]).toBeCloseTo(25);
+  });
+
   it('carries cupVisible from frames, defaulting to true', () => {
     const feed = new RemoteRollFeed();
     feed.push([frame(0, 1), frame(100, 2, false)], 5000);

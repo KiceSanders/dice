@@ -282,7 +282,8 @@ same override; switch **View as** to check the passive glow.
    and a separate sixth die is inside the koozie. No hand die may disappear or move into
    the cup.
 4. Throw the bonus die. The spectator must see all five railed dice plus the streamed
-   sixth die during the throw.
+   sixth die during the throw. The sixth die must stay smoothly interpolated rather than
+   stepping only when each network frame batch arrives.
 5. On settle (match or miss), confirm there is no match/miss announcement, chip movement, or
    automatic stand until the bonus die's configured delay elapses. Then the original five-die
    Yahtzee remains as the last hand, and the roller stands automatically without clicking

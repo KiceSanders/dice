@@ -20,11 +20,21 @@ export function createRemotePoseAudioTap(
 ) {
   const detector = createPoseImpactDetector(AUDIO_TUNING.pose);
   let anchor: number | null = null;
+  let lastStreamT: number | null = null;
 
   return {
     push(frames: PoseFrame[], now: number = performance.now()): void {
       for (const frame of frames) {
+        // The Yahtzee bonus remount starts a new pose-stream clock for the
+        // same player. Match RemoteRollFeed's epoch detection so impacts are
+        // derived and scheduled against the new stream rather than the old
+        // hand's anchor.
+        if (lastStreamT !== null && frame.t < lastStreamT) {
+          detector.reset();
+          anchor = null;
+        }
         if (anchor === null) anchor = now - frame.t;
+        lastStreamT = frame.t;
         const { impacts, shakeLevel } = detector.push(frame);
         const whenMs = anchor + frame.t + REMOTE_PLAYBACK_DELAY_MS;
         for (const impact of impacts) {
@@ -39,6 +49,7 @@ export function createRemotePoseAudioTap(
     clear(): void {
       detector.reset();
       anchor = null;
+      lastStreamT = null;
     },
   };
 }

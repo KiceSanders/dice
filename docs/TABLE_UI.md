@@ -57,7 +57,10 @@ visible for the configured after-roll delay, then the delayed result removes the
 five-die rest pose remains untouched, and the server auto-stands the player. Keep
 clicks are disabled and the Stand button renders disabled with a "throw the bonus die"
 hint. Spectators render up to 6 streamed dice through `RemoteDiceView`; ordinary throws
-still hide its unused sixth mesh. The match payout animates via the existing
+still hide its unused sixth mesh. The key flip also starts a new pose-stream clock at
+`t = 0` while the roller/player identity stays unchanged. Spectator visual and audio
+feeds therefore treat a backward timestamp as a new stream epoch, discard the prior
+five-die buffer, and re-anchor the bonus stream. The match payout animates via the existing
 `chips-between-players` event (`yahtzee:paid` → `lastTransfer`).
 
 ## Adding an animation / effect → use table events

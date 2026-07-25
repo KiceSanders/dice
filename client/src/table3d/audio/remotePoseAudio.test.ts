@@ -74,6 +74,18 @@ describe('createRemotePoseAudioTap', () => {
     expect(cues[1]?.whenMs).toBe(20_000 - 500 + 650 + REMOTE_PLAYBACK_DELAY_MS);
   });
 
+  it('re-anchors when a remounted dice runtime restarts stream time', () => {
+    const { tap, cues } = makeTap();
+    tap.push(landingFrames(500), 10_000);
+
+    // The bonus runtime belongs to the same roller but begins a new t=0
+    // stream, without an explicit clear from useRemoteRoll.
+    tap.push(landingFrames(0), 20_000);
+
+    expect(cues).toHaveLength(2);
+    expect(cues[1]?.whenMs).toBe(20_000 + 150 + REMOTE_PLAYBACK_DELAY_MS);
+  });
+
   it('feeds in-cup shake into the rattle level', () => {
     const { tap, rattle } = makeTap();
     const raise = vi.spyOn(rattle, 'raiseTo');
