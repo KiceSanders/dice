@@ -1,4 +1,4 @@
-import type { RoomSettings, ServerMessage } from '@dice/shared';
+import type { GameStatePublic, RoomSettings, ServerMessage } from '@dice/shared';
 import { DEFAULT_SETTINGS, MAX_SEATED_PLAYERS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { restPoseFor } from './engine.testkit.js';
@@ -292,7 +292,10 @@ describe('Room roll broadcasts (ADR 005)', () => {
       { type: 'turn:rollResolved', playerId: host.id, dice: [...dice], rollNumber: 1 },
     ]);
     // The follow-up snapshot exposes it too (rejoin path).
-    expect(link.ofType('room:state').at(-1)?.snapshot.game?.currentTurn?.restPose).toEqual(pose);
+    expect(
+      (link.ofType('room:state').at(-1)?.snapshot.game as GameStatePublic | null)?.currentTurn
+        ?.restPose,
+    ).toEqual(pose);
   });
 
   it('turn:rolled carries restPose null when the roller sent none', () => {
@@ -373,7 +376,7 @@ describe('Room mid-game settings', () => {
     expect(room.phase).toBe('playing');
 
     expect(room.updateSettings({ ...DEFAULT_SETTINGS, chipsPerRound: 4 })).toBeNull();
-    expect(room.settings.chipsPerRound).toBe(4);
+    expect((room.settings as RoomSettings).chipsPerRound).toBe(4);
     expect(room.engine).not.toBeNull();
   });
 
@@ -436,8 +439,8 @@ describe('Room mid-game settings', () => {
 
     // Round 2 crossed the every-1-round boundary. The editable configured
     // amounts stay stable while the effective ante gains a multiplier-sized step.
-    expect(room.settings.chipsPerRound).toBe(1);
-    expect(room.settings.straightPayout.amountPerPlayer).toBe(
+    expect((room.settings as RoomSettings).chipsPerRound).toBe(1);
+    expect((room.settings as RoomSettings).straightPayout.amountPerPlayer).toBe(
       DEFAULT_SETTINGS.straightPayout.amountPerPlayer,
     );
     expect(link.ofType('stakes:raised').at(-1)).toEqual({

@@ -1,7 +1,7 @@
 import type { BodyPose, Die, GameStatePublic, PlayerId, PoseFrame } from '@dice/shared';
 import type { SeatDisplayPlacement } from '../layout';
 import { poseFrameForSeatDisplay, poseFrameToCanonical } from '../seatTransform';
-import { DICE_COUNT, dieSlotPosition } from './constants';
+import { DICE_COUNT, type DiceCount, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
 import { quaternionForFace } from './faceValue';
 
@@ -18,19 +18,23 @@ function diePose(position: [number, number, number], value: Die): BodyPose {
  * between-turn dice go through `resolveTableRestPose`; this is only rendered
  * when no authoritative rest pose exists (pre-first-roll, dropped pose).
  */
-export function staticPoseFromDice(dice: Die[], keepIndices: number[] = []): PoseFrame | null {
-  if (dice.length < DICE_COUNT) return null;
+export function staticPoseFromDice(
+  dice: Die[],
+  keepIndices: number[] = [],
+  diceCount: DiceCount = DICE_COUNT,
+): PoseFrame | null {
+  if (dice.length < diceCount) return null;
 
   const kept = new Set(keepIndices);
   const keptSorted = [...keepIndices].sort((a, b) => a - b);
   const bodies: BodyPose[] = [HIDDEN_CUP_POSE];
 
-  for (let i = 0; i < DICE_COUNT; i++) {
+  for (let i = 0; i < diceCount; i++) {
     const value = dice[i];
     if (value === undefined) return null;
     const position = kept.has(i)
       ? keptDieRailPosition(keepSlotForIndex(i, keptSorted), keptSorted.length)
-      : dieSlotPosition(i);
+      : dieSlotPosition(i, diceCount);
     bodies.push(diePose(position, value));
   }
 
@@ -91,6 +95,7 @@ function stoodRoll(rollToBeat: NonNullable<GameStatePublic['rollToBeat']>): Held
 export function pickHeldRollInput(
   lastRoll: LiveRollInput | null,
   game: GameStatePublic | null,
+  diceCount: DiceCount = DICE_COUNT,
 ): HeldRollInput | null {
   const turn = game?.currentTurn;
   if (lastRoll && isLiveTurnRoll(lastRoll, turn)) {
@@ -103,7 +108,7 @@ export function pickHeldRollInput(
     if (rollToBeat?.playerIds[0] === lastRoll.playerId) return stoodRoll(rollToBeat);
     return heldRoll(lastRoll);
   }
-  if (turn && turn.dice.length >= DICE_COUNT) {
+  if (turn && turn.dice.length >= diceCount) {
     return {
       playerId: turn.playerId,
       dice: turn.dice,
@@ -148,8 +153,9 @@ if (typeof window !== 'undefined') window.__diceDebug = diceDebug;
 export function resolveTableRestPose(
   input: HeldRollInput,
   placement: SeatDisplayPlacement,
+  diceCount: DiceCount = DICE_COUNT,
 ): { frame: PoseFrame | null; source: 'authoritative' | 'slot-fallback' } {
-  if (input.restPose && input.restPose.length === DICE_COUNT) {
+  if (input.restPose && input.restPose.length === diceCount) {
     // No face re-check here: the server already validated pose ↔ values, and
     // re-reading faces from a slightly tilted settled quaternion is exactly
     // the misread that used to knock viewers into the slot fallback.
@@ -159,7 +165,7 @@ export function resolveTableRestPose(
   if (import.meta.env.DEV) {
     console.warn('[dice] slot-layout fallback', { dice: input.dice, kept: input.kept });
   }
-  const localFallback = staticPoseFromDice(input.dice, input.kept);
+  const localFallback = staticPoseFromDice(input.dice, input.kept, diceCount);
   const canonicalFallback = localFallback
     ? poseFrameToCanonical(localFallback, placement.seatIndex)
     : null;

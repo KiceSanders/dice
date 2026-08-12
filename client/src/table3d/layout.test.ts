@@ -12,6 +12,7 @@ import {
   seatOverlayPosition,
   seatStripOrder,
   TABLE_SEAT_COUNT,
+  tableInsetPositionAtAngle,
   topBandLaneRects,
   topBandRect,
   visibleSeatIndices,
@@ -114,6 +115,26 @@ describe('seatOverlayPosition', () => {
       expect(seats[0]!.topPct).toBeCloseTo(Math.max(...seats.map((seat) => seat.topPct)), 5);
     });
   }
+});
+
+describe('tableInsetPositionAtAngle', () => {
+  it('moves seat-owned controls inward for both the bottom and upper-left heads-up seats', () => {
+    const { frame, viewport } = centeredRects(604, 399, 468, 263);
+    const center = { left: 50, top: 50 };
+    for (const slot of [0, 1]) {
+      const angle = seatAngle(slot, 2);
+      const seat = seatOverlayPosition(slot, 2, frame, viewport);
+      const inset = tableInsetPositionAtAngle(angle, frame, viewport);
+      const seatDistance = Math.hypot(seat.leftPct - center.left, seat.topPct - center.top);
+      const insetDistance = Math.hypot(inset.leftPct - center.left, inset.topPct - center.top);
+
+      expect(insetDistance).toBeLessThan(seatDistance);
+      expect(inset.leftPct).toBeGreaterThan(0);
+      expect(inset.leftPct).toBeLessThan(100);
+      expect(inset.topPct).toBeGreaterThan(0);
+      expect(inset.topPct).toBeLessThan(100);
+    }
+  });
 });
 
 describe('phase-aware seat display', () => {

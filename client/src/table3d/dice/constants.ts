@@ -17,11 +17,20 @@ export const DIE_HALF = DIE_SIZE / 2;
  */
 export const SOFT_CCD_PREDICTION = DIE_SIZE;
 
-export const DICE_COUNT = 5;
-/** Five stood-hand dice plus the temporary Yahtzee bonus die. */
+/** Supported hand sizes for table-only dice rendering. */
+export type DiceCount = 1 | 2 | 3 | 4 | 5 | 6;
+
+/** The game's current hand size; callers may opt into another table count. */
+export const DICE_COUNT: DiceCount = 5;
+/** Default five-die hand plus the temporary Yahtzee bonus die. */
 export const BONUS_DICE_COUNT = DICE_COUNT + 1;
-/** Runtime index of the temporary Yahtzee bonus die. */
+/** Runtime index of the temporary bonus die for the default hand. */
 export const BONUS_DIE_INDEX = DICE_COUNT;
+
+/** Number of live dice: the hand plus its optional temporary extra die. */
+export function diceRuntimeCount(diceCount: DiceCount, bonusMode = false): number {
+  return diceCount + (bonusMode ? 1 : 0);
+}
 
 /** Overhead safety collider half-extents (slightly inset from visual rail). */
 export const FELT_HALF_X = FELT_SCALE.x * TABLE.feltRadius * 0.92;
@@ -75,15 +84,27 @@ export const PHYSICS = {
   maxAngVel: 34,
 } as const;
 
-/** Resting slot offsets on the felt (index 0–4). */
-export function dieSlotPosition(index: number): [number, number, number] {
-  const t = (index - 2) * 0.2;
-  return [t, DICE_FELT_Y, FELT_HALF_EXTENT.z * 0.02 + (index % 2) * 0.05];
+/** Resting slot offsets on the felt, centered for the requested hand size. */
+export function dieSlotPosition(
+  index: number,
+  diceCount: DiceCount = DICE_COUNT,
+): [number, number, number] {
+  const t = (index - (diceCount - 1) / 2) * 0.2;
+  // Preserve the existing five-die stagger exactly. Other hand sizes use a
+  // centered row so their cluster remains centered as counts change.
+  const z =
+    diceCount === DICE_COUNT
+      ? FELT_HALF_EXTENT.z * 0.02 + (index % 2) * 0.05
+      : FELT_HALF_EXTENT.z * 0.02;
+  return [t, DICE_FELT_Y, z];
 }
 
 /** Drop from just above the felt near the active player (+Z). */
-export function dieSpawnPosition(index: number): [number, number, number] {
-  const spread = (index - 2) * 0.1;
+export function dieSpawnPosition(
+  index: number,
+  diceCount: DiceCount = DICE_COUNT,
+): [number, number, number] {
+  const spread = (index - (diceCount - 1) / 2) * 0.1;
   return [
     spread + (Math.random() - 0.5) * 0.04,
     0.14 + index * 0.012,

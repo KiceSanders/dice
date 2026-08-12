@@ -1,4 +1,4 @@
-import { type Die, detectStraight } from '@dice/shared';
+import { type Die, detectStraight, type GameStatePublic } from '@dice/shared';
 import { button, folder, Leva, useControls } from 'leva';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -391,7 +391,8 @@ export default function Playground() {
   const [pointerOnTable, setPointerOnTable] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  const turn = snapshot.game?.currentTurn ?? null;
+  const dice5Game = snapshot.game as GameStatePublic | null;
+  const turn = dice5Game?.currentTurn ?? null;
   const {
     pendingKeep,
     setPendingKeep: setLocalPendingKeep,
@@ -436,7 +437,9 @@ export default function Playground() {
   const onSceneChange = (id: PlaygroundSceneId) => {
     const scene = sceneById(id);
     loadScene(scene);
-    setLocalPendingKeep(scene.snapshot.game?.currentTurn?.keptIndices ?? []);
+    setLocalPendingKeep(
+      (scene.snapshot.game as GameStatePublic | null)?.currentTurn?.keptIndices ?? [],
+    );
     setMyId(scene.defaultMyId);
     setPointerOnTable(false);
     setDragging(false);
@@ -463,7 +466,7 @@ export default function Playground() {
   }, [lastRoll]);
 
   const replayAnte = () => {
-    const game = snapshot.game;
+    const game = snapshot.game as GameStatePublic | null;
     if (!game) return;
     const contributions = snapshot.players
       .filter((player) => player.seat !== null)
@@ -487,7 +490,7 @@ export default function Playground() {
   };
 
   const replayPotAward = () => {
-    const game = snapshot.game;
+    const game = snapshot.game as GameStatePublic | null;
     const winner = snapshot.players.find((player) => player.seat !== null);
     if (!game || !winner) return;
     tableEvents.emit({ type: 'pot-to-winner', winnerId: winner.id, amount: game.pot });

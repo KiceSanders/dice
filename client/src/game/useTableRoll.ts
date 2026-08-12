@@ -1,4 +1,4 @@
-import type { ClientMessage, Die, PoseFrame, RoomSnapshot } from '@dice/shared';
+import type { ClientMessage, Die, GameStatePublic, PoseFrame, RoomSnapshot } from '@dice/shared';
 import { canStandVoluntarily } from '@dice/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnActions } from '../components/GameArea';
@@ -29,10 +29,11 @@ const BONUS_KEEP = Array.from({ length: DICE_COUNT }, (_, index) => index);
 
 function standHintFor(
   snapshot: RoomSnapshot,
-  turn: NonNullable<RoomSnapshot['game']>['currentTurn'],
+  turn: GameStatePublic['currentTurn'],
+  game: GameStatePublic | null,
   canStand: boolean,
 ): string | undefined {
-  const rollToBeat = snapshot.game?.rollToBeat ?? null;
+  const rollToBeat = game?.rollToBeat ?? null;
   if (!turn || canStand || turn.rollsUsed <= 0 || !rollToBeat) return undefined;
   const names = rollToBeat.playerIds
     .map((id) => snapshot.players.find((p) => p.id === id)?.name)
@@ -65,8 +66,12 @@ export function useTableRoll(
   const [releaseVelocity, setReleaseVelocity] = useState<ThrowVelocity>(ZERO_VELOCITY);
   const [frameBatch] = useState(() => new FrameBatch());
   const latestCanonicalFrameRef = useRef<PoseFrame | null>(null);
+  const game =
+    snapshot?.settings.kind === 'betalot'
+      ? null
+      : (snapshot?.game as GameStatePublic | null | undefined);
 
-  const turn = snapshot?.game?.currentTurn ?? null;
+  const turn = game?.currentTurn ?? null;
   const { pendingKeep, pendingKeepRef, toggleKeep } = usePendingKeep(turn, {
     onReset: () => {
       setDragging(false);
@@ -124,10 +129,10 @@ export function useTableRoll(
         dice,
         rollNumber,
         turn?.rollCap ?? Number.POSITIVE_INFINITY,
-        snapshot?.settings.yahtzeeBonus.enabled === true,
+        snapshot?.settings.kind !== 'betalot' && snapshot?.settings.yahtzeeBonus.enabled === true,
       );
     },
-    [send, mySeat, snapshot?.settings.yahtzeeBonus.enabled, turn],
+    [send, mySeat, snapshot?.settings, turn],
   );
 
   const flushFrames = useCallback(() => {
@@ -181,7 +186,7 @@ export function useTableRoll(
         }
       : undefined;
 
-  const rollToBeat = snapshot?.game?.rollToBeat ?? null;
+  const rollToBeat = game?.rollToBeat ?? null;
   const canStand =
     turn !== null &&
     !bonusMode &&
@@ -201,7 +206,7 @@ export function useTableRoll(
           : bonusPending
             ? `Throw the bonus die — match a ${bonusPending.face}!`
             : snapshot
-              ? standHintFor(snapshot, turn, canStand)
+              ? standHintFor(snapshot, turn, game ?? null, canStand)
               : undefined,
         disabled: rolling || resolving || !connected,
         aiming: dragging,

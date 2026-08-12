@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { appendFile, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { RoomId, RoomSettings } from '@dice/shared';
+import type { GameSettings, RoomId } from '@dice/shared';
 import type { PersistedRoomState, RoomEvent } from './events.js';
 import { parseRoomEventLine } from './parseRoomEvent.js';
 import { Room } from './room.js';
@@ -82,7 +82,7 @@ export class RoomLogStore {
 export function replayRoom(roomId: RoomId, events: RoomEvent[]): Room | null {
   const first = events[0];
   if (!first || (first.type !== 'created' && first.type !== 'snapshot')) return null;
-  const settings: RoomSettings = first.type === 'created' ? first.settings : first.state.settings;
+  const settings: GameSettings = first.type === 'created' ? first.settings : first.state.settings;
 
   const room = new Room(roomId, settings);
 
@@ -95,6 +95,7 @@ export function replayRoom(roomId: RoomId, events: RoomEvent[]): Room | null {
 
   for (const player of room.players.values()) player.connected = false;
   room.engine?.pause();
+  room.betALotEngine?.pause();
   room.emptySince = Date.now();
   return room;
 }

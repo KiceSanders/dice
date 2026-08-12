@@ -131,6 +131,14 @@ with the table viewport or chat sheet.
   presentation source for the card, parked cup, full streamed throw, authoritative rest
   pose, and slot fallback. Canonical wire/persisted poses remain on the uniform ring;
   `poseFrameForSeatDisplay` rotates the complete frame only at render time.
+- **2026-08-11 update (Bet-a-lot table-native HUD):** Bet-a-lot keeps its round/turn prompt and
+  ladder score in the shared top score lane instead of a form below the table. Its six-die
+  opening picker uses a tested player-relative inset on the felt; the selected face animates
+  beside the chooser's card until the next player grabs the koozie. Sequential payout notices
+  and matching chip flights play top-center at one-second intervals. The right edge renders an
+  authoritative, persisted, newest-first last-ten winner strip, and an on-fire player reuses the
+  table flame ring plus a flame-marked name plate. These DOM overlays remain outside all three
+  dice renderers, while the persistent fire state comes from the room snapshot.
 
 ## Verification
 

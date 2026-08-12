@@ -84,7 +84,13 @@ describe('validateRestPose', () => {
 
   it('rejects the wrong number of poses or dice', () => {
     expect(validateRestPose(validPose(DICE).slice(0, 4), DICE)).toMatch(/expected 5 poses/);
-    expect(validateRestPose(validPose(DICE), DICE.slice(0, 4))).toMatch(/expected 5 dice/);
+    expect(validateRestPose(validPose(DICE), DICE.slice(0, 4))).toMatch(/expected 4 poses/);
+  });
+
+  it('supports every table game hand size from one through six dice', () => {
+    expect(validateRestPose(validPose([2]), [2])).toBeNull();
+    const six: Die[] = [1, 2, 3, 4, 5, 6];
+    expect(validateRestPose(validPose(six), six)).toBeNull();
   });
 
   it('rejects non-finite components', () => {

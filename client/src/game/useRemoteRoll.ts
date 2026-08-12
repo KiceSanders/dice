@@ -1,4 +1,4 @@
-import type { RoomSnapshot } from '@dice/shared';
+import type { BetALotStatePublic, GameStatePublic, RoomSnapshot } from '@dice/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRemotePoseAudioTap } from '../table3d/audio/remotePoseAudio';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
@@ -42,7 +42,11 @@ export function useRemoteRoll(
   const [live, setLive] = useState(false);
   const [cupInPlay, setCupInPlay] = useState(false);
 
-  const turnPlayerId = snapshot?.game?.currentTurn?.playerId ?? null;
+  const betALotGame =
+    snapshot?.settings.kind === 'betalot' ? (snapshot.game as BetALotStatePublic | null) : null;
+  const dice5Game =
+    snapshot?.settings.kind === 'betalot' ? null : (snapshot?.game as GameStatePublic | null);
+  const turnPlayerId = betALotGame?.currentPlayerId ?? dice5Game?.currentTurn?.playerId ?? null;
   const viewerSeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
   const turnPlayerSeat = snapshot?.players.find((p) => p.id === turnPlayerId)?.seat ?? null;
   const occupiedSeats = snapshot?.players.flatMap((player) =>
@@ -80,7 +84,10 @@ export function useRemoteRoll(
         setCupInPlay(msg.frames.some((f) => f.cupVisible === true));
       }
       if (
-        (msg.type === 'turn:rolled' || msg.type === 'turn:bonusRolled') &&
+        (msg.type === 'turn:rolled' ||
+          msg.type === 'turn:bonusRolled' ||
+          msg.type === 'betalot:rolled' ||
+          msg.type === 'betalot:extraRolled') &&
         msg.playerId === turnPlayerId
       ) {
         setLive(false);

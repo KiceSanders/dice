@@ -10,13 +10,14 @@
 import type { SpecialMomentKind } from './specialMoments.js';
 import type {
   ActiveRoomSummary,
+  BetALotFireState,
   BodyPose,
   Die,
+  GameSettings,
   HandScore,
   PlayerId,
   PoseFrame,
   RoomId,
-  RoomSettings,
   RoomSnapshot,
   StraightKind,
 } from './types.js';
@@ -29,14 +30,14 @@ export type ClientMessage =
   /** Request the public directory of rooms that currently have connected players. */
   | { type: 'room:list' }
   /** Room capacity is fixed at MAX_SEATED_PLAYERS and is not part of settings. */
-  | { type: 'room:create'; playerName: string; settings: RoomSettings }
+  | { type: 'room:create'; playerName: string; settings: GameSettings }
   | { type: 'room:join'; roomId: RoomId; playerName: string; rejoinToken?: string }
   | { type: 'seat:request'; buyIn: number }
   | { type: 'seat:approve'; playerId: PlayerId }
   | { type: 'seat:deny'; playerId: PlayerId }
   | { type: 'player:kick'; playerId: PlayerId }
   /** Room capacity is fixed and cannot be changed through settings. */
-  | { type: 'settings:update'; settings: RoomSettings }
+  | { type: 'settings:update'; settings: GameSettings }
   | { type: 'game:start' }
   /** A seated player dismissed the round-results modal; begin the next round now. */
   | { type: 'round:continue' }
@@ -56,6 +57,14 @@ export type ClientMessage =
   | { type: 'dice:frames'; frames: PoseFrame[] }
   /** Voluntary stand; optional final selecting layout for the settled hand (ADR 005). */
   | { type: 'turn:stand'; restPose?: BodyPose[] }
+  /** Bet-a-lot: the opener calls the face expected on the first one-die roll. */
+  | { type: 'betalot:call'; face: Die }
+  /** Bet-a-lot physics throw with the exact count required by the active ladder rung. */
+  | { type: 'betalot:throwStart' }
+  | { type: 'betalot:throwResult'; dice: Die[]; restPose?: BodyPose[] }
+  /** Bet-a-lot extra die earned by three or more matching dice. */
+  | { type: 'betalot:extraThrowStart' }
+  | { type: 'betalot:extraThrowResult'; die: Die; restPose?: BodyPose[] }
   /** Publish or clear one device-local player recording for this room (ephemeral). */
   | { type: 'special-sound:update'; kind: SpecialMomentKind; wavBase64: string | null }
   | { type: 'chat:send'; text: string };
@@ -100,6 +109,51 @@ export type ServerMessage =
   | { type: 'dice:frames'; playerId: PlayerId; frames: PoseFrame[] }
   /** A turn ended with no completed roll (disconnect/kick): no hand. */
   | { type: 'turn:forfeited'; playerId: PlayerId }
+  | {
+      type: 'betalot:throwStarted';
+      playerId: PlayerId;
+      diceCount: number;
+      rung: number;
+      extra: boolean;
+    }
+  | {
+      type: 'betalot:rolled';
+      playerId: PlayerId;
+      dice: Die[];
+      score: number;
+      rung: number;
+      restPose: BodyPose[] | null;
+    }
+  | {
+      type: 'betalot:extraRolled';
+      playerId: PlayerId;
+      die: Die;
+      target: Die;
+      matched: boolean;
+      sourceDiceCount: number;
+      restPose: BodyPose[] | null;
+    }
+  | {
+      type: 'betalot:paid';
+      fromPlayerId: PlayerId;
+      toPlayerId: PlayerId | null;
+      amount: number;
+      reason:
+        | 'call'
+        | 'openingOne'
+        | 'loss'
+        | 'straight'
+        | 'allSame'
+        | 'allSameExtra'
+        | 'fullHouse'
+        | 'sevenOpponent'
+        | 'sevenPot'
+        | 'overTwentyFive'
+        | 'sevensPotWon';
+      sevensPot: number;
+    }
+  | { type: 'betalot:roundEnded'; winnerId: PlayerId; loserId: PlayerId; amount: number }
+  | { type: 'betalot:fireChanged'; fire: BetALotFireState[] }
   /** Exact chips collected from each participant when a normal round begins. */
   | {
       type: 'round:started';

@@ -1,5 +1,6 @@
 import {
   type AutoIncrementConfig,
+  type BetALotSettings,
   type ClassicPotConfig,
   type ClientMessage,
   type FirstRollYahtzeePayoutConfig,
@@ -63,6 +64,36 @@ function isRoomSettings(v: unknown): v is RoomSettings {
   );
 }
 
+function isBetALotSettings(v: unknown): v is BetALotSettings {
+  if (
+    !isRecord(v) ||
+    v.kind !== 'betalot' ||
+    !isFiniteNumber(v.afterRollDelayMs) ||
+    !isFiniteNumber(v.minBuyIn) ||
+    !isFiniteNumber(v.maxBuyIn) ||
+    !isFiniteNumber(v.callPayout) ||
+    !isFiniteNumber(v.openingOnePenalty) ||
+    !isFiniteNumber(v.successfulRungSixPayout) ||
+    !isFiniteNumber(v.fullHousePayout) ||
+    !isFiniteNumber(v.sevenOpponentPayout) ||
+    !isFiniteNumber(v.sevenPotContribution) ||
+    !isFiniteNumber(v.overTwentyFivePerPoint)
+  ) {
+    return false;
+  }
+  const payouts = [v.lossPayouts, v.straightPayouts, v.allSamePayouts, v.allSameExtraPayouts];
+  return payouts.every(
+    (payout) =>
+      isRecord(payout) &&
+      Object.values(payout).every(isFiniteNumber) &&
+      (payout.threeDice !== undefined || payout.twoDice !== undefined),
+  );
+}
+
+function isGameSettings(v: unknown): v is RoomSettings | BetALotSettings {
+  return isBetALotSettings(v) || isRoomSettings(v);
+}
+
 /** Die-keep indices: ≤5 unique integers in [0, 4]. */
 function isIndexArray(v: unknown): v is number[] {
   return (
@@ -78,6 +109,15 @@ function isDiceArray(v: unknown): v is number[] {
   return (
     Array.isArray(v) &&
     v.length === 5 &&
+    v.every((d) => Number.isInteger(d) && (d as number) >= 1 && (d as number) <= 6)
+  );
+}
+
+function isBetALotDiceArray(v: unknown): v is number[] {
+  return (
+    Array.isArray(v) &&
+    v.length >= 1 &&
+    v.length <= 6 &&
     v.every((d) => Number.isInteger(d) && (d as number) >= 1 && (d as number) <= 6)
   );
 }
@@ -122,7 +162,7 @@ const validators: Record<ClientMessage['type'], Validator> = {
   'room:list': () => null,
   'room:create': (m) => {
     if (!isNonEmptyString(m.playerName, 24)) return 'playerName must be a 1-24 char string';
-    if (!isRoomSettings(m.settings)) return 'settings is missing or malformed';
+    if (!isGameSettings(m.settings)) return 'settings is missing or malformed';
     return null;
   },
   'room:join': (m) => {
@@ -144,7 +184,7 @@ const validators: Record<ClientMessage['type'], Validator> = {
   'player:kick': (m) =>
     isNonEmptyString(m.playerId, 64) ? null : 'playerId must be a non-empty string',
   'settings:update': (m) =>
-    isRoomSettings(m.settings) ? null : 'settings is missing or malformed',
+    isGameSettings(m.settings) ? null : 'settings is missing or malformed',
   'game:start': () => null,
   'round:continue': () => null,
   'turn:throwStart': (m) =>
@@ -179,6 +219,36 @@ const validators: Record<ClientMessage['type'], Validator> = {
       if (!Array.isArray(m.restPose) || m.restPose.length !== 5 || !m.restPose.every(isBodyPose)) {
         return 'restPose must be exactly 5 body poses when present';
       }
+    }
+    return null;
+  },
+  'betalot:call': (m) =>
+    Number.isInteger(m.face) && (m.face as number) >= 1 && (m.face as number) <= 6
+      ? null
+      : 'face must be an integer in [1, 6]',
+  'betalot:throwStart': () => null,
+  'betalot:throwResult': (m) => {
+    if (!isBetALotDiceArray(m.dice)) return 'dice must contain 1-6 integers in [1, 6]';
+    if (
+      m.restPose !== undefined &&
+      (!Array.isArray(m.restPose) ||
+        m.restPose.length !== m.dice.length ||
+        !m.restPose.every(isBodyPose))
+    ) {
+      return 'restPose must match the number of dice when present';
+    }
+    return null;
+  },
+  'betalot:extraThrowStart': () => null,
+  'betalot:extraThrowResult': (m) => {
+    if (!Number.isInteger(m.die) || (m.die as number) < 1 || (m.die as number) > 6) {
+      return 'die must be an integer in [1, 6]';
+    }
+    if (
+      m.restPose !== undefined &&
+      (!Array.isArray(m.restPose) || m.restPose.length !== 1 || !m.restPose.every(isBodyPose))
+    ) {
+      return 'restPose must contain one body pose when present';
     }
     return null;
   },

@@ -1,13 +1,14 @@
 import type {
   BodyPose,
   Die,
+  GameSettings,
   HandScore,
   PlayerId,
   RoomId,
   RoomPhase,
-  RoomSettings,
   StraightKind,
 } from '@dice/shared';
+import type { BetALotPersistedState } from './games/betalot/engine.js';
 
 /**
  * Persistence event model (PLAN.md Phase 6). Every state-mutating change to a
@@ -29,7 +30,7 @@ export interface PersistedPlayer {
   seatedAt: number | null;
 }
 
-/** Engine state that survives compaction (only ever captured at round end). */
+/** Dice5 engine state that survives its round-end compaction. */
 export interface PersistedGame {
   roundNumber: number;
   pot: number;
@@ -40,6 +41,8 @@ export interface PersistedGame {
   /** Legacy snapshots recorded the latest sub-round opener instead. */
   lastFirstRollerSeat?: number | null;
 }
+
+export type PersistedRoomGame = PersistedGame | BetALotPersistedState;
 
 export interface ChatHistoryEntry {
   playerId: PlayerId;
@@ -52,18 +55,18 @@ export interface ChatHistoryEntry {
 
 export interface PersistedRoomState {
   roomId: RoomId;
-  settings: RoomSettings;
+  settings: GameSettings;
   hostId: PlayerId;
   phase: RoomPhase;
   players: PersistedPlayer[];
-  game: PersistedGame | null;
+  game: PersistedRoomGame | null;
   /** Recent chat (ring buffer); optional so pre-Phase-10 logs still parse. */
   chat?: ChatHistoryEntry[];
 }
 
 export type RoomEvent =
   // -- log bootstrap ---------------------------------------------------------
-  | { type: 'created'; roomId: RoomId; settings: RoomSettings }
+  | { type: 'created'; roomId: RoomId; settings: GameSettings; gameKind?: 'dice5' | 'betalot' }
   /** Compaction marker: full room state at a round boundary. */
   | { type: 'snapshot'; state: PersistedRoomState }
   // -- membership ------------------------------------------------------------
@@ -75,7 +78,7 @@ export type RoomEvent =
   | { type: 'seated'; playerId: PlayerId; buyIn: number; seat: number; seatedAt: number }
   | { type: 'seatForfeited'; playerId: PlayerId }
   | { type: 'kicked'; playerId: PlayerId }
-  | { type: 'settingsUpdated'; settings: RoomSettings }
+  | { type: 'settingsUpdated'; settings: GameSettings }
   | { type: 'hostChanged'; hostId: PlayerId }
   // -- game (replayed through the engine) -------------------------------------
   | { type: 'gameStarted' }

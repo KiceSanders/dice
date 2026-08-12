@@ -1,7 +1,8 @@
+import { readTopFaceFromQuat } from '@dice/shared';
 import { describe, expect, it } from 'vitest';
 import { DICE_COUNT } from './constants';
-import { cupLocalToWorld } from './diceRuntime';
-import { cupDieSpawnLayout, spawnDiceInCupLocal } from './koozieColliders';
+import { cupLocalToWorld, eulerToQuat } from './diceRuntime';
+import { cupDieSpawnLayout, randomCupDieRotation, spawnDiceInCupLocal } from './koozieColliders';
 import { createHomePose, isInsideCup } from './koozieMotion';
 import { DEFAULT_DICE_PHYSICS_TUNING } from './tuning';
 
@@ -44,16 +45,46 @@ describe('spawnDiceInCupLocal', () => {
     }
   });
 
-  it('spawns dice flat (yaw-only) with corners inside floor, lid, and wall', () => {
+  it('spawns axis-aligned dice with corners inside floor, lid, and wall', () => {
+    let seed = 1;
+    const rng = () => {
+      seed = (seed * 48271) % 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
     for (let index = 0; index < DICE_COUNT; index++) {
-      const { position, rotation } = spawnDiceInCupLocal(index, DICE_COUNT, CUP);
-      expect(rotation[0]).toBe(0);
-      expect(rotation[2]).toBe(0);
+      const { position, rotation } = spawnDiceInCupLocal(index, DICE_COUNT, CUP, rng);
+      // Quarter-turn XYZ only — must stay flat after euler→quat (packing AABB).
+      for (const component of rotation) {
+        const turns = component / (Math.PI / 2);
+        expect(Math.abs(turns - Math.round(turns))).toBeLessThan(1e-9);
+      }
+      const q = eulerToQuat(rotation);
+      for (const component of [q.x, q.y, q.z, q.w]) {
+        const abs = Math.abs(component);
+        const nearest = [0, 0.5, Math.SQRT1_2, 1].reduce((best, candidate) =>
+          Math.abs(abs - candidate) < Math.abs(abs - best) ? candidate : best,
+        );
+        expect(Math.abs(abs - nearest)).toBeLessThan(1e-6);
+      }
       const [x, y, z] = position;
       expect(y - LAYOUT.flatHalf).toBeGreaterThanOrEqual(LAYOUT.floorTopY - EPS);
       expect(y + LAYOUT.flatHalf).toBeLessThanOrEqual(LAYOUT.lidBottomY + EPS);
       expect(Math.hypot(x, z) + LAYOUT.flatCorner).toBeLessThanOrEqual(LAYOUT.innerRadius + EPS);
     }
+  });
+
+  it('randomCupDieRotation varies the up-face across seeds', () => {
+    const faces = new Set<number>();
+    for (let i = 0; i < 96; i++) {
+      let n = i + 1;
+      const rng = () => {
+        n = (n * 1103515245 + 12345) % 0x80000000;
+        return n / 0x80000000;
+      };
+      const q = eulerToQuat(randomCupDieRotation(rng));
+      faces.add(readTopFaceFromQuat([q.x, q.y, q.z, q.w]));
+    }
+    expect(faces.size).toBe(6);
   });
 
   it('positions depend only on the slot index, not the hand size', () => {

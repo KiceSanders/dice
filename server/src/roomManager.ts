@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import type { ActiveRoomSummary, RoomId, RoomSettings } from '@dice/shared';
+import { type ActiveRoomSummary, type GameSettings, gameKindOf, type RoomId } from '@dice/shared';
 import type { RoomLogStore } from './persistence.js';
 import { Room } from './room.js';
 
@@ -20,10 +20,15 @@ export class RoomManager {
     private readonly store: RoomLogStore | null = null,
   ) {}
 
-  create(settings: RoomSettings): Room {
+  create(settings: GameSettings): Room {
     const room = new Room(this.generateId(), settings);
     this.register(room);
-    this.store?.append(room.id, { type: 'created', roomId: room.id, settings: room.settings });
+    this.store?.append(room.id, {
+      type: 'created',
+      roomId: room.id,
+      settings: room.settings,
+      gameKind: gameKindOf(room.settings),
+    });
     return room;
   }
 
@@ -55,7 +60,7 @@ export class RoomManager {
       active.push({
         roomId: room.id,
         phase: room.phase,
-        roundNumber: room.engine?.roundNumber ?? null,
+        roundNumber: room.engine?.roundNumber ?? room.betALotEngine?.roundNumber ?? null,
         playerNames: [...room.players.values()]
           .filter((player) => player.connected)
           .map((player) => player.name),

@@ -15,6 +15,28 @@ tsx in dev and bundles it via the esbuild alias in `server/package.json` at buil
 Consequence: a change in `shared/` immediately affects both sides — typecheck both
 (`npm run check`) after touching it.
 
+## Game kinds
+
+Each room selects its game kind before settings are shown on the home page. `dice5` is the
+original five-die game; `betalot` is a heads-up, 1–6 die ladder. The shared room layer owns
+connections, chat, seats, host transfer, rejoin tokens, pose-frame relay, and persistence
+bootstrap. Game-specific state, settings, protocol messages, and rule engines live behind the
+room kind. `shared/src/games/registry.ts` is the canonical metadata registry.
+
+Bet-a-lot is served at the same `/room/:roomId` URL. Its server engine is
+`server/src/games/betalot/engine.ts`; pure scoring/payout predicates are in
+`shared/src/games/betalot/rules.ts`; and its client settings/HUD/koozie binding live in
+`client/src/games/betalot/`. The table physics accepts `diceCount` from 1 through 6 while
+preserving Dice5's five-die default and optional sixth bonus die.
+
+The two games share only actual room/table primitives. `BaseRoomSettings` contains reveal
+delay and buy-in bounds; Dice5 and Bet-a-lot settings independently extend it, so Bet-a-lot
+does not carry Classic Pot, Yahtzee, ante, or keep settings. Their public game states are also
+independent. `server/src/games/betalot/roomBridge.ts` owns Bet-a-lot event-to-wire/snapshot
+mapping rather than growing `room.ts`; compact Bet-a-lot recovery snapshots retain the exact
+rung, extra-die state, settings captured by an in-flight reveal delay, and newest-first last-ten
+round winners used by the table history strip.
+
 Dev: `npm run dev` → server :3001, client :5173 (Vite proxies `/ws` + `/health`).
 Prod: `npm run build && npm start` → one server on :3001 serving the built client and the
 same-origin `/ws` endpoint. The public socket accepts only `/ws`, caps incoming frames at

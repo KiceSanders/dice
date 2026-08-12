@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, SPECIAL_SOUND_SAMPLE_RATE } from '@dice/shared';
+import { DEFAULT_SETTINGS, isDice5State, SPECIAL_SOUND_SAMPLE_RATE } from '@dice/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { StartedServer } from '../src/startServer.js';
 import { FakeClient, startTestServer } from './harness.js';
@@ -99,11 +99,14 @@ describe('WS integration: room directory and throw handshake', () => {
       (m) =>
         m.type === 'room:state' &&
         m.snapshot.phase === 'playing' &&
-        m.snapshot.game?.currentTurn != null,
+        isDice5State(m.snapshot.game) &&
+        m.snapshot.game.currentTurn != null,
       'game started with turn',
     );
     expect(playing.type).toBe('room:state');
-    if (playing.type !== 'room:state' || !playing.snapshot.game?.currentTurn) return;
+    if (playing.type !== 'room:state' || !isDice5State(playing.snapshot.game)) return;
+    const playingGame = playing.snapshot.game;
+    if (!playingGame.currentTurn) return;
 
     guest.send({ type: 'room:list' });
     const playingDirectory = await guest.next('rooms:list');
@@ -114,7 +117,7 @@ describe('WS integration: room directory and throw handshake', () => {
       playerNames: ['Host', 'Guest'],
     });
 
-    const rollerId = playing.snapshot.game.currentTurn.playerId;
+    const rollerId = playingGame.currentTurn.playerId;
     const roller = rollerId === created.playerId ? host : guest;
 
     const wavBase64 = tinyWavBase64();
@@ -160,7 +163,8 @@ describe('WS integration: room directory and throw handshake', () => {
     await host.nextWhere(
       (m) =>
         m.type === 'room:state' &&
-        m.snapshot.game?.currentTurn?.playerId !== undefined &&
+        isDice5State(m.snapshot.game) &&
+        m.snapshot.game.currentTurn?.playerId !== undefined &&
         m.snapshot.game.currentTurn.playerId !== rollerId,
       'turn advanced',
     );

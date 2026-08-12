@@ -27,9 +27,10 @@ export function poseFrameFromRuntime(
   cupPose: BodyPose,
   t = 0,
   cupVisible = false,
+  diceCount: number = DICE_COUNT,
 ): PoseFrame | null {
   const bodies: BodyPose[] = [cupPose];
-  for (let i = 0; i < DICE_COUNT; i++) {
+  for (let i = 0; i < diceCount; i++) {
     const rt = runtime[i];
     if (!rt?.visible) return null;
     bodies.push(poseFromRuntimeDie(rt));

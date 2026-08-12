@@ -92,7 +92,49 @@ no console errors; connection stays `open`.
 
 ---
 
-## Phase 8 — Lobby UI (3 tabs)
+## Bet-a-lot (2 tabs)
+
+1. In Tab A, select **Bet-a-lot** before opening room settings, enter Alice's name, and create
+   the room. Confirm the snapshot settings contain `"kind": "betalot"`.
+2. In Tab B, set `dice:name` to Bob, join the room, and have both players request / receive a
+   seat. Confirm the host cannot start until there are exactly two seats and that a third
+   spectator cannot be approved.
+3. Start the game. Confirm Alice receives the one-die koozie and sees six compact face dice on
+   the felt in front of her. Pick one in either tab: both tabs animate the chosen die beside
+   Alice's name plate. It stays there through Alice's opening throw and disappears as soon as
+   Bob picks up the koozie (before Bob releases it).
+4. Play a normal 1 → 6 ladder. Verify the active player alternates each rung, dice count
+   increases by one, the previous settled hand stays visible exactly once through the handoff,
+   and a tie or lower total applies the right base payment without an end modal, then starts the
+   next round after the payout notices finish. Confirm the opener alternates.
+5. Exercise one qualifying straight, all-same extra die, full house, opening face one, exact
+   seven, exact twenty-one, and an over-25 total. Confirm chip counts agree in both tabs, the
+   Sevens Pot is the same animated coin pyramid used by the other game (not a numeric counter),
+   and every rung's score appears in the table's top score lane.
+6. Trigger two or more bets on one roll. Confirm top-center notices begin exactly one second
+   apart and each matching chip flight visibly starts with its notice (later flights must not
+   jump straight to their destination). Each player sees win/loss copy from their perspective.
+7. Play at least three rounds and confirm the right-side two-column strip adds one red or blue
+   dot in only the winner's column, newest first. Refresh/rejoin and confirm the same history
+   returns; after eleven rounds, only the newest ten remain.
+8. Have one player win three rounds, then check the fourth round's amounts double for the
+   opponent. Confirm the shared table flames and that player's flaming name plate appear. End
+   that streak with a loss and confirm both clear.
+9. Disconnect/rejoin one player while waiting to throw; confirm their identity and chip stack
+   return. Repeat a normal completed round afterward.
+
+**Pass criteria:** Both roller and spectator see the matching 1–6 dice count, settled hand,
+koozie flow, coin pot, and table score; completed rounds continue; the room stays on the same
+URL; chip transfers agree in both tabs; and no console errors occur.
+
+---
+
+## Dice5 — lobby and play (2–8 players)
+
+The checks in this section apply only to Dice5 rooms. Create a room with the default Dice5
+selection before following them; Bet-a-lot verification is the separate section above.
+
+### Phase 8 — Lobby UI (3 tabs)
 
 **Goal:** Full pre-game flow — seats, approve/deny, kick, settings, host transfer.
 
@@ -149,7 +191,7 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ---
 
-## Chat + game log — 3 tabs
+### Chat + game log — 3 tabs
 
 1. With Alice, Bob, and Carol in one room, send a chat message from each tab. Confirm the
    floating chat contains only player messages and its unread badge increases only for those
@@ -161,8 +203,8 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
    Confirm they appear in **Game log** immediately above **Room settings** and never appear in
    chat. The log should be collapsible and display timestamps.
 4. After more than ten activity entries, expand **Game log**. Confirm it starts with the newest
-   ten in chronological order and **Show 10 more** reveals older entries without losing the
-   newer ones.
+   entry at the top (newest-first) and **Show 10 more** reveals older entries below without
+   losing the newer ones.
 5. Refresh/rejoin one tab. Player chat history, including chip snapshots, must replay without
    duplicates; entries written before chip snapshots may omit the count. Check all consoles for
    errors and repeat once at ≤640px to confirm chat remains a bottom sheet while the log stays in
@@ -170,7 +212,7 @@ Use room code `<CODE>` from Tab A. Steps assume Alice = host.
 
 ---
 
-## Eight-seat capacity + in-game reflow — 3 tabs
+### Eight-seat capacity + in-game reflow — 3 tabs
 
 1. In Tab A, create a room and seat Alice. In Tab B, join and seat Bob. Before starting,
    confirm the table exposes all eight logical slots and settings have no max-player field.
@@ -196,7 +238,7 @@ top HUD arc stays seat-free.
 
 ---
 
-## Touchscreen koozie drag — 2 tabs
+### Touchscreen koozie drag — 2 tabs
 
 1. Use a touch device (or DevTools touch emulation) for the active roller in Tab A and
    keep a spectator open in Tab B.
@@ -210,7 +252,7 @@ top HUD arc stays seat-free.
 
 ---
 
-## Short desktop viewport / Chromebook — 2 tabs
+### Short desktop viewport / Chromebook — 2 tabs
 
 1. Use a desktop-width viewport with reduced usable height (for example 1366×650 CSS
    pixels). Start a game with one player in each tab.
@@ -225,7 +267,7 @@ top HUD arc stays seat-free.
 
 ---
 
-## Forcing straights — payout + celebration glow
+### Forcing straights — payout + celebration glow
 
 Dice come only from client physics (no server RNG), so the settle override in
 `DicePhysics.tsx` is the way to force a straight:
@@ -249,7 +291,7 @@ same override; switch **View as** to check the passive glow.
 
 ---
 
-## Classic Pot — 2 tabs
+### Classic Pot — 2 tabs
 
 1. Confirm Classic Pot is enabled in settings (default on; donation amount 1).
 2. On the first throw of a turn, force four of a kind (e.g.
@@ -264,12 +306,15 @@ same override; switch **View as** to check the passive glow.
    turn must **not** win it.
 5. After someone stands (roll-to-beat set), first-roll three 6s on a later turn must
    **not** win the Classic Pot.
-6. Disable Classic Pot in settings mid-game with a non-zero pool: no further donations or
+6. Force a tie to enter a sub-round, then roll first-roll three 6s before anyone stands in
+   that sub-round. The Classic Pot must remain unchanged: it is claimable only in a normal
+   Dice5 round.
+7. Disable Classic Pot in settings mid-game with a non-zero pool: no further donations or
    wins; the frozen balance stays visible until re-enabled.
 
 ---
 
-## First-roll Yahtzee payout + bonus sixth die — 2 tabs
+### First-roll Yahtzee payout + bonus sixth die — 2 tabs
 
 1. Confirm **First-roll Yahtzee payout** and Yahtzee bonus are enabled. In the roller tab, force
    a first-throw quint with
@@ -293,7 +338,7 @@ same override; switch **View as** to check the passive glow.
 
 ---
 
-## Stake multiplier + auto-raise — 2 tabs
+### Stake multiplier + auto-raise — 2 tabs
 
 Use **Every N rounds = 1** so each completed round exercises a raise boundary quickly.
 Keep the starting ante at 1 and first-roll Yahtzee payout at 4.
@@ -314,7 +359,7 @@ Keep the starting ante at 1 and first-roll Yahtzee payout at 4.
 
 ---
 
-## Animated chip pot — 2–3 tabs
+### Animated chip pot — 2–3 tabs
 
 1. In the lobby, confirm the room code and “waiting to start” still render on the felt.
 2. Seat 2–3 players and start the game. On every tab, one gold coin per paid chip travels
@@ -339,7 +384,7 @@ Keep the starting ante at 1 and first-roll Yahtzee payout at 4.
 
 ---
 
-## Settled dice rest pose (ADR 005) — 2 tabs + throttling
+### Settled dice rest pose (ADR 005) — 2 tabs + throttling
 
 Verifies every viewer sees the dice **where they physically landed**, never the
 center-line slot layout. Setup: tabs A (host, seated) and B (seated), game started.
@@ -388,7 +433,7 @@ running counter.
 
 ---
 
-## Audio — by-ear checklist, 2 tabs
+### Audio — by-ear checklist, 2 tabs
 
 Setup: tabs A (roller) and B (spectator/other seat), game started, system volume up.
 Sounds only start after a tab's first click/keypress (browser autoplay policy).

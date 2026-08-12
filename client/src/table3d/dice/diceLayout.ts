@@ -7,7 +7,7 @@ import {
   TABLE_SEAT_COUNT,
   TABLE_WALL_OUTER,
 } from '../layout';
-import { DIE_HALF, DIE_SIZE, dieSlotPosition } from './constants';
+import { DICE_COUNT, DIE_HALF, DIE_SIZE, type DiceCount, dieSlotPosition } from './constants';
 
 /** Gap between kept dice sitting on the near rail. */
 export const KEPT_DIE_GAP = 0.025;
@@ -103,7 +103,11 @@ export type UnkeepPose = {
  * this-roll felt pose when present; otherwise place at the deterministic
  * center slots (dice kept on an earlier roll have no felt snapshot).
  */
-export function resolveUnkeepPose(index: number, feltPose: UnkeepPose | null): UnkeepPose {
+export function resolveUnkeepPose(
+  index: number,
+  feltPose: UnkeepPose | null,
+  diceCount: DiceCount = DICE_COUNT,
+): UnkeepPose {
   if (feltPose) return feltPose;
-  return { position: dieSlotPosition(index), rotation: [0, 0, 0] };
+  return { position: dieSlotPosition(index, diceCount), rotation: [0, 0, 0] };
 }

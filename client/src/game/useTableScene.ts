@@ -1,4 +1,4 @@
-import type { ClientMessage, RoomSnapshot } from '@dice/shared';
+import type { ClientMessage, GameStatePublic, RoomSnapshot } from '@dice/shared';
 import { detectStraight } from '@dice/shared';
 import { useEffect, useMemo, useRef } from 'react';
 import type {
@@ -6,6 +6,7 @@ import type {
   ClassicDonateInfo,
   ClassicWinInfo,
   LastRoll,
+  PotAwardInfo,
   RollResolutionInfo,
   RoundEndInfo,
   TransferInfo,
@@ -29,11 +30,15 @@ export function useTableScene(
   connected: boolean,
   ws: WsClient,
 ) {
+  const game =
+    snapshot?.settings.kind === 'betalot'
+      ? null
+      : (snapshot?.game as GameStatePublic | null | undefined);
   const roll3d = useTableRoll(snapshot, myId, send, connected);
   const remoteRoll = useRemoteRoll(ws, snapshot, myId);
   const viewerSeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
   const heldPose = useMemo(() => {
-    const input = pickHeldRollInput(lastRoll, snapshot?.game ?? null);
+    const input = pickHeldRollInput(lastRoll, game ?? null);
     if (!input) return null;
     const playerSeat =
       snapshot?.players.find((player) => player.id === input.playerId)?.seat ?? null;
@@ -43,7 +48,7 @@ export function useTableScene(
     );
     const placement = seatDisplayPlacement(occupiedSeats ?? [], viewerSeat, playerSeat);
     return placement ? resolveTableRestPose(input, placement).frame : null;
-  }, [lastRoll, snapshot?.game, snapshot?.players, viewerSeat]);
+  }, [lastRoll, game, snapshot?.players, viewerSeat]);
 
   useEffect(() => {
     if (!lastRollResolution || detectStraight(lastRollResolution.dice) === 'none') return;
@@ -53,7 +58,7 @@ export function useTableScene(
     );
   }, [lastRollResolution]);
 
-  const turn = snapshot?.game?.currentTurn ?? null;
+  const turn = game?.currentTurn ?? null;
   const inGame = snapshot !== null && snapshot.phase !== 'lobby' && snapshot.game !== null;
   const isMyTurn = turn !== null && myId !== null && turn.playerId === myId;
   const localSimShowsLastRoll =
@@ -103,12 +108,14 @@ export function useTableChipEvents(
   roundEnd: RoundEndInfo | null,
   lastClassicDonate: ClassicDonateInfo | null = null,
   lastClassicWin: ClassicWinInfo | null = null,
+  lastPotAward: PotAwardInfo | null = null,
 ) {
   const emittedAnteAtRef = useRef<number | null>(null);
   const emittedAwardAtRef = useRef<number | null>(null);
   const emittedTransferAtRef = useRef<number | null>(null);
   const emittedClassicDonateAtRef = useRef<number | null>(null);
   const emittedClassicWinAtRef = useRef<number | null>(null);
+  const emittedPotAwardAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     const ante = lastAnte;
@@ -186,4 +193,14 @@ export function useTableChipEvents(
       win.receivedAt,
     );
   }, [lastClassicWin]);
+
+  useEffect(() => {
+    const award = lastPotAward;
+    if (!award || award.amount <= 0 || emittedPotAwardAtRef.current === award.receivedAt) return;
+    emittedPotAwardAtRef.current = award.receivedAt;
+    tableEvents.emit(
+      { type: 'pot-to-winner', winnerId: award.winnerId, amount: award.amount },
+      award.receivedAt,
+    );
+  }, [lastPotAward]);
 }

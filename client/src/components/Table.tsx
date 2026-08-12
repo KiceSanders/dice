@@ -1,6 +1,18 @@
-import type { PoseFrame, RoomSnapshot } from '@dice/shared';
+import type {
+  BetALotStatePublic,
+  GameStatePublic,
+  PoseFrame,
+  RoomSettings,
+  RoomSnapshot,
+} from '@dice/shared';
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react';
+import BetALotCalledFace from '../games/betalot/BetALotCalledFace';
+import BetALotFacePicker from '../games/betalot/BetALotFacePicker';
+import BetALotPayoutNotices from '../games/betalot/BetALotPayoutNotices';
+import BetALotRoundHistory from '../games/betalot/BetALotRoundHistory';
+import BetALotScoreOverlay from '../games/betalot/BetALotScoreOverlay';
 import ClassicPotOverlay from '../table3d/ClassicPotOverlay';
+import type { DiceCount } from '../table3d/dice/constants';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
 import type { TableDiceProps } from '../table3d/dice/types';
 import type { OverlayRect } from '../table3d/layout';
@@ -30,6 +42,8 @@ interface Props {
   myId: string | null;
   winnerId?: string | null;
   dice?: TableDiceProps;
+  /** Count for static and streamed remote views when a game uses variable dice. */
+  diceCount?: DiceCount;
   /** Streamed pose feed of another player's throw (ADR 004). */
   remoteFeed?: RemoteRollFeed;
   /** Frozen last hand pose shown until the next throw starts. */
@@ -41,6 +55,8 @@ interface Props {
   parkedKoozieAngle?: number | null;
   /** Crosshair cursor while aiming a throw on the felt. */
   diceAiming?: boolean;
+  /** Live koozie interaction, used to retire Bet-a-lot's prior face call. */
+  koozieInPlay?: boolean;
   /** Pointer entered or left the playing area (viewport). */
   onTablePointer?: (inside: boolean, clientX?: number, clientY?: number) => void;
   /** Stand button rendered in the frame gutter; omit to hide. */
@@ -133,10 +149,12 @@ export default function Table({
   myId,
   winnerId = null,
   dice,
+  diceCount,
   remoteFeed,
   heldPose = null,
   parkedKoozieAngle = null,
   diceAiming = false,
+  koozieInPlay = false,
   onTablePointer,
   stand,
   connection,
@@ -146,6 +164,11 @@ export default function Table({
   const { layout, viewportAspect } = useLayoutRects(frameRef, viewportRef);
   const stacked = useMediaQuery(SEAT_STACK_QUERY);
   const viewportFitStyle = useTableViewportFit(stacked);
+  const isBetALot = snapshot.settings.kind === 'betalot';
+  const betALotGame = isBetALot ? (snapshot.game as BetALotStatePublic | null) : null;
+  const dice5Game = isBetALot ? null : (snapshot.game as GameStatePublic | null);
+  const dice5Settings = isBetALot ? null : (snapshot.settings as RoomSettings);
+  const betALotOnFire = Boolean(betALotGame?.fire.some((entry) => entry.onFire));
 
   return (
     <div
@@ -159,14 +182,16 @@ export default function Table({
         onPointerEnter={(e) => onTablePointer?.(true, e.clientX, e.clientY)}
         onPointerLeave={() => onTablePointer?.(false)}
       >
-        {/* Tie-breaker flames are snapshot state, not a one-shot event, so
-            every viewer — roller, spectator, mid-turn joiner — gets them. */}
+        {/* Flame ring is snapshot state (Dice5 sub-round or Bet-a-lot on-fire),
+            so every viewer — roller, spectator, mid-turn joiner — gets them. */}
         <TableCanvas
           dice={dice}
           remoteFeed={remoteFeed}
           heldPose={heldPose}
           parkedKoozieAngle={parkedKoozieAngle}
-          tieBreaker={Boolean(snapshot.game?.subRound)}
+          tieBreaker={Boolean(dice5Game?.subRound) || betALotOnFire}
+          diceCount={diceCount}
+          remoteBonusMode={!isBetALot}
         />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
@@ -174,20 +199,50 @@ export default function Table({
           flow, so they can never overlap each other or the seat arc below. */}
       <div className="table-top-band">
         <div className="table-top-band-slot table-top-band-slot--pot">
-          {snapshot.game && <PotChipOverlay pot={snapshot.game.pot} />}
+          {betALotGame ? (
+            <div className="classic-pot-overlay betalot-pot-overlay">
+              <PotChipOverlay pot={betALotGame.sevensPot} label="Sevens Pot" />
+              <div className="classic-pot-label">Sevens Pot</div>
+            </div>
+          ) : (
+            dice5Game && <PotChipOverlay pot={dice5Game.pot} />
+          )}
         </div>
         <div className="table-top-band-slot table-top-band-slot--roll">
-          {snapshot.game && <RollToBeatOverlay game={snapshot.game} players={snapshot.players} />}
+          {betALotGame ? (
+            <BetALotScoreOverlay game={betALotGame} players={snapshot.players} />
+          ) : (
+            dice5Game && <RollToBeatOverlay game={dice5Game} players={snapshot.players} />
+          )}
         </div>
         <div className="table-top-band-slot table-top-band-slot--classic">
-          {snapshot.game && (
+          {dice5Game && dice5Settings && (
             <ClassicPotOverlay
-              classicPot={snapshot.game.classicPot}
-              enabled={snapshot.settings.classicPot.enabled}
+              classicPot={dice5Game.classicPot}
+              enabled={dice5Settings.classicPot.enabled}
             />
           )}
         </div>
       </div>
+      {isBetALot && <BetALotPayoutNotices myId={myId} />}
+      {isBetALot && <BetALotRoundHistory snapshot={snapshot} />}
+      {isBetALot && layout && (
+        <>
+          <BetALotFacePicker
+            snapshot={snapshot}
+            myId={myId}
+            frame={layout.frame}
+            viewport={layout.viewport}
+          />
+          <BetALotCalledFace
+            snapshot={snapshot}
+            myId={myId}
+            frame={layout.frame}
+            viewport={layout.viewport}
+            koozieInPlay={koozieInPlay}
+          />
+        </>
+      )}
       {connection && <ConnectionDot status={connection} />}
       {stand && <StandControlView stand={stand} />}
       {stacked ? (

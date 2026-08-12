@@ -4,11 +4,12 @@ import type { ActivityLogEntry } from '../state/store';
 
 export const ACTIVITY_LOG_PAGE_SIZE = 10;
 
+/** Newest-first page of the append-only log (storage stays chronological). */
 export function visibleActivityEntries(
   entries: ActivityLogEntry[],
   visibleCount: number,
 ): ActivityLogEntry[] {
-  return entries.slice(-visibleCount);
+  return entries.slice(-visibleCount).reverse();
 }
 
 function formatTime(ts: number): string {

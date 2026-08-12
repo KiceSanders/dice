@@ -120,3 +120,28 @@ describe('buildRuntime — passive mode (spectator fallback)', () => {
     }
   });
 });
+
+describe('buildRuntime — configurable hand counts', () => {
+  it('centers a one-die hand in its single felt slot', () => {
+    const runtime = buildRuntime([6], [], false, TUNING, false, 1);
+
+    expect(runtime).toHaveLength(1);
+    expect(runtime[0]?.position).toEqual(dieSlotPosition(0, 1));
+    expect(runtime[0]?.position[0]).toBe(0);
+    expect(runtime[0]?.visible).toBe(true);
+  });
+
+  it('centers six hand dice and supports a seventh temporary bonus die', () => {
+    const sixDice = [1, 2, 3, 4, 5, 6] as Die[];
+    const runtime = buildRuntime(sixDice, [], false, TUNING, false, 6);
+    const bonusRuntime = buildRuntime(sixDice, [0, 1, 2, 3, 4, 5], true, TUNING, true, 6);
+
+    expect(runtime).toHaveLength(6);
+    expect(runtime[0]?.position).toEqual(dieSlotPosition(0, 6));
+    expect(runtime[5]?.position).toEqual(dieSlotPosition(5, 6));
+    expect(runtime[0]?.position[0]).toBeCloseTo(-runtime[5]!.position[0], 8);
+    expect(bonusRuntime).toHaveLength(7);
+    expect(bonusRuntime[6]?.inCup).toBe(true);
+    expect(bonusRuntime[6]?.meshVisible).toBe(true);
+  });
+});

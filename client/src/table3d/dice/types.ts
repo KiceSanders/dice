@@ -1,4 +1,5 @@
 import type { Die, PoseFrame } from '@dice/shared';
+import type { DiceCount } from './constants';
 
 /** World-space throw velocity sampled from pointer movement (units/sec). */
 export interface ThrowVelocity {
@@ -9,11 +10,13 @@ export interface ThrowVelocity {
 
 /** Props for 3D dice rolling on the table canvas. */
 export interface TableDiceProps {
+  /** Number of dice in the hand (1–6); defaults to the current five-die game. */
+  diceCount?: DiceCount;
   /**
-   * Yahtzee bonus mode: all five quint dice are force-kept on the rail and a
-   * temporary sixth die rides in the cup (keepIndices carries the forced keep
-   * set; keep toggling is disabled). TableCanvas remounts DicePhysics when
-   * this flips so the runtime rebuilds.
+   * Bonus mode: all hand dice are force-kept on the rail and one temporary
+   * extra die rides in the cup (keepIndices carries the forced keep set; keep
+   * toggling is disabled). TableCanvas remounts DicePhysics when this flips so
+   * the runtime rebuilds.
    */
   bonusMode?: boolean;
   /** Which dice indices are locked (kept) this turn. */

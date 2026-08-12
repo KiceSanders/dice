@@ -578,6 +578,116 @@ code {
   height: 3.1rem;
 }
 
+.betalot-pot-overlay .pot-chip-overlay {
+  height: 3.1rem;
+}
+
+/* Bet-a-lot felt overlays on the .table-3d frame (face picker, called face,
+   payout notices, round-history dots). */
+.betalot-face-picker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.25rem 0.4rem;
+  border: none;
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  border-radius: calc(var(--radius) - 2px);
+  pointer-events: auto;
+}
+
+.betalot-face-picker .die {
+  width: 30px;
+  height: 30px;
+}
+
+.betalot-called-face {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  pointer-events: none;
+  animation: betalot-call-arrive 420ms cubic-bezier(0.2, 0.8, 0.25, 1.2) both;
+}
+
+@keyframes betalot-call-arrive {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.45) rotate(-18deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
+}
+
+.betalot-payout-notice {
+  position: absolute;
+  top: calc(var(--table-top-band-h) + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 0.45rem 0.85rem;
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px solid var(--surface-2);
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.betalot-round-history {
+  position: absolute;
+  top: calc(var(--table-top-band-h) + 0.5rem);
+  right: 0.65rem;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 5.5rem;
+  pointer-events: none;
+  font-size: 0.72rem;
+}
+
+.betalot-round-history-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.betalot-round-history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  justify-items: center;
+}
+
+.betalot-history-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+}
+
+.betalot-history-dot--blue {
+  background: #4a90e2;
+  box-shadow: 0 0 6px rgba(74, 144, 226, 0.6);
+}
+
+.betalot-history-dot--red {
+  background: #e24a4a;
+  box-shadow: 0 0 6px rgba(226, 74, 74, 0.6);
+}
+
+.betalot-history-dot--empty {
+  visibility: hidden;
+}
+
 .chip-flow-overlay {
   position: fixed;
   inset: 0;
@@ -855,6 +965,49 @@ code {
     0 0 18px rgba(242, 180, 65, 0.55);
 }
 
+/* Bet-a-lot on-fire / tie-breaker palette (flameRing.ts). */
+.seat--on-fire {
+  box-shadow:
+    0 0 0 1px #ff7b1c,
+    0 0 14px rgba(255, 123, 28, 0.7),
+    0 0 28px rgba(168, 32, 13, 0.45);
+  animation: seat-fire-pulse 1.2s ease-in-out infinite;
+}
+
+.seat--on-fire .seat-name {
+  text-shadow:
+    0 0 6px rgba(255, 224, 138, 0.9),
+    0 0 12px rgba(255, 123, 28, 0.55);
+}
+
+.seat--on-fire .seat-name::after {
+  content: " 🔥";
+  filter: drop-shadow(0 0 5px rgba(255, 123, 28, 0.85));
+}
+
+@keyframes seat-fire-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px #ff7b1c,
+      0 0 14px rgba(255, 123, 28, 0.75),
+      0 0 28px rgba(168, 32, 13, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px #ffe08a,
+      0 0 18px rgba(255, 123, 28, 0.95),
+      0 0 34px rgba(168, 32, 13, 0.65);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .betalot-called-face,
+  .seat--on-fire {
+    animation: none;
+  }
+}
+
 .seat--offline {
   opacity: 0.5;
 }
@@ -883,6 +1036,12 @@ code {
 
 .badge-host {
   color: var(--accent);
+}
+
+.badge-fire {
+  color: #ffe08a;
+  background: color-mix(in srgb, #a8200d 55%, transparent);
+  border: 1px solid #ff7b1c;
 }
 
 .badge-banned {

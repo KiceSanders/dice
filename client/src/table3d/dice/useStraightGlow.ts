@@ -24,14 +24,14 @@ interface GlowTimeline {
  * Handles are stable across renders — pass `glow[i]` to each die's PipDie.
  * Must be called inside the r3f Canvas (uses useFrame).
  */
-export function useStraightGlow(): {
+export function useStraightGlow(diceCount: number = DICE_COUNT): {
   glow: GlowHandle[];
   start: (dice: Die[]) => void;
   clear: () => void;
 } {
   const glow = useMemo<GlowHandle[]>(
-    () => Array.from({ length: DICE_COUNT }, () => ({ current: 0 })),
-    [],
+    () => Array.from({ length: diceCount }, () => ({ current: 0 })),
+    [diceCount],
   );
   const timelineRef = useRef<GlowTimeline | null>(null);
 

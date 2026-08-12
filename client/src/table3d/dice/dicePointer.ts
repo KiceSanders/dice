@@ -55,6 +55,29 @@ export function blendReleaseVelocity(
   };
 }
 
+/**
+ * Dead drops (no pointer / held velocity) get a small random nudge so one
+ * upright die can't settle deterministically without tumbling.
+ */
+export function nudgeReleaseVelocity(
+  velocity: ThrowVelocity,
+  tuning: DicePhysicsTuning,
+  rng: () => number = Math.random,
+): ThrowVelocity {
+  if (!releaseNeedsNudge(velocity, tuning)) return velocity;
+  const angle = rng() * Math.PI * 2;
+  const mag = tuning.release.nudgeSpeed;
+  return {
+    x: velocity.x + Math.cos(angle) * mag,
+    y: velocity.y + mag * 0.35,
+    z: velocity.z + Math.sin(angle) * mag,
+  };
+}
+
+export function releaseNeedsNudge(velocity: ThrowVelocity, tuning: DicePhysicsTuning): boolean {
+  return Math.hypot(velocity.x, velocity.y, velocity.z) < tuning.release.nudgeMinSpeed;
+}
+
 /** Record a pivot sample on the float plane, clamped to the table ellipse. */
 export function recordPivotSample(
   samples: MoveSample[],

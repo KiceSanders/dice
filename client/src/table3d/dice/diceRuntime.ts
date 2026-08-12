@@ -1,6 +1,6 @@
 import type { Die } from '@dice/shared';
 import * as THREE from 'three';
-import { BONUS_DICE_COUNT, BONUS_DIE_INDEX, DICE_COUNT, dieSlotPosition } from './constants';
+import { DICE_COUNT, type DiceCount, diceRuntimeCount, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
 import { quaternionForFace } from './faceValue';
 import { spawnDiceInCupLocal } from './koozieColliders';
@@ -56,16 +56,17 @@ export function buildRuntime(
   cupMode: boolean,
   tuning: DicePhysicsTuning,
   bonusMode = false,
+  diceCount: DiceCount = DICE_COUNT,
 ): DieRuntime[] {
   if (!cupMode) {
-    return Array.from({ length: DICE_COUNT }, (_, i) => {
+    return Array.from({ length: diceCount }, (_, i) => {
       const value = dice[i];
       if (value === undefined) {
         return {
           visible: false,
           locked: true,
           inCup: false,
-          position: dieSlotPosition(i),
+          position: dieSlotPosition(i, diceCount),
         };
       }
       return {
@@ -73,7 +74,7 @@ export function buildRuntime(
         meshVisible: true,
         locked: true,
         inCup: false,
-        position: dieSlotPosition(i),
+        position: dieSlotPosition(i, diceCount),
         rotation: quatToEuler(quaternionForFace(value)),
       };
     });
@@ -82,9 +83,9 @@ export function buildRuntime(
   // A keep without a committed value is stale/invalid input (most notably the
   // one-render turn-switch lag this module must fail closed against). Never
   // turn it into a visible identity-rotation die on the near rail.
-  const runtimeDiceCount = bonusMode ? BONUS_DICE_COUNT : DICE_COUNT;
+  const runtimeDiceCount = diceRuntimeCount(diceCount, bonusMode);
   const keptSorted = keepIndices
-    .filter((i) => i >= 0 && i < DICE_COUNT && dice[i] !== undefined)
+    .filter((i) => i >= 0 && i < diceCount && dice[i] !== undefined)
     .sort((a, b) => a - b);
   const kept = new Set(keptSorted);
   const unkeptIndices = Array.from({ length: runtimeDiceCount }, (_, i) => i).filter(
@@ -113,7 +114,7 @@ export function buildRuntime(
       visible: true,
       // Full hands are visible on a mid-turn remount; empty first-roll hands
       // remain physical but hidden. Partial malformed hands also fail closed.
-      meshVisible: dice[i] !== undefined || (bonusMode && i === BONUS_DIE_INDEX),
+      meshVisible: dice[i] !== undefined || (bonusMode && i === diceCount),
       locked: false,
       inCup: true,
       position: cupLocalToWorld(local.position, home.position, home.quaternion),

@@ -5,7 +5,7 @@ The phased progress log lives in [PLAN.md](../PLAN.md).
 
 | Doc | Purpose |
 |-----|---------|
-| [GAME_RULES.md](./GAME_RULES.md) | Canonical game rules (source of truth) |
+| [GAME_RULES.md](./GAME_RULES.md) | Game-rules index by room game kind ([Dice5](./games/dice5-rules.md), [Bet-a-lot](./games/betalot-rules.md)) |
 | [PROTOCOL.md](./PROTOCOL.md) | WebSocket contract + the three event vocabularies |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Workspaces, roll data flow, big-file map |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Single-instance production hosting and release checklist |

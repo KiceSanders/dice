@@ -2,7 +2,7 @@ import type { BodyPose, PoseFrame } from '@dice/shared';
 import { type ReactNode, useMemo } from 'react';
 import * as THREE from 'three';
 import { useTableEvent } from '../tableEvents';
-import { DICE_COUNT } from './constants';
+import { DICE_COUNT, type DiceCount } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
 import { STRAIGHT_GLOW } from './straightGlow';
@@ -26,10 +26,16 @@ function StaticBody({ pose, children }: { pose: BodyPose; children: ReactNode })
 }
 
 /** Frozen table pose used between turns and before the delayed winner reveal. */
-export default function StaticDiceView({ frame }: { frame: PoseFrame }) {
+export default function StaticDiceView({
+  frame,
+  diceCount = DICE_COUNT,
+}: {
+  frame: PoseFrame;
+  diceCount?: DiceCount;
+}) {
   const tuning = useDicePhysicsTuning();
   const [cupPose, ...dicePoses] = frame.bodies;
-  const { glow, start: startStraightGlow, clear: clearStraightGlow } = useStraightGlow();
+  const { glow, start: startStraightGlow, clear: clearStraightGlow } = useStraightGlow(diceCount);
 
   // Same celebration bus as DicePhysics / RemoteDiceView (three-renderer rule).
   useTableEvent(
@@ -48,7 +54,7 @@ export default function StaticDiceView({ frame }: { frame: PoseFrame }) {
           <KoozieMesh cup={tuning.cup} />
         </StaticBody>
       ) : null}
-      {Array.from({ length: DICE_COUNT }, (_, i) => {
+      {Array.from({ length: diceCount }, (_, i) => {
         const pose = dicePoses[i];
         if (!pose) return null;
         return (

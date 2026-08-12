@@ -1,4 +1,4 @@
-import type { RoomSnapshot, TurnState } from '@dice/shared';
+import type { GameStatePublic, RoomSnapshot, TurnState } from '@dice/shared';
 import { HAND_SIZE } from '@dice/shared';
 import GameHud from './GameHud';
 
@@ -36,7 +36,7 @@ export default function GameArea({
   mouseThrow = false,
   pendingKeep: pendingKeepProp = [],
 }: Props) {
-  const game = snapshot.game;
+  const game = snapshot.game as GameStatePublic | null;
   if (!game) return null;
 
   const turn = game.currentTurn ?? null;

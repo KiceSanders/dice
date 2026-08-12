@@ -49,10 +49,11 @@ type ActiveFlight = CoinFlight | AwardFlight;
 
 interface Props {
   pot: number;
+  label?: string;
 }
 
 /** Exact, text-free chip pyramid in the reserved top-band pot lane. */
-export default function PotChipOverlay({ pot }: Props) {
+export default function PotChipOverlay({ pot, label = 'Pot' }: Props) {
   const potCanvasRef = useRef<HTMLCanvasElement>(null);
   const flowCanvasRef = useRef<HTMLCanvasElement>(null);
   const flightsRef = useRef<ActiveFlight[]>([]);
@@ -273,7 +274,7 @@ export default function PotChipOverlay({ pot }: Props) {
         ref={potCanvasRef}
         className="pot-chip-overlay"
         role="img"
-        aria-label={`Pot: ${pot} chip${pot === 1 ? '' : 's'}`}
+        aria-label={`${label}: ${pot} chip${pot === 1 ? '' : 's'}`}
       />
       {/* Flight canvas draws in viewport coordinates; the top band's transform would
           re-root position:fixed onto the band, so it must portal out to <body>. */}

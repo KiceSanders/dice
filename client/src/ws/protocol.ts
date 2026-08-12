@@ -71,6 +71,43 @@ const validators: Record<ServerMessage['type'], Validator> = {
     isNonEmptyString(m.playerId) && Array.isArray(m.frames) ? null : 'dice:frames missing fields',
   'turn:forfeited': (m) =>
     isNonEmptyString(m.playerId) ? null : 'turn:forfeited missing playerId',
+  'betalot:throwStarted': (m) =>
+    isNonEmptyString(m.playerId) &&
+    isFiniteNumber(m.diceCount) &&
+    isFiniteNumber(m.rung) &&
+    typeof m.extra === 'boolean'
+      ? null
+      : 'betalot:throwStarted missing fields',
+  'betalot:rolled': (m) =>
+    isNonEmptyString(m.playerId) &&
+    Array.isArray(m.dice) &&
+    isFiniteNumber(m.score) &&
+    isFiniteNumber(m.rung) &&
+    (m.restPose === null || Array.isArray(m.restPose))
+      ? null
+      : 'betalot:rolled missing fields',
+  'betalot:extraRolled': (m) =>
+    isNonEmptyString(m.playerId) &&
+    isFiniteNumber(m.die) &&
+    isFiniteNumber(m.target) &&
+    typeof m.matched === 'boolean' &&
+    isFiniteNumber(m.sourceDiceCount) &&
+    (m.restPose === null || Array.isArray(m.restPose))
+      ? null
+      : 'betalot:extraRolled missing fields',
+  'betalot:paid': (m) =>
+    isNonEmptyString(m.fromPlayerId) &&
+    (m.toPlayerId === null || isNonEmptyString(m.toPlayerId)) &&
+    isFiniteNumber(m.amount) &&
+    isNonEmptyString(m.reason) &&
+    isFiniteNumber(m.sevensPot)
+      ? null
+      : 'betalot:paid missing fields',
+  'betalot:roundEnded': (m) =>
+    isNonEmptyString(m.winnerId) && isNonEmptyString(m.loserId) && isFiniteNumber(m.amount)
+      ? null
+      : 'betalot:roundEnded missing fields',
+  'betalot:fireChanged': (m) => (Array.isArray(m.fire) ? null : 'betalot:fireChanged missing fire'),
   'round:started': (m) =>
     isFiniteNumber(m.roundNumber) && Array.isArray(m.antes) ? null : 'round:started missing fields',
   'stakes:raised': (m) =>

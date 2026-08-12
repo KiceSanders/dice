@@ -1,5 +1,6 @@
 import type { RoomSettings, RoomSnapshot } from '@dice/shared';
 import { useEffect, useState } from 'react';
+import BetALotSettingsPanel from '../games/betalot/BetALotSettingsPanel';
 import { useApp } from '../state/context';
 import SettingsFields, { fillEmptySettings } from './SettingsFields';
 
@@ -14,16 +15,24 @@ export default function SettingsPanel({
   snapshot: RoomSnapshot;
   isHost: boolean;
 }) {
+  if (snapshot.settings.kind === 'betalot') {
+    return <BetALotSettingsPanel snapshot={snapshot} isHost={isHost} />;
+  }
+  return <Dice5SettingsPanel snapshot={snapshot} isHost={isHost} />;
+}
+
+function Dice5SettingsPanel({ snapshot, isHost }: { snapshot: RoomSnapshot; isHost: boolean }) {
   const { send, state } = useApp();
   const connected = state.connection === 'open';
   const canEdit = isHost;
-  const [draft, setDraft] = useState<RoomSettings>(snapshot.settings);
+  const dice5Settings = snapshot.settings as RoomSettings;
+  const [draft, setDraft] = useState<RoomSettings>(dice5Settings);
   const [dirty, setDirty] = useState(false);
 
   // Re-sync the draft whenever the authoritative settings change underneath us.
   useEffect(() => {
-    if (!dirty) setDraft(snapshot.settings);
-  }, [snapshot.settings, dirty]);
+    if (!dirty) setDraft(dice5Settings);
+  }, [dice5Settings, dirty]);
 
   function onChange(next: RoomSettings) {
     setDraft(next);
@@ -43,7 +52,7 @@ export default function SettingsPanel({
         {!canEdit && <span className="muted"> (read-only)</span>}
       </summary>
       <SettingsFields
-        value={canEdit ? draft : snapshot.settings}
+        value={canEdit ? draft : dice5Settings}
         onChange={canEdit ? onChange : undefined}
         disabled={!canEdit}
       />
@@ -57,7 +66,7 @@ export default function SettingsPanel({
               type="button"
               className="secondary"
               onClick={() => {
-                setDraft(snapshot.settings);
+                setDraft(dice5Settings);
                 setDirty(false);
               }}
             >

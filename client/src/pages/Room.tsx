@@ -14,6 +14,7 @@ import SpecialSoundSettings from '../components/SpecialSoundSettings';
 import Table from '../components/Table';
 import Toasts from '../components/Toasts';
 import { useTableChipEvents, useTableScene } from '../game/useTableScene';
+import { useBetALotTableRoll } from '../games/betalot/useBetALotTableRoll';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import TableAudio from '../table3d/audio/TableAudio';
@@ -32,8 +33,10 @@ export default function Room() {
   const snapshot = state.snapshot;
   useSpecialSoundRoom(ws, roomId, state.me?.playerId ?? null, connected, send);
   const canContinueRound =
-    snapshot?.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
-    false;
+    snapshot?.phase === 'roundEnd' &&
+    snapshot.settings.kind !== 'betalot' &&
+    (snapshot.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
+      false);
   const dismissRoundEnd = useCallback(() => {
     if (canContinueRound) send({ type: 'round:continue' });
     dispatch({ type: 'dismiss-round-end' });
@@ -48,13 +51,33 @@ export default function Room() {
     connected,
     ws,
   );
+  const betALotRoll = useBetALotTableRoll(
+    state.snapshot,
+    state.me?.playerId ?? null,
+    send,
+    connected,
+  );
   useTableChipEvents(
     state.lastAnte,
     state.lastTransfer,
     state.roundEnd,
     state.lastClassicDonate,
     state.lastClassicWin,
+    state.lastPotAward,
   );
+
+  // Bet-a-lot has no round-end modal: once sequential payout notices finish,
+  // seated clients advance the room (server also has a fallback timer).
+  useEffect(() => {
+    if (snapshot?.settings.kind !== 'betalot') return;
+    if (snapshot.phase !== 'roundEnd') return;
+    if (state.betALotPayoutQueue.length > 0) return;
+    const seated =
+      snapshot.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
+      false;
+    if (!seated || !connected) return;
+    send({ type: 'round:continue' });
+  }, [snapshot, state.betALotPayoutQueue.length, state.me?.playerId, connected, send]);
 
   useEffect(() => {
     document.title = roomId ? `Room ${roomId} — Dice` : 'Dice';
@@ -143,6 +166,12 @@ export default function Room() {
   const spectators = snapshot.players.filter((p) => p.seat === null);
   const myRequest = snapshot.seatRequests.find((r) => r.playerId === myId) ?? null;
   const inviteUrl = `${window.location.origin}/room/${snapshot.roomId}`;
+  const isBetALot = snapshot.settings.kind === 'betalot';
+  const betALotWinnerId =
+    isBetALot && snapshot.phase === 'roundEnd'
+      ? ((snapshot.game as import('@dice/shared').BetALotStatePublic | null)?.roundHistory[0]
+          ?.winnerId ?? null)
+      : null;
 
   async function copyInvite() {
     try {
@@ -161,7 +190,7 @@ export default function Room() {
       <ChatPanel />
       <TableAudio />
 
-      {state.roundEnd && (
+      {state.roundEnd && snapshot.settings.kind !== 'betalot' && (
         <RoundEndModal
           roundEnd={state.roundEnd}
           players={snapshot.players}
@@ -173,17 +202,42 @@ export default function Room() {
         connection={state.connection}
         snapshot={snapshot}
         myId={myId}
-        winnerId={state.roundEnd?.winnerId ?? null}
-        dice={roll3d.tableDice}
+        winnerId={state.roundEnd?.winnerId ?? betALotWinnerId}
+        dice={isBetALot ? betALotRoll.tableDice : roll3d.tableDice}
+        diceCount={
+          isBetALot
+            ? betALotRoll.showHeldPose && !remoteRoll.live
+              ? betALotRoll.heldDiceCount
+              : (((snapshot.game as import('@dice/shared').BetALotStatePublic | null)
+                  ?.currentDiceCount ?? 1) as 1 | 2 | 3 | 4 | 5 | 6)
+            : undefined
+        }
         remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
-        heldPose={showHeldPose ? heldPose : null}
-        parkedKoozieAngle={turn?.throwing || remoteRoll.cupInPlay ? null : roll3d.parkedKoozieAngle}
-        diceAiming={roll3d.diceAiming}
-        onTablePointer={roll3d.onTablePointer}
-        stand={standControl}
+        heldPose={
+          isBetALot
+            ? betALotRoll.showHeldPose && !remoteRoll.live
+              ? betALotRoll.heldPose
+              : null
+            : showHeldPose
+              ? heldPose
+              : null
+        }
+        parkedKoozieAngle={
+          isBetALot
+            ? remoteRoll.cupInPlay
+              ? null
+              : betALotRoll.parkedKoozieAngle
+            : turn?.throwing || remoteRoll.cupInPlay
+              ? null
+              : roll3d.parkedKoozieAngle
+        }
+        diceAiming={isBetALot ? betALotRoll.diceAiming : roll3d.diceAiming}
+        koozieInPlay={isBetALot && (betALotRoll.dragging || betALotRoll.rolling || remoteRoll.live)}
+        onTablePointer={isBetALot ? betALotRoll.onTablePointer : roll3d.onTablePointer}
+        stand={isBetALot ? undefined : standControl}
       />
 
-      {inGame && (
+      {snapshot.settings.kind !== 'betalot' && inGame && (
         <GameArea
           snapshot={snapshot}
           myId={myId}
@@ -200,13 +254,21 @@ export default function Room() {
               <button
                 type="button"
                 className="start-button"
-                disabled={seatedCount < 2 || !connected}
+                disabled={
+                  seatedCount < 2 ||
+                  (snapshot.settings.kind === 'betalot' && seatedCount !== 2) ||
+                  !connected
+                }
                 onClick={() => send({ type: 'game:start' })}
               >
                 Start game
               </button>
-              {seatedCount < 2 && (
-                <small className="muted">Need at least 2 seated players to start.</small>
+              {(seatedCount < 2 || (snapshot.settings.kind === 'betalot' && seatedCount !== 2)) && (
+                <small className="muted">
+                  {snapshot.settings.kind === 'betalot'
+                    ? 'Bet-a-lot requires exactly 2 seated players.'
+                    : 'Need at least 2 seated players to start.'}
+                </small>
               )}
             </div>
           ) : (

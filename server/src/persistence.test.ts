@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { ServerMessage } from '@dice/shared';
-import { DEFAULT_SETTINGS } from '@dice/shared';
+import type { RoomSettings, ServerMessage } from '@dice/shared';
+import { DEFAULT_BETALOT_SETTINGS, DEFAULT_SETTINGS } from '@dice/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { restPoseFor, roll } from './engine.testkit.js';
 import { RoomLogStore, recoverRooms } from './persistence.js';
@@ -270,6 +270,118 @@ describe('persistence & crash recovery (Phase 6)', () => {
     await store2.flush();
   });
 
+  it('recovers Bet-a-lot at the exact ladder rung and can keep playing', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create({ ...DEFAULT_BETALOT_SETTINGS, afterRollDelayMs: 0 });
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const guest = seatPlayer(room, 'Guest', 100);
+    expect(room.startGame(host.id)).toBeNull();
+
+    const engine = room.betALotEngine!;
+    expect(engine.call(host.id, 6)).toBeNull();
+    expect(engine.beginThrow(host.id)).toBeNull();
+    expect(engine.commitThrow(host.id, [2])).toBeNull();
+    expect(engine.beginThrow(guest.id)).toBeNull();
+    expect(engine.commitThrow(guest.id, [2, 2])).toBeNull();
+    expect(engine.publicState()).toMatchObject({
+      currentPlayerId: host.id,
+      currentDiceCount: 3,
+    });
+    await store.flush();
+
+    room.destroy();
+    const store2 = new RoomLogStore(dir);
+    const manager2 = new RoomManager(undefined, undefined, store2);
+    expect(await recoverRooms(store2, manager2)).toBe(1);
+    const recovered = manager2.get(room.id)!;
+    expect(recovered.betALotEngine?.publicState()).toMatchObject({
+      currentPlayerId: host.id,
+      currentDiceCount: 3,
+      resolving: false,
+    });
+    expect(recovered.betALotEngine?.beginThrow(host.id)).toBeNull();
+    expect(recovered.betALotEngine?.commitThrow(host.id, [1, 2, 3])).toBeNull();
+    expect(recovered.betALotEngine?.publicState().currentPlayerId).toBe(guest.id);
+
+    manager.stop();
+    manager2.stop();
+    await store2.flush();
+  });
+
+  it('resolves a Bet-a-lot roll recovered from its reveal window exactly once', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create({ ...DEFAULT_BETALOT_SETTINGS, afterRollDelayMs: 10_000 });
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const guest = seatPlayer(room, 'Guest', 100);
+    expect(room.startGame(host.id)).toBeNull();
+
+    expect(room.betALotEngine?.call(host.id, 6)).toBeNull();
+    expect(room.betALotEngine?.beginThrow(host.id)).toBeNull();
+    expect(room.betALotEngine?.commitThrow(host.id, [2])).toBeNull();
+    expect(room.betALotEngine?.publicState().resolving).toBe(true);
+    await store.flush();
+
+    room.destroy();
+    const store2 = new RoomLogStore(dir);
+    const manager2 = new RoomManager(undefined, undefined, store2);
+    expect(await recoverRooms(store2, manager2)).toBe(1);
+    const recovered = manager2.get(room.id)!;
+    expect(recovered.betALotEngine?.publicState()).toMatchObject({
+      currentPlayerId: guest.id,
+      currentDiceCount: 2,
+      resolving: false,
+    });
+    expect(recovered.players.get(host.id)?.chips).toBe(100);
+    expect(recovered.players.get(guest.id)?.chips).toBe(100);
+
+    manager.stop();
+    manager2.stop();
+    await store2.flush();
+  });
+
+  it('keeps the room in round end when Bet-a-lot recovery resolves a losing roll', async () => {
+    const store = new RoomLogStore(dir);
+    const manager = new RoomManager(undefined, undefined, store);
+    const room = manager.create({ ...DEFAULT_BETALOT_SETTINGS, afterRollDelayMs: 0 });
+    const host = room.addPlayer('Host', new FakeLink(), { host: true });
+    expect(room.requestSeat(host.id, 100)).toBeNull();
+    const guest = seatPlayer(room, 'Guest', 100);
+    expect(room.startGame(host.id)).toBeNull();
+
+    expect(room.betALotEngine?.call(host.id, 6)).toBeNull();
+    expect(room.betALotEngine?.beginThrow(host.id)).toBeNull();
+    expect(room.betALotEngine?.commitThrow(host.id, [3])).toBeNull();
+    expect(
+      room.updateSettings({ ...DEFAULT_BETALOT_SETTINGS, afterRollDelayMs: 10_000 }),
+    ).toBeNull();
+    expect(room.betALotEngine?.beginThrow(guest.id)).toBeNull();
+    expect(room.betALotEngine?.commitThrow(guest.id, [1, 2])).toBeNull();
+    expect(room.phase).toBe('playing');
+    expect(room.betALotEngine?.publicState().resolving).toBe(true);
+    await store.flush();
+
+    room.destroy();
+    const store2 = new RoomLogStore(dir);
+    const manager2 = new RoomManager(undefined, undefined, store2);
+    expect(await recoverRooms(store2, manager2)).toBe(1);
+    const recovered = manager2.get(room.id)!;
+    expect(recovered.phase).toBe('roundEnd');
+    expect(recovered.betALotEngine?.phase).toBe('roundEnd');
+    expect(recovered.betALotEngine?.publicState().roundHistory).toEqual([
+      { roundNumber: 1, winnerId: host.id },
+    ]);
+    expect(recovered.players.get(host.id)?.chips).toBe(105);
+    expect(recovered.players.get(guest.id)?.chips).toBe(95);
+
+    manager.stop();
+    manager2.stop();
+    await store2.flush();
+  });
+
   it('a crash between quint and bonus die recovers with the bonus still pending', async () => {
     const store = new RoomLogStore(dir);
     const manager = new RoomManager(undefined, undefined, store);
@@ -355,7 +467,7 @@ describe('persistence & crash recovery (Phase 6)', () => {
     expect(await recoverRooms(new RoomLogStore(dir), manager2)).toBe(1);
     const room2 = manager2.get(room.id)!;
     expect(room2.hostId).toBe(host.id);
-    expect(room2.settings.chipsPerRound).toBe(5);
+    expect((room2.settings as RoomSettings).chipsPerRound).toBe(5);
     const kicked = room2.players.get(p1.id)!;
     expect(kicked.seat).toBeNull();
     expect(kicked.banned).toBe(true);

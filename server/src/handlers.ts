@@ -208,8 +208,12 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       // Ephemeral pose relay (ADR 004). Invalid senders are dropped silently:
       // frames straddle turn boundaries, and erroring at stream rate would flood.
       const room = conn.roomId ? rooms.get(conn.roomId) : undefined;
-      if (!room || !conn.playerId || !room.engine) return;
-      if (room.engine.currentTurnPlayerId !== conn.playerId) return;
+      if (!room || !conn.playerId || (!room.engine && !room.betALotEngine)) return;
+      if (
+        room.engine?.currentTurnPlayerId !== conn.playerId &&
+        room.betALotEngine?.currentTurnPlayerId !== conn.playerId
+      )
+        return;
       if (!withinFrameBudget(conn)) return;
       room.broadcastExcept(conn.playerId, {
         type: 'dice:frames',
@@ -227,6 +231,61 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       }
       const error = c.room.engine.standVoluntarily(c.playerId, msg.restPose);
       if (error) conn.sendError(error.code, error.message);
+    },
+
+    'betalot:call': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.betALotEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a Bet-a-lot room');
+        return;
+      }
+      const issue = c.room.betALotEngine.call(c.playerId, msg.face);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+
+    'betalot:throwStart': (conn) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.betALotEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a Bet-a-lot room');
+        return;
+      }
+      const issue = c.room.betALotEngine.beginThrow(c.playerId);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+
+    'betalot:throwResult': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.betALotEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a Bet-a-lot room');
+        return;
+      }
+      const issue = c.room.betALotEngine.commitThrow(c.playerId, msg.dice, msg.restPose);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+
+    'betalot:extraThrowStart': (conn) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.betALotEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a Bet-a-lot room');
+        return;
+      }
+      const issue = c.room.betALotEngine.beginExtraThrow(c.playerId);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+
+    'betalot:extraThrowResult': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.betALotEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a Bet-a-lot room');
+        return;
+      }
+      const issue = c.room.betALotEngine.commitExtraThrow(c.playerId, msg.die, msg.restPose);
+      if (issue) conn.sendError(issue.code, issue.message);
     },
 
     'special-sound:update': (conn, msg) => {

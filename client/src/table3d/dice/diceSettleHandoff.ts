@@ -1,5 +1,5 @@
 import type { Die } from '@dice/shared';
-import { DICE_COUNT, dieSlotPosition } from './constants';
+import { DICE_COUNT, type DiceCount, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
 import { type DieRuntime, quatToEuler } from './diceRuntime';
 import { quaternionForFace } from './faceValue';
@@ -20,17 +20,18 @@ export function buildSelectingRuntime(
   livePoses: (DiePose | null)[],
   committedDice: Die[],
   previousFeltPoses: (DiePose | null)[] = [],
+  diceCount: DiceCount = DICE_COUNT,
 ): { runtime: DieRuntime[]; feltPoses: (DiePose | null)[] } {
   const keptSorted = [...kept].sort((a, b) => a - b);
-  const nextFelt: (DiePose | null)[] = Array(DICE_COUNT).fill(null);
-  const runtime: DieRuntime[] = Array.from({ length: DICE_COUNT }, (_, i) => ({
+  const nextFelt: (DiePose | null)[] = Array(diceCount).fill(null);
+  const runtime: DieRuntime[] = Array.from({ length: diceCount }, (_, i) => ({
     visible: false,
     locked: true,
     inCup: false,
-    position: dieSlotPosition(i),
+    position: dieSlotPosition(i, diceCount),
   }));
 
-  for (let i = 0; i < DICE_COUNT; i++) {
+  for (let i = 0; i < diceCount; i++) {
     const value = values[i] ?? committedDice[i];
     if (value === undefined && !kept.includes(i)) continue;
 
@@ -48,7 +49,7 @@ export function buildSelectingRuntime(
     }
 
     const pose: DiePose = livePoses[i] ?? {
-      position: dieSlotPosition(i),
+      position: dieSlotPosition(i, diceCount),
       rotation: [0, 0, 0],
     };
     nextFelt[i] = pose;

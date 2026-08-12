@@ -3,12 +3,13 @@ import type {
   BodyPose,
   Die,
   ErrorCode,
+  GameStatePublic,
   HandScore,
   PlayerId,
   RoomSnapshot,
   ServerMessage,
 } from '@dice/shared';
-import { assertUnreachable, effectiveStakeAmount } from '@dice/shared';
+import { assertUnreachable, effectiveStakeAmount, isBetALotState } from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
 export const CHAT_BUFFER_SIZE = 200;
@@ -62,9 +63,26 @@ export interface RoundEndInfo {
   receivedAt: number;
 }
 
+/** One Bet-a-lot chip transfer awaiting sequential presentation. */
+export interface BetALotPayoutNotice {
+  id: number;
+  fromPlayerId: PlayerId;
+  toPlayerId: PlayerId | null;
+  amount: number;
+  reason: Extract<ServerMessage, { type: 'betalot:paid' }>['reason'];
+  sevensPot: number;
+  receivedAt: number;
+}
+
+/** Chosen opening face shown beside the opener until the next roller grabs the cup. */
+export interface BetALotCallDisplay {
+  playerId: PlayerId;
+  face: Die;
+}
+
 /** Last live ante announcement; snapshots alone do not preserve who paid what. */
 export interface AnteInfo {
-  kind: 'round' | 'subround';
+  kind: 'round' | 'subround' | 'side-pot';
   roundNumber?: number;
   depth?: number;
   contributions: { playerId: PlayerId; amount: number }[];
@@ -102,6 +120,13 @@ export interface ClassicWinInfo {
   receivedAt: number;
 }
 
+/** Last persistent-pot award; drives pot → seat chip flight outside round end. */
+export interface PotAwardInfo {
+  winnerId: PlayerId;
+  amount: number;
+  receivedAt: number;
+}
+
 export interface AppState {
   connection: ConnectionStatus;
   /** Null until the first room-directory response arrives. */
@@ -117,7 +142,11 @@ export interface AppState {
   lastTransfer: TransferInfo | null;
   lastClassicDonate: ClassicDonateInfo | null;
   lastClassicWin: ClassicWinInfo | null;
+  lastPotAward: PotAwardInfo | null;
   roundEnd: RoundEndInfo | null;
+  /** Ordered Bet-a-lot payouts awaiting sequential notice + chip flight. */
+  betALotPayoutQueue: BetALotPayoutNotice[];
+  betALotCallDisplay: BetALotCallDisplay | null;
   toasts: Toast[];
   /** Set when joining failed terminally (e.g. unknown room). */
   joinError: { code: ErrorCode; message: string } | null;
@@ -137,7 +166,10 @@ export const initialState: AppState = {
   lastTransfer: null,
   lastClassicDonate: null,
   lastClassicWin: null,
+  lastPotAward: null,
   roundEnd: null,
+  betALotPayoutQueue: [],
+  betALotCallDisplay: null,
   toasts: [],
   joinError: null,
 };
@@ -148,9 +180,11 @@ export type AppAction =
   | { type: 'join-error'; code: ErrorCode; message: string }
   | { type: 'dismiss-toast'; id: number }
   | { type: 'dismiss-round-end' }
+  | { type: 'betalot-payout-advance' }
   | { type: 'leave-room' };
 
 let nextToastId = 1;
+let nextBetALotPayoutId = 1;
 
 function pushToast(toasts: Toast[], kind: Toast['kind'], text: string): Toast[] {
   return [...toasts, { id: nextToastId++, kind, text }].slice(-MAX_TOASTS);
@@ -177,6 +211,16 @@ function playerName(state: AppState, id: PlayerId): string {
   return state.snapshot?.players.find((p) => p.id === id)?.name ?? 'Someone';
 }
 
+function dice5Game(state: AppState): GameStatePublic | null {
+  if (state.snapshot?.settings.kind === 'betalot') return null;
+  return (state.snapshot?.game as GameStatePublic | null) ?? null;
+}
+
+function callDisplayFromSnapshot(snapshot: RoomSnapshot): BetALotCallDisplay | null {
+  if (!isBetALotState(snapshot.game) || snapshot.game.pendingCall === null) return null;
+  return { playerId: snapshot.game.openerId, face: snapshot.game.pendingCall };
+}
+
 export function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'connection-status':
@@ -190,6 +234,12 @@ export function reducer(state: AppState, action: AppAction): AppState {
 
     case 'dismiss-round-end':
       return { ...state, roundEnd: null };
+
+    case 'betalot-payout-advance':
+      return {
+        ...state,
+        betALotPayoutQueue: state.betALotPayoutQueue.slice(1),
+      };
 
     case 'leave-room':
       return {
@@ -233,6 +283,10 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         lastTransfer: null,
         lastClassicDonate: null,
         lastClassicWin: null,
+        lastPotAward: null,
+        roundEnd: null,
+        betALotPayoutQueue: [],
+        betALotCallDisplay: callDisplayFromSnapshot(msg.snapshot),
         joinError: null,
       };
 
@@ -268,9 +322,21 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           }
         }
       }
+      const prevCall = prev && isBetALotState(prev.game) ? prev.game.pendingCall : null;
+      const nextCall = callDisplayFromSnapshot(next);
+      let betALotCallDisplay = state.betALotCallDisplay;
+      if (next.settings.kind !== 'betalot') {
+        betALotCallDisplay = null;
+      } else if (nextCall && nextCall.face !== (prevCall ?? null)) {
+        // Fresh call (or late join while a call is pending).
+        betALotCallDisplay = nextCall;
+      } else if (nextCall && !betALotCallDisplay) {
+        betALotCallDisplay = nextCall;
+      }
       return {
         ...state,
         snapshot: next,
+        betALotCallDisplay,
         toasts,
         activityLog: pushActivityLog(state.activityLog, activityLines),
       };
@@ -354,7 +420,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           kind: 'round',
           roundNumber: msg.roundNumber,
           contributions: msg.antes,
-          potBefore: state.snapshot?.game?.pot ?? 0,
+          potBefore: dice5Game(state)?.pot ?? 0,
           receivedAt: Date.now(),
         },
       };
@@ -377,7 +443,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           kind: 'subround',
           depth: msg.depth,
           contributions: msg.antes,
-          potBefore: state.snapshot?.game?.pot ?? 0,
+          potBefore: dice5Game(state)?.pot ?? 0,
           receivedAt: Date.now(),
         },
         activityLog: pushActivityLog(state.activityLog, [
@@ -463,7 +529,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'turn:bonusOffered': {
       const snapshot = state.snapshot;
       const amount =
-        snapshot?.game?.roundNumber === undefined
+        snapshot?.settings.kind === 'betalot' || snapshot?.game?.roundNumber === undefined
           ? undefined
           : effectiveStakeAmount(
               snapshot.settings.yahtzeeBonus.amountPerPlayer,
@@ -514,6 +580,65 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
+
+    case 'betalot:throwStarted': {
+      const display = state.betALotCallDisplay;
+      if (display && msg.playerId !== display.playerId) {
+        return { ...state, betALotCallDisplay: null };
+      }
+      return state;
+    }
+
+    case 'betalot:rolled':
+      return {
+        ...state,
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(
+            `${playerName(state, msg.playerId)} rolled ${msg.score} on ${msg.rung} dice`,
+          ),
+        ]),
+      };
+
+    case 'betalot:extraRolled':
+      return {
+        ...state,
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(
+            `${playerName(state, msg.playerId)}'s extra die ${msg.matched ? 'matched' : 'missed'} ${msg.target}`,
+          ),
+        ]),
+      };
+
+    case 'betalot:paid':
+      return {
+        ...state,
+        betALotPayoutQueue: [
+          ...state.betALotPayoutQueue,
+          {
+            id: nextBetALotPayoutId++,
+            fromPlayerId: msg.fromPlayerId,
+            toPlayerId: msg.toPlayerId,
+            amount: msg.amount,
+            reason: msg.reason,
+            sevensPot: msg.sevensPot,
+            receivedAt: Date.now(),
+          },
+        ],
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(`${msg.reason}: ${msg.amount} chip${msg.amount === 1 ? '' : 's'}`),
+        ]),
+      };
+
+    case 'betalot:roundEnded':
+      return {
+        ...state,
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(`${playerName(state, msg.winnerId)} wins the ladder`),
+        ]),
+      };
+
+    case 'betalot:fireChanged':
+      return state;
 
     default: {
       // Compile error here = a new ServerMessage is missing a case above.

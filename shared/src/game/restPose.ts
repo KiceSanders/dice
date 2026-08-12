@@ -10,7 +10,6 @@
  */
 
 import type { BodyPose, Die } from '../types.js';
-import { HAND_SIZE } from './dice.js';
 
 export type Quat = [qx: number, qy: number, qz: number, qw: number];
 
@@ -94,13 +93,13 @@ const QUAT_NORM_TOLERANCE = 1e-2;
  * a bad pose but never reject the throw — dice values stay authoritative.
  */
 export function validateRestPose(restPose: BodyPose[], dice: Die[]): string | null {
-  if (restPose.length !== HAND_SIZE) {
-    return `expected ${HAND_SIZE} poses, got ${restPose.length}`;
+  if (dice.length < 1 || dice.length > 6) {
+    return `expected 1-6 dice, got ${dice.length}`;
   }
-  if (dice.length !== HAND_SIZE) {
-    return `expected ${HAND_SIZE} dice, got ${dice.length}`;
+  if (restPose.length !== dice.length) {
+    return `expected ${dice.length} poses, got ${restPose.length}`;
   }
-  for (let i = 0; i < HAND_SIZE; i++) {
+  for (let i = 0; i < dice.length; i++) {
     const pose = restPose[i];
     if (pose === undefined) return `die ${i}: missing pose`;
     if (pose.length !== 7 || !pose.every((n) => Number.isFinite(n))) {

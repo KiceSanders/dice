@@ -21,6 +21,8 @@ interface Props {
   isMe: boolean;
   /** This player just won the round (round-end highlight). */
   isWinner?: boolean;
+  /** Bet-a-lot on-fire streak (name-plate flame ring). */
+  isOnFire?: boolean;
   /** Background tint signal during play. */
   status?: SeatStatus | null;
 }
@@ -71,7 +73,14 @@ function ChipIcon() {
  * One row — name · chips — with the in-hand status as the background tint;
  * host actions (kick) live in HostPanel below the table, not on the card.
  */
-export default function Seat({ seatIndex, player, isMe, isWinner = false, status = null }: Props) {
+export default function Seat({
+  seatIndex,
+  player,
+  isMe,
+  isWinner = false,
+  isOnFire = false,
+  status = null,
+}: Props) {
   if (!player) {
     return (
       <div className="seat seat-empty">
@@ -86,6 +95,7 @@ export default function Seat({ seatIndex, player, isMe, isWinner = false, status
     status ? STATUS_CLASSES[status] : '',
     isMe ? 'seat--me' : '',
     isWinner ? 'seat--winner' : '',
+    isOnFire ? 'seat--on-fire' : '',
     player.connected ? '' : 'seat--offline',
   ]
     .filter(Boolean)

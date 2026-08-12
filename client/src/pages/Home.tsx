@@ -1,10 +1,19 @@
-import { DEFAULT_SETTINGS, type RoomSettings } from '@dice/shared';
+import {
+  type BetALotSettings,
+  DEFAULT_BETALOT_SETTINGS,
+  DEFAULT_SETTINGS,
+  type GameKind,
+  type GameSettings,
+  type RoomSettings,
+} from '@dice/shared';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ConnectionStatus from '../components/ConnectionStatus';
 import SettingsFields, { fillEmptySettings } from '../components/SettingsFields';
 import SpecialSoundSettings from '../components/SpecialSoundSettings';
 import Toasts from '../components/Toasts';
+import BetALotSettingsFields from '../games/betalot/BetALotSettingsFields';
+import { CLIENT_GAMES } from '../games/registry';
 import { useApp } from '../state/context';
 import { loadName, saveName } from '../state/persist';
 
@@ -16,6 +25,8 @@ export default function Home() {
   const navigate = useNavigate();
   const [name, setName] = useState(loadName() ?? '');
   const [settings, setSettings] = useState<RoomSettings>(DEFAULT_SETTINGS);
+  const [betALotSettings, setBetALotSettings] = useState<BetALotSettings>(DEFAULT_BETALOT_SETTINGS);
+  const [gameKind, setGameKind] = useState<GameKind>('dice5');
   const [showSettings, setShowSettings] = useState(false);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,8 +50,10 @@ export default function Home() {
     const playerName = name.trim();
     if (!playerName) return;
     saveName(playerName);
-    const next = fillEmptySettings(settings);
-    setSettings(next);
+    const next: GameSettings =
+      gameKind === 'dice5' ? fillEmptySettings(settings) : { ...betALotSettings, kind: 'betalot' };
+    if (gameKind === 'dice5') setSettings(next as RoomSettings);
+    else setBetALotSettings(next as BetALotSettings);
     if (send({ type: 'room:create', playerName, settings: next })) setCreating(true);
   }
 
@@ -104,10 +117,38 @@ export default function Home() {
       <div className="home-forms">
         <form className="card" onSubmit={createRoom}>
           <h2>Create a room</h2>
+          <fieldset className="game-kind-picker">
+            <legend>Game type</legend>
+            <label>
+              <input
+                checked={gameKind === 'dice5'}
+                name="game-kind"
+                type="radio"
+                value="dice5"
+                onChange={() => setGameKind('dice5')}
+              />
+              {CLIENT_GAMES.dice5.label} — {CLIENT_GAMES.dice5.blurb}
+            </label>
+            <label>
+              <input
+                checked={gameKind === 'betalot'}
+                name="game-kind"
+                type="radio"
+                value="betalot"
+                onChange={() => setGameKind('betalot')}
+              />
+              {CLIENT_GAMES.betalot.label} — {CLIENT_GAMES.betalot.blurb}
+            </label>
+          </fieldset>
           <button type="button" className="link-button" onClick={() => setShowSettings((v) => !v)}>
             {showSettings ? 'Hide settings' : 'Customize settings'}
           </button>
-          {showSettings && <SettingsFields value={settings} onChange={setSettings} />}
+          {showSettings &&
+            (gameKind === 'dice5' ? (
+              <SettingsFields value={settings} onChange={setSettings} />
+            ) : (
+              <BetALotSettingsFields value={betALotSettings} onChange={setBetALotSettings} />
+            ))}
           <button type="submit" disabled={!name.trim() || state.connection !== 'open' || creating}>
             {creating ? 'Creating…' : 'Create room'}
           </button>

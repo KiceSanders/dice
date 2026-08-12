@@ -63,6 +63,10 @@ export interface DicePhysicsTuning {
     velocityBlend: number;
     speedThreshold: number;
     downBias: number;
+    /** When release speed is below this, add a small random nudge so a dead drop tumbles. */
+    nudgeMinSpeed: number;
+    nudgeSpeed: number;
+    nudgeAngular: number;
   };
   settle: {
     linearVelocity: number;
@@ -149,6 +153,9 @@ export const DEFAULT_DICE_PHYSICS_TUNING: DicePhysicsTuning = {
     velocityBlend: 0.35,
     speedThreshold: 0.22,
     downBias: 0.35,
+    nudgeMinSpeed: 0.08,
+    nudgeSpeed: 0.45,
+    nudgeAngular: 4.5,
   },
   settle: {
     linearVelocity: PHYSICS.settleLinVel,

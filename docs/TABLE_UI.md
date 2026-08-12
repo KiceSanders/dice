@@ -106,6 +106,16 @@ coordinates and is portaled to `<body>`: `.table-top-band` is a transformed ance
 a transform re-roots `position: fixed` descendants onto itself — mounting the canvas
 inside the band squashes it into the band's box and lands chips beside roll-to-beat.
 
+Bet-a-lot deliberately reuses these same table primitives. Its persistent Sevens Pot is a
+`PotChipOverlay` coin pyramid in the pot lane; `betalot:paid` reduces into the existing
+seat-to-pot, pot-to-seat, or seat-to-seat table events. Queued payouts restamp their table event
+when each one-second presentation slot begins; using the original wire timestamp would make later
+chip flights start already complete. The round/current-turn prompt and latest ladder total render
+in the shared roll-to-beat score lane. The six opening-call dice sit at a player-relative inset
+point on the felt, the chosen face parks beside that player's card until the *next* player grabs
+the koozie, and the authoritative last-ten winner strip occupies the right edge. Do not replace
+the pots with a game-specific numeric counter or move Bet-a-lot status below the table.
+
 Outcome-only effects obey the room's after-roll barrier. `turn:rolled` still updates the
 settled/static dice immediately, but it must not emit celebrations. The delayed
 `turn:rollResolved` is reduced to `lastRollResolution`; `useTableScene` emits the `straight`
@@ -342,6 +352,10 @@ Think of the table frame as a clock face:
   `TOP_BAND_MAX_WIDTH_PCT`/`TOP_BAND_CENTER_PCT`/`TOP_BAND_HEIGHT_PX` ↔ `.table-top-band`
   CSS) proves the band clears every seat card. Player-specific UI never goes in the
   band — it belongs at that player's seat.
+  Bet-a-lot substitutes its Sevens Pot coin pyramid and current ladder score in those same
+  first two lanes; round/turn status stays in the score lane rather than in a form under the
+  table. Its face picker is player-specific and therefore uses the seat angle plus
+  `tableInsetPositionAtAngle`, not the shared top band. It does not create a second overlay system.
   **The band is HUD chrome, never an occluder.** The band row (`--table-top-band-h`)
   reserves vertical space above the 16:9 viewport, but it is still playing field: the
   canvas element bleeds up over it (`.table-canvas` top offset) and `FixedCamera`
@@ -375,6 +389,15 @@ seats flow below the canvas; the band overlays the canvas's top edge at every si
 
 ## DicePhysics.tsx — edit with care (and usually, don't)
 
+### Variable dice counts
+
+`TableDiceProps.diceCount` selects an ordinary hand size from 1 through 6; omitted means
+the Dice5 default of 5. The optional bonus mode always adds exactly one temporary die after
+that hand. Count-dependent positions must use the helpers in `dice/constants.ts` /
+`diceLayout.ts`; never reintroduce a hard-coded five-slot loop in a renderer. A new game that
+uses a variable count must pass the same count to `TableCanvas` for remote and static views,
+so all three renderers continue to agree.
+
 It intentionally remains one file: it orchestrates a rapier world where **ordering is
 behavior** (teleport-then-pull on cup grab, capture-phase pointer handling before r3f,
 declarative-only placement of fixed bodies per ADR 003, `liveBody()` guards per ADR 002).
@@ -391,6 +414,12 @@ add unit tests next to them. Geometry constants are also re-exported from
   frame** (`heldMaxLinVel` / `heldMaxAngVel` in tuning) so a laggy kinematic cup
   cannot explode in-cup contacts. This is an energy backstop, not the Chromebook
   performance fix; the earlier timestep/clamp experiment did not help (ADR 002).
+- In-cup spawn (`spawnDiceInCupLocal` / `randomCupDieRotation`) keeps dice
+  **axis-aligned** (random face up + quarter-turn yaw) so packing stays
+  non-overlapping. Never revert to identity/face-1-only or free tumble inside the
+  cup — the former makes dead drops deterministic; the latter ejects dice through
+  the lid. On release, `nudgeReleaseVelocity` (and a small per-die impulse in
+  `DicePhysics`) kicks near-zero throws so a motionless drop still tumbles.
 - Hard CCD must stay off on the local dice and koozie. Chromebook profiling traced
   86–121 ms steps to hard-CCD TOI searches; `SOFT_CCD_PREDICTION` supplies the needed
   predictive contacts while preserving dynamic slosh. Read ADR 002's measured test

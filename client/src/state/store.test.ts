@@ -1,4 +1,4 @@
-import type { Die, RoomSnapshot, ServerMessage } from '@dice/shared';
+import type { Die, RoomSettings, RoomSnapshot, ServerMessage } from '@dice/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type AppState, initialState, reducer } from './store';
 
@@ -218,6 +218,101 @@ describe('instant transfers', () => {
     });
     expect(state.toasts).toHaveLength(0);
   });
+
+  it('queues Bet-a-lot player payments for sequential payout notices', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(7_890);
+    const state = receive({
+      type: 'betalot:paid',
+      fromPlayerId: 'payer',
+      toPlayerId: 'winner',
+      amount: 4,
+      reason: 'loss',
+      sevensPot: 0,
+    });
+    expect(state.betALotPayoutQueue).toEqual([
+      expect.objectContaining({
+        fromPlayerId: 'payer',
+        toPlayerId: 'winner',
+        amount: 4,
+        reason: 'loss',
+        sevensPot: 0,
+        receivedAt: 7_890,
+      }),
+    ]);
+  });
+
+  it('queues Sevens Pot contributions and wins on the payout notice list', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(8_901);
+    const contributed = receive({
+      type: 'betalot:paid',
+      fromPlayerId: 'payer',
+      toPlayerId: null,
+      amount: 2,
+      reason: 'sevenPot',
+      sevensPot: 5,
+    });
+    expect(contributed.betALotPayoutQueue).toEqual([
+      expect.objectContaining({
+        fromPlayerId: 'payer',
+        toPlayerId: null,
+        amount: 2,
+        reason: 'sevenPot',
+        sevensPot: 5,
+        receivedAt: 8_901,
+      }),
+    ]);
+
+    vi.mocked(Date.now).mockReturnValue(8_902);
+    const won = receive(
+      {
+        type: 'betalot:paid',
+        fromPlayerId: 'pot',
+        toPlayerId: 'winner',
+        amount: 5,
+        reason: 'sevensPotWon',
+        sevensPot: 0,
+      },
+      contributed,
+    );
+    expect(won.betALotPayoutQueue).toHaveLength(2);
+    expect(won.betALotPayoutQueue[1]).toEqual(
+      expect.objectContaining({
+        fromPlayerId: 'pot',
+        toPlayerId: 'winner',
+        amount: 5,
+        reason: 'sevensPotWon',
+        sevensPot: 0,
+        receivedAt: 8_902,
+      }),
+    );
+  });
+});
+
+describe('Bet-a-lot round continuation', () => {
+  it('logs the round winner and advances the payout queue', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(9_012);
+    const ended = receive({
+      type: 'betalot:roundEnded',
+      winnerId: 'winner',
+      loserId: 'loser',
+      amount: 5,
+    });
+    expect(ended.activityLog.at(-1)?.text).toContain('wins the ladder');
+
+    const queued = receive(
+      {
+        type: 'betalot:paid',
+        fromPlayerId: 'loser',
+        toPlayerId: 'winner',
+        amount: 5,
+        reason: 'loss',
+        sevensPot: 0,
+      },
+      ended,
+    );
+    expect(queued.betALotPayoutQueue).toHaveLength(1);
+    expect(reducer(queued, { type: 'betalot-payout-advance' }).betALotPayoutQueue).toEqual([]);
+  });
 });
 
 describe('yahtzee bonus messages', () => {
@@ -225,7 +320,7 @@ describe('yahtzee bonus messages', () => {
     const snap = snapshot({
       players: [player('p1', { seat: 0 })],
       settings: {
-        ...snapshot({ players: [] }).settings,
+        ...(snapshot({ players: [] }).settings as RoomSettings),
         betMultiplier: 2,
         autoIncrement: { enabled: true, everyRounds: 7 },
         yahtzeeBonus: { enabled: true, amountPerPlayer: 3 },

@@ -228,6 +228,28 @@ export function seatOverlayPositionAtAngle(
 }
 
 /**
+ * Player-relative point inside the table viewport. Unlike the outer seat-card
+ * ellipse, this scales both radii inward so seat-owned controls remain on the
+ * felt for bottom, side, and upper seats alike.
+ */
+export function tableInsetPositionAtAngle(
+  angle: number,
+  frame: OverlayRect,
+  viewport: OverlayRect,
+  radiusScale = 0.45,
+): { leftPct: number; topPct: number } {
+  const scale = Math.min(1, Math.max(0, radiusScale));
+  const cx = ((viewport.left + viewport.width / 2 - frame.left) / frame.width) * 100;
+  const cy = ((viewport.top + viewport.height / 2 - frame.top) / frame.height) * 100;
+  const rx = (viewport.width / 2 / frame.width) * 100;
+  const ry = (viewport.height / 2 / frame.height) * 100;
+  return {
+    leftPct: cx + rx * scale * Math.cos(angle),
+    topPct: cy + ry * scale * Math.sin(angle),
+  };
+}
+
+/**
  * CSS translate that pins the card's inner edge toward the table center.
  * Shared by SeatOverlay and seatCardRect so render and tests can't drift.
  */

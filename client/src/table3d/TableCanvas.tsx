@@ -2,6 +2,7 @@ import type { PoseFrame } from '@dice/shared';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import { Suspense } from 'react';
+import { DICE_COUNT, type DiceCount } from './dice/constants';
 import DicePhysics from './dice/DicePhysics';
 import ParkedKoozie from './dice/ParkedKoozie';
 import RemoteDiceView from './dice/RemoteDiceView';
@@ -28,6 +29,8 @@ function SceneContent({
   heldPose,
   parkedKoozieAngle,
   tieBreaker,
+  diceCount,
+  remoteBonusMode,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
@@ -36,6 +39,10 @@ function SceneContent({
   parkedKoozieAngle?: number | null;
   /** Cosmetic flame ring while a tie-breaker sub-round is active. */
   tieBreaker?: boolean;
+  /** Dice in static/remote hand poses (the active runtime carries its own count). */
+  diceCount: DiceCount;
+  /** Whether a remote pose feed may include its one temporary extra die. */
+  remoteBonusMode: boolean;
 }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
@@ -83,11 +90,13 @@ function SceneContent({
         interpolate
         debug={tuning.world.debug}
       >
-        {/* Key flip forces a runtime rebuild entering/leaving bonus mode
-            (docs/GAME_RULES.md "Yahtzee bonus"): 5 railed quint dice + a
-            temporary sixth die in the cup. */}
+        {/* Key flip forces a runtime rebuild entering/leaving bonus mode:
+            the hand stays railed and one temporary extra die rides in the cup. */}
         {dice ? (
-          <DicePhysics key={dice.bonusMode ? 'bonus' : 'hand'} {...dice} />
+          <DicePhysics
+            key={`${dice.diceCount ?? DICE_COUNT}-${dice.bonusMode ? 'bonus' : 'hand'}`}
+            {...dice}
+          />
         ) : (
           <TableColliders />
         )}
@@ -98,8 +107,15 @@ function SceneContent({
           are hidden inside the docked cup) — the previous turn's dice stay on
           the felt until the roller grabs the koozie. Room.tsx hides it once
           the roller is dragging, rolling, or has dice of their own. */}
-      {!dice && remoteFeed && <RemoteDiceView feed={remoteFeed} />}
-      {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} />}
+      {!dice && remoteFeed && (
+        <RemoteDiceView
+          key={`${diceCount}-${remoteBonusMode ? 'bonus' : 'hand'}`}
+          feed={remoteFeed}
+          diceCount={diceCount}
+          bonusMode={remoteBonusMode}
+        />
+      )}
+      {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} diceCount={diceCount} />}
       {showParkedKoozie && <ParkedKoozie displayAngle={parkedKoozieAngle} />}
     </>
   );
@@ -111,6 +127,10 @@ interface Props {
   heldPose?: PoseFrame | null;
   parkedKoozieAngle?: number | null;
   tieBreaker?: boolean;
+  /** Dice in static/remote hand poses; default preserves the five-die game. */
+  diceCount?: DiceCount;
+  /** Legacy default preserves six-body remote bonus streams. */
+  remoteBonusMode?: boolean;
 }
 
 /** Cap pixel ratio on high-DPR displays so Chromebook-class GPUs keep frame budget. */
@@ -126,6 +146,8 @@ export default function TableCanvas({
   heldPose = null,
   parkedKoozieAngle = null,
   tieBreaker = false,
+  diceCount = DICE_COUNT,
+  remoteBonusMode = true,
 }: Props) {
   return (
     <Canvas
@@ -154,6 +176,8 @@ export default function TableCanvas({
           heldPose={heldPose}
           parkedKoozieAngle={parkedKoozieAngle}
           tieBreaker={tieBreaker}
+          diceCount={diceCount}
+          remoteBonusMode={remoteBonusMode}
         />
       </Suspense>
     </Canvas>

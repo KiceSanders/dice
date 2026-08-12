@@ -5,6 +5,8 @@
 
 export type PlayerId = string;
 export type RoomId = string;
+/** The ruleset selected before a room is created. */
+export type GameKind = 'dice5' | 'betalot';
 
 /** Fixed room capacity. Player count is not configurable per room. */
 export const MAX_SEATED_PLAYERS = 8;
@@ -83,7 +85,17 @@ export interface AutoIncrementConfig {
   everyRounds: number;
 }
 
-export interface RoomSettings {
+/** Settings shared by every room game. */
+export interface BaseRoomSettings {
+  /** Quiet window after dice settle before any outcome or turn consequence is revealed. */
+  afterRollDelayMs: number;
+  minBuyIn: number;
+  maxBuyIn: number;
+}
+
+export interface RoomSettings extends BaseRoomSettings {
+  /** Omitted by legacy dice5 clients; normalized as dice5 by the room registry. */
+  kind?: 'dice5';
   chipsPerRound: number;
   /**
    * Scales every starting stake and is the amount added at each auto-raise.
@@ -94,10 +106,6 @@ export interface RoomSettings {
   autoIncrement: AutoIncrementConfig;
   /** Absolute max rolls for the round's first player. */
   maxRolls: number;
-  /** Quiet window after dice settle before any outcome or turn consequence is revealed. */
-  afterRollDelayMs: number;
-  minBuyIn: number;
-  maxBuyIn: number;
   straightPayout: StraightPayoutConfig;
   classicPot: ClassicPotConfig;
   yahtzeeBonus: YahtzeeBonusConfig;
@@ -132,6 +140,72 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     amountPerPlayer: 4,
   },
 };
+
+/**
+ * Settings for the heads-up Bet-a-lot ruleset. Every monetary amount is a
+ * room-host setting, making the rules explicit and replayable.
+ */
+export interface BetALotSettings extends BaseRoomSettings {
+  kind: 'betalot';
+  callPayout: number;
+  openingOnePenalty: number;
+  lossPayouts: {
+    twoDice: number;
+    threeDice: number;
+    fourDice: number;
+    fiveDice: number;
+    sixDice: number;
+  };
+  /** Opener payment when the opponent successfully clears rung six. */
+  successfulRungSixPayout: number;
+  straightPayouts: {
+    threeDice: number;
+    fourDice: number;
+    fiveDice: number;
+    sixDice: number;
+  };
+  allSamePayouts: {
+    twoDice: number;
+    threeDice: number;
+    fourDice: number;
+    fiveDice: number;
+    sixDice: number;
+  };
+  allSameExtraPayouts: {
+    threeDice: number;
+    fourDice: number;
+    fiveDice: number;
+    sixDice: number;
+  };
+  fullHousePayout: number;
+  sevenOpponentPayout: number;
+  sevenPotContribution: number;
+  overTwentyFivePerPoint: number;
+}
+
+export const DEFAULT_BETALOT_SETTINGS: BetALotSettings = {
+  kind: 'betalot',
+  afterRollDelayMs: 2_000,
+  minBuyIn: 10,
+  maxBuyIn: 1_000,
+  callPayout: 3,
+  openingOnePenalty: 1,
+  lossPayouts: { twoDice: 5, threeDice: 4, fourDice: 3, fiveDice: 2, sixDice: 1 },
+  successfulRungSixPayout: 1,
+  straightPayouts: { threeDice: 2, fourDice: 5, fiveDice: 10, sixDice: 20 },
+  allSamePayouts: { twoDice: 1, threeDice: 3, fourDice: 4, fiveDice: 5, sixDice: 6 },
+  allSameExtraPayouts: { threeDice: 5, fourDice: 20, fiveDice: 50, sixDice: 100 },
+  fullHousePayout: 10,
+  sevenOpponentPayout: 1,
+  sevenPotContribution: 1,
+  overTwentyFivePerPoint: 2,
+};
+
+/**
+ * Legacy dice5 settings intentionally omit a kind on the wire for backwards
+ * compatibility with persisted rooms. New rooms normalize it to `dice5`.
+ */
+export type GameSettings = RoomSettings | BetALotSettings;
 
 /**
  * Final score of a stood hand. Comparison order: count > face > fewer rollsUsed.
@@ -221,14 +295,69 @@ export interface GameStatePublic {
   subRound: SubRoundState | null;
 }
 
+/** A score produced by one Bet-a-lot ladder rung. */
+export interface BetALotLadderRoll {
+  rung: number;
+  playerId: PlayerId;
+  dice: Die[];
+  score: number;
+  restPose: BodyPose[] | null;
+}
+
+export interface BetALotFireState {
+  playerId: PlayerId;
+  streak: number;
+  onFire: boolean;
+}
+
+export interface BetALotRoundResult {
+  roundNumber: number;
+  winnerId: PlayerId;
+}
+
+export interface BetALotStatePublic {
+  kind: 'betalot';
+  roundNumber: number;
+  sevensPot: number;
+  openerId: PlayerId;
+  currentPlayerId: PlayerId | null;
+  currentDiceCount: number;
+  /** A call is accepted only before the opening one-die throw. */
+  awaitingCall: boolean;
+  pendingCall: Die | null;
+  throwing: boolean;
+  resolving: boolean;
+  extraRoll: {
+    playerId: PlayerId;
+    face: Die;
+    sourceDiceCount: number;
+  } | null;
+  ladder: BetALotLadderRoll[];
+  /** Newest-first authoritative winners, capped at the last ten rounds. */
+  roundHistory: BetALotRoundResult[];
+  fire: BetALotFireState[];
+}
+
+export type AnyGameStatePublic = GameStatePublic | BetALotStatePublic;
+
+export function isBetALotState(
+  game: AnyGameStatePublic | null | undefined,
+): game is BetALotStatePublic {
+  return game !== null && game !== undefined && 'kind' in game && game.kind === 'betalot';
+}
+
+export function isDice5State(game: AnyGameStatePublic | null | undefined): game is GameStatePublic {
+  return game !== null && game !== undefined && !isBetALotState(game);
+}
+
 /** Authoritative room snapshot pushed to clients after every state change. */
 export interface RoomSnapshot {
   roomId: RoomId;
-  settings: RoomSettings;
+  settings: GameSettings;
   phase: RoomPhase;
   players: PlayerPublic[];
   hostId: PlayerId;
-  game: GameStatePublic | null;
+  game: AnyGameStatePublic | null;
   /** Pending seat requests, visible to the host (and the requester themself). */
   seatRequests: { playerId: PlayerId; buyIn: number }[];
 }

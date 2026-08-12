@@ -1,21 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type {
-  AutoIncrementConfig,
-  ClassicPotConfig,
-  FirstRollYahtzeePayoutConfig,
+  GameSettings,
   PlayerId,
   PlayerPublic,
   RoomId,
   RoomPhase,
-  RoomSettings,
   RoomSnapshot,
   ServerMessage,
-  StraightPayoutConfig,
-  YahtzeeBonusConfig,
 } from '@dice/shared';
-import { assertNever, DEFAULT_SETTINGS, MAX_SEATED_PLAYERS } from '@dice/shared';
+import { assertNever, GAME_DEFINITIONS, gameKindOf, MAX_SEATED_PLAYERS } from '@dice/shared';
 import { type EngineOptions, GameEngine } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
+import { clampSettings } from './gameSettings.js';
+import { BetALotEngine } from './games/betalot/engine.js';
+import { handleBetALotEvent } from './games/betalot/roomBridge.js';
 import { handleEngineEvent } from './roomGameBridge.js';
 import { SpecialSoundProfiles } from './specialSoundProfiles.js';
 
@@ -45,52 +43,7 @@ export const CHAT_RATE_LIMIT = 5;
 export const CHAT_RATE_WINDOW_MS = 5000;
 export const CHAT_HISTORY_SIZE = 200;
 
-const clampInt = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, Math.round(v)));
-
-/** Clamp incoming settings to the ranges documented in PLAN.md. */
-export function clampSettings(s: RoomSettings): RoomSettings {
-  const minBuyIn = clampInt(s.minBuyIn, 1, 1_000_000);
-  // Lenient on nested configs: settings replayed from older logs may lack keys.
-  const sp: Partial<StraightPayoutConfig> = s.straightPayout ?? {};
-  const cp: Partial<ClassicPotConfig> = s.classicPot ?? {};
-  const yb: Partial<YahtzeeBonusConfig> = s.yahtzeeBonus ?? {};
-  const fry: Partial<FirstRollYahtzeePayoutConfig> = s.firstRollYahtzeePayout ?? {};
-  const ai: Partial<AutoIncrementConfig> = s.autoIncrement ?? {};
-  const dSp = DEFAULT_SETTINGS.straightPayout;
-  const dCp = DEFAULT_SETTINGS.classicPot;
-  const dYb = DEFAULT_SETTINGS.yahtzeeBonus;
-  const dFry = DEFAULT_SETTINGS.firstRollYahtzeePayout;
-  const dAi = DEFAULT_SETTINGS.autoIncrement;
-  return {
-    chipsPerRound: clampInt(s.chipsPerRound, 1, 1000),
-    betMultiplier: clampInt(s.betMultiplier ?? DEFAULT_SETTINGS.betMultiplier, 1, 1000),
-    autoIncrement: {
-      enabled: ai.enabled === undefined ? dAi.enabled : Boolean(ai.enabled),
-      everyRounds: clampInt(ai.everyRounds ?? dAi.everyRounds, 1, 1000),
-    },
-    maxRolls: clampInt(s.maxRolls, 1, 10),
-    afterRollDelayMs: clampInt(s.afterRollDelayMs ?? DEFAULT_SETTINGS.afterRollDelayMs, 0, 10_000),
-    minBuyIn,
-    maxBuyIn: clampInt(s.maxBuyIn, minBuyIn, 10_000_000),
-    straightPayout: {
-      enabled: sp.enabled === undefined ? dSp.enabled : Boolean(sp.enabled),
-      amountPerPlayer: clampInt(sp.amountPerPlayer ?? dSp.amountPerPlayer, 0, 100_000),
-    },
-    classicPot: {
-      enabled: cp.enabled === undefined ? dCp.enabled : Boolean(cp.enabled),
-      donationAmount: clampInt(cp.donationAmount ?? dCp.donationAmount, 0, 100_000),
-    },
-    yahtzeeBonus: {
-      enabled: yb.enabled === undefined ? dYb.enabled : Boolean(yb.enabled),
-      amountPerPlayer: clampInt(yb.amountPerPlayer ?? dYb.amountPerPlayer, 0, 100_000),
-    },
-    firstRollYahtzeePayout: {
-      enabled: fry.enabled === undefined ? dFry.enabled : Boolean(fry.enabled),
-      amountPerPlayer: clampInt(fry.amountPerPlayer ?? dFry.amountPerPlayer, 0, 100_000),
-    },
-  };
-}
+export { clampSettings } from './gameSettings.js';
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
 const NAME_CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
@@ -111,7 +64,7 @@ export class Room {
   readonly specialSoundProfiles = new SpecialSoundProfiles();
   hostId: PlayerId = '';
   phase: RoomPhase = 'lobby';
-  settings: RoomSettings;
+  settings: GameSettings;
   /** Set when the last connection drops; cleared on any connect. For the reaper. */
   emptySince: number | null = Date.now();
 
@@ -119,6 +72,7 @@ export class Room {
   readonly chatHistory: ChatHistoryEntry[] = [];
 
   engine: GameEngine | null = null;
+  betALotEngine: BetALotEngine | null = null;
   /** Event log sink; null while a room is being replayed (or persistence is off). */
   recorder: RoomRecorder | null = null;
 
@@ -131,7 +85,7 @@ export class Room {
 
   constructor(
     readonly id: RoomId,
-    settings: RoomSettings,
+    settings: GameSettings,
     private readonly seatForfeitMs = SEAT_FORFEIT_MS,
     public engineOpts: EngineOptions = {},
   ) {
@@ -185,7 +139,8 @@ export class Room {
       }
       case 'settingsUpdated':
         this.settings = clampSettings(event.settings);
-        this.engine?.updateSettings(this.settings);
+        if (this.settings.kind === 'betalot') this.betALotEngine?.updateSettings(this.settings);
+        else this.engine?.updateSettings(this.settings);
         break;
       case 'hostChanged':
         this.hostId = event.hostId;
@@ -274,6 +229,7 @@ export class Room {
     if (player) player.connected = true;
     // Wake a recovered (paused) game on the first reconnect.
     this.engine?.resume();
+    this.betALotEngine?.resume();
   }
 
   handleDisconnect(playerId: PlayerId): void {
@@ -303,7 +259,7 @@ export class Room {
     if (!player) return err('BAD_REQUEST', 'unknown player');
     if (player.banned) return err('BANNED', 'you were kicked from this table');
     if (player.seat !== null) return err('BAD_REQUEST', 'already seated');
-    if (this.seatedPlayers().length >= MAX_SEATED_PLAYERS) {
+    if (this.seatedPlayers().length >= this.maxSeats()) {
       return err('ROOM_FULL', 'all seats are taken');
     }
     if (buyIn < this.settings.minBuyIn || buyIn > this.settings.maxBuyIn) {
@@ -329,7 +285,7 @@ export class Room {
     const player = this.players.get(playerId);
     const buyIn = this.seatRequests.get(playerId);
     if (!player || buyIn === undefined) return err('BAD_REQUEST', 'no pending seat request');
-    if (this.seatedPlayers().length >= MAX_SEATED_PLAYERS) {
+    if (this.seatedPlayers().length >= this.maxSeats()) {
       this.seatRequests.delete(playerId);
       return err('ROOM_FULL', 'all seats are taken');
     }
@@ -376,6 +332,10 @@ export class Room {
     throw new Error('no free seat'); // guarded by callers
   }
 
+  private maxSeats(): number {
+    return Math.min(MAX_SEATED_PLAYERS, GAME_DEFINITIONS[gameKindOf(this.settings)].maxSeats);
+  }
+
   // -- host transfer & forfeit timers ---------------------------------------
 
   /** Promote the longest-seated connected player, else the longest-connected spectator. */
@@ -413,19 +373,33 @@ export class Room {
   }
 
   private isCurrentTurn(playerId: PlayerId): boolean {
-    return this.engine?.currentTurnPlayerId === playerId;
+    return (
+      this.engine?.currentTurnPlayerId === playerId ||
+      this.betALotEngine?.currentTurnPlayerId === playerId
+    );
   }
 
   // -- game ------------------------------------------------------------------
 
   startGame(byPlayerId: PlayerId): RoomError | null {
     if (byPlayerId !== this.hostId) return err('NOT_HOST', 'only the host can start the game');
-    if (this.engine) return err('BAD_REQUEST', 'game already in progress');
-    if (this.seatedPlayers().length < 2)
-      return err('BAD_REQUEST', 'need at least 2 seated players');
+    if (this.engine || this.betALotEngine) return err('BAD_REQUEST', 'game already in progress');
+    const rules = GAME_DEFINITIONS[gameKindOf(this.settings)];
+    if (
+      this.seatedPlayers().length < rules.minSeats ||
+      this.seatedPlayers().length > rules.maxSeats
+    ) {
+      return err(
+        'BAD_REQUEST',
+        rules.minSeats === rules.maxSeats
+          ? `need exactly ${rules.minSeats} seated players for ${rules.label}`
+          : `need ${rules.minSeats}-${rules.maxSeats} seated players for ${rules.label}`,
+      );
+    }
 
     this.commit({ type: 'gameStarted' });
-    this.engine!.start();
+    (this.engine as GameEngine | null)?.start();
+    (this.betALotEngine as BetALotEngine | null)?.start();
     return null;
   }
 
@@ -434,15 +408,37 @@ export class Room {
     const player = this.players.get(byPlayerId);
     if (!player) return err('BAD_REQUEST', 'unknown player');
     if (player.seat === null) return err('NOT_SEATED', 'only seated players can continue a round');
-    if (!this.engine) return err('BAD_REQUEST', 'no game in progress');
+    if (!this.engine && !this.betALotEngine) return err('BAD_REQUEST', 'no game in progress');
     // Multiple seated clients auto-dismiss at nearly the same time. The first
     // starts the round; later requests are harmless and must not produce errors.
-    this.engine.continueRound();
+    this.engine?.continueRound();
+    this.betALotEngine?.continueRound();
     return null;
   }
 
   /** Create the engine without starting it (live start + replay both use this). */
   private attachEngine(): void {
+    if (this.settings.kind === 'betalot') {
+      this.betALotEngine = new BetALotEngine(
+        () => this.seatedPlayers(),
+        this.settings,
+        (event) =>
+          handleBetALotEvent(event, {
+            engine: () => this.betALotEngine,
+            recorder: () => this.recorder,
+            buildPersistedState: () => this.buildPersistedState(),
+            broadcast: (msg) => this.broadcast(msg),
+            broadcastState: () => this.broadcastState(),
+            setPhase: (phase) => {
+              this.phase = phase;
+            },
+            endGame: () => this.endGame(),
+          }),
+      );
+      this.onForcedStand = (playerId) => this.betALotEngine?.forceStand(playerId);
+      this.phase = 'playing';
+      return;
+    }
     this.engine = new GameEngine(
       () => this.seatedPlayers(),
       this.settings,
@@ -456,7 +452,9 @@ export class Room {
   /** Tear the engine down (logged gameEnded live; reused by replay). */
   endGame(): void {
     this.engine?.stop();
+    this.betALotEngine?.stop();
     this.engine = null;
+    this.betALotEngine = null;
     this.onForcedStand = null;
     this.phase = 'lobby';
   }
@@ -538,7 +536,10 @@ export class Room {
 
   // -- settings --------------------------------------------------------------
 
-  updateSettings(settings: RoomSettings): RoomError | null {
+  updateSettings(settings: GameSettings): RoomError | null {
+    if (gameKindOf(settings) !== gameKindOf(this.settings)) {
+      return err('BAD_REQUEST', 'a room game type cannot be changed after creation');
+    }
     this.commit({ type: 'settingsUpdated', settings: clampSettings(settings) });
     return null;
   }
@@ -561,7 +562,7 @@ export class Room {
         joinedAt: p.joinedAt,
         seatedAt: p.seatedAt,
       })),
-      game: this.engine?.persistedState() ?? null,
+      game: this.engine?.persistedState() ?? this.betALotEngine?.persistedState() ?? null,
       chat: [...this.chatHistory],
     };
   }
@@ -580,11 +581,16 @@ export class Room {
         })),
       );
     }
+    this.phase = state.phase;
     if (state.game) {
       this.attachEngine();
-      this.engine!.restore(state.game);
+      this.phase = state.phase;
+      if (this.settings.kind === 'betalot') {
+        this.betALotEngine!.restore(state.game as ReturnType<BetALotEngine['persistedState']>);
+      } else {
+        this.engine!.restore(state.game as import('./events.js').PersistedGame);
+      }
     }
-    this.phase = state.phase;
   }
 
   // -- snapshots --------------------------------------------------------------
@@ -611,7 +617,7 @@ export class Room {
       phase: this.phase,
       players,
       hostId: this.hostId,
-      game: this.engine?.publicState() ?? null,
+      game: this.engine?.publicState() ?? this.betALotEngine?.publicState() ?? null,
       seatRequests,
     };
   }
@@ -641,7 +647,9 @@ export class Room {
 
   destroy(): void {
     this.engine?.stop();
+    this.betALotEngine?.stop();
     this.engine = null;
+    this.betALotEngine = null;
     for (const timer of this.forfeitTimers.values()) clearTimeout(timer);
     this.forfeitTimers.clear();
     this.links.clear();

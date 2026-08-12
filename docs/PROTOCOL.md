@@ -8,31 +8,48 @@ is authoritative over state; dice values come exclusively from the roller's phys
 
 ## Client → Server (`ClientMessage`)
 
+### Shared room messages
+
 | Type | Payload | Notes |
 |---|---|---|
 | `room:list` | `{}` | Requests the public directory of rooms with at least one connected player |
-| `room:create` | `{ playerName, settings }` | Replies `room:created`; capacity is always 8 and is not a setting |
+| `room:create` | `{ playerName, settings }` | Replies `room:created`; `settings.kind: 'betalot'` selects the heads-up Bet-a-lot ruleset; omitted / `dice5` selects the existing game |
 | `room:join` | `{ roomId, playerName, rejoinToken? }` | Join as spectator; token reclaims identity |
 | `seat:request` | `{ buyIn }` | Spectator asks for a seat |
 | `seat:approve` / `seat:deny` | `{ playerId }` | Host only |
 | `player:kick` | `{ playerId }` | Host only |
-| `settings:update` | `{ settings }` | Host only (anytime; `afterRollDelayMs` applies to the next settled roll; chip amounts apply at next ante / payout; capacity is fixed) |
-| `game:start` | `{}` | Host only, ≥2 seated |
-| `round:continue` | `{}` | Seated player dismissed the round-results modal; idempotently starts the next round immediately when the room is in `roundEnd` |
+| `settings:update` | `{ settings }` | Host only; the selected room game determines the accepted settings and their effective point |
+| `game:start` | `{}` | Host only; Dice5 requires ≥2 seated players and Bet-a-lot requires exactly 2 |
+| `round:continue` | `{}` | Idempotently starts the next round in `roundEnd`: Dice5 sends it when the recap closes; Bet-a-lot sends it after the sequential payout queue drains |
+| `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
+| `special-sound:update` | `{ kind, wavBase64 }` | Publish/replace one player recording in the current room, or clear it with `null`. Ephemeral, rate/size bounded, never persisted |
+| `chat:send` | `{ text }` | ≤500 chars, rate-limited |
+
+### Dice5-only messages
+
+| Type | Payload | Notes |
+|---|---|---|
 | `turn:throwStart` | `{ keepIndices }` | Physics roll phase 1: koozie released, locks this throw's keep set (may shrink vs prior `keptIndices`) |
 | `turn:throwResult` | `{ dice, restPose? }` | Phase 2: settled faces (kept positions unchanged) + where they rest (canonical space, 5 dice, ADR 005). An invalid `restPose` is dropped server-side; the throw itself never fails on it |
 | `turn:bonusThrowStart` | `{}` | Yahtzee bonus phase 1: koozie released with a temporary sixth die; all 5 hand dice stay railed |
 | `turn:bonusThrowResult` | `{ die }` | Phase 2: the settled bonus face, integer in [1, 6]. The temporary die is removed and the roller auto-stands. Carries no `restPose` — the quint's pose stays the between-turns layout |
-| `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
 | `turn:stand` | `{ restPose? }` | Voluntary stand (gated by `canStandVoluntarily`); optional final selecting layout (canonical space, 5 dice, ADR 005) so dice stay exactly where they were when Stand was clicked. Invalid `restPose` is dropped server-side; the stand itself never fails on it |
-| `special-sound:update` | `{ kind, wavBase64 }` | Publish/replace one player recording in the current room, or clear it with `null`. `kind` comes from `SPECIAL_MOMENT_DEFINITIONS`; non-null data is a canonical ≤3s mono PCM WAV, base64 encoded. Ephemeral, rate/size bounded, never persisted |
-| `chat:send` | `{ text }` | ≤500 chars, rate-limited |
+
+### Bet-a-lot-only messages
+
+| Type | Payload | Notes |
+|---|---|---|
+| `betalot:call` | `{ face }` | Bet-a-lot opener calls the face expected on rung 1 |
+| `betalot:throwStart` / `betalot:throwResult` | `{}` / `{ dice, restPose? }` | Bet-a-lot normal throw. The engine requires exactly the current rung's 1–6 dice |
+| `betalot:extraThrowStart` / `betalot:extraThrowResult` | `{}` / `{ die, restPose? }` | Extra die earned by a 3–6 die all-same result |
 
 Ingress is structurally validated in `server/src/protocol.ts` (`parseClientMessage`). The
 validator table is `Record<ClientMessage['type'], Validator>` — adding a message type
 without a validator (or a handler in `server/src/handlers.ts`) fails `npm run check:server`.
 
 ## Server → Client (`ServerMessage`)
+
+### Shared room messages
 
 | Type | Payload | Notes |
 |---|---|---|
@@ -42,8 +59,17 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `room:state` | `{ snapshot }` | Authoritative snapshot after every state change |
 | `seat:requested` | `{ playerId, playerName, buyIn }` | To the host |
 | `seat:denied` | `{}` | To the requester |
-| `turn:throwStarted` | `{ playerId, kept, rollNumber }` | A throw is in flight |
 | `dice:frames` | `{ playerId, frames }` | Relay of the roller's poses |
+| `special-sound:updated` | `{ playerId, kind, wavBase64 }` | One player's current room recording changed; `null` clears it. Late joiners receive the live room's current profiles |
+| `special-moment:hit` | `{ playerId, kind }` | Authoritative recording trigger after the outcome barrier, when that game supports player recordings |
+| `chat:message` | `{ playerId, playerName, chipsAtSend, text, ts }` | `chipsAtSend` is the authoritative stack when accepted; `null` only for legacy persisted messages |
+| `error` | `{ code, message }` | `ErrorCode` union in protocol.ts |
+
+### Dice5-only messages
+
+| Type | Payload | Notes |
+|---|---|---|
+| `turn:throwStarted` | `{ playerId, kept, rollNumber }` | A throw is in flight |
 | `turn:rolled` | `{ playerId, dice, rollNumber, kept, restPose }` | The settled roll; `restPose` is the server-validated rest layout (`BodyPose[] \| null`, ADR 005) every viewer renders between turns |
 | `turn:rollResolved` | `{ playerId, dice, rollNumber }` | The configured after-roll delay elapsed; outcome messages/effects and automatic turn consequences follow |
 | `turn:forfeited` | `{ playerId }` | Turn ended with no completed roll |
@@ -55,14 +81,21 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `turn:bonusRolled` | `{ playerId, die, face, matched }` | Sent only after the bonus die's configured delay; `matched = die === face` (a rolled 1 is NOT wild here) |
 | `yahtzee:paid` | `{ playerId, amountPerPlayer, total, payments }` | Yahtzee bonus hit: every other seated player paid the roller |
 | `yahtzee:first-roll-paid` | `{ playerId, amountPerPlayer, total, payments }` | First-roll Yahtzee instant payment (wild-composed quints count) |
-| `special-sound:updated` | `{ playerId, kind, wavBase64 }` | One player's current room recording changed; `null` clears it. Late joiners receive the live room's current profiles |
-| `special-moment:hit` | `{ playerId, kind }` | Authoritative recording trigger after the outcome barrier. Kinds: straight, Classic, first-roll Yahtzee, Yahtzee bonus match, and overtime win |
 | `round:started` | `{ roundNumber, antes: { playerId, amount }[] }` | Exact per-player contributions for table chip animation |
 | `stakes:raised` | `{ roundNumber, incrementBy }` | Auto-raise added `incrementBy` chips to every effective stake at this round boundary |
 | `round:ended` | `{ winnerId: PlayerId \| null, potWon, scores }` | `winnerId: null` = all forfeited, pot carries over |
 | `subround:started` | `{ tiedPlayerIds, anteAmount, depth, antes: { playerId, amount }[] }` | `antes` contains actual equal-floor payments (may be below `anteAmount`) |
-| `chat:message` | `{ playerId, playerName, chipsAtSend, text, ts }` | `chipsAtSend` is the authoritative stack when accepted; `null` only for legacy persisted messages |
-| `error` | `{ code, message }` | `ErrorCode` union in protocol.ts |
+
+### Bet-a-lot-only messages
+
+| Type | Payload | Notes |
+|---|---|---|
+| `betalot:throwStarted` | `{ playerId, diceCount, rung, extra }` | Bet-a-lot throw in flight |
+| `betalot:rolled` | `{ playerId, dice, score, rung, restPose }` | Normal rung settled and visible immediately; payments and turn/round handoff wait behind the captured reveal delay |
+| `betalot:extraRolled` | `{ playerId, die, target, matched, sourceDiceCount, restPose }` | Extra die settled immediately; its payout and ladder continuation wait behind the captured reveal delay |
+| `betalot:paid` | `{ fromPlayerId, toPlayerId, amount, reason, sevensPot }` | Bet-a-lot chip movement; `toPlayerId: null` is a Sevens Pot contribution |
+| `betalot:roundEnded` | `{ winnerId, loserId, amount }` | Bet-a-lot ladder ended |
+| `betalot:fireChanged` | `{ fire }` | Bet-a-lot consecutive-win / on-fire state |
 
 Egress is lightly validated by the client in `client/src/ws/protocol.ts`
 (`parseServerMessage`) before it reaches app state. Its validator table is
@@ -155,3 +188,10 @@ tiers who fully tie append). A strict beat replaces the list with the new leader
 
 During the bonus die's after-roll delay, spectators keep rendering the last six-body pose frame;
 the delayed `turn:bonusRolled` clears it and returns every viewer to the five-die hand.
+
+Bet-a-lot uses the same outcome barrier with one in-flight throw at a time. Its
+`afterRollDelayMs` is captured when a normal or extra die settles, so a host edit during the
+quiet window applies only to the next throw. The settled rung and score render immediately;
+payments, an earned extra die, round end, and koozie ownership do not change until the delay
+elapses. `BetALotStatePublic.roundHistory` carries the newest-first last ten
+`{ roundNumber, winnerId }` results, so history dots survive refresh, rejoin, and crash recovery.
