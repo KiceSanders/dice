@@ -1,4 +1,4 @@
-import type { Die } from '@dice/shared';
+import type { DieSides } from '@dice/shared';
 import { DICE_COUNT, type DiceCount, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
 import { type DieRuntime, quatToEuler } from './diceRuntime';
@@ -15,12 +15,13 @@ export type DiePose = {
  * as `livePoses` (null → slot fallback).
  */
 export function buildSelectingRuntime(
-  values: Die[],
+  values: number[],
   kept: number[],
   livePoses: (DiePose | null)[],
-  committedDice: Die[],
+  committedDice: number[],
   previousFeltPoses: (DiePose | null)[] = [],
   diceCount: DiceCount = DICE_COUNT,
+  dieSides: DieSides = 6,
 ): { runtime: DieRuntime[]; feltPoses: (DiePose | null)[] } {
   const keptSorted = [...kept].sort((a, b) => a - b);
   const nextFelt: (DiePose | null)[] = Array(diceCount).fill(null);
@@ -43,7 +44,7 @@ export function buildSelectingRuntime(
         locked: true,
         inCup: false,
         position: keptDieRailPosition(slot, keptSorted.length),
-        rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
+        rotation: value ? quatToEuler(quaternionForFace(value, 0, dieSides)) : undefined,
       };
       continue;
     }

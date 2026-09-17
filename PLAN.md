@@ -283,3 +283,12 @@ Conventions for all phases:
 - **Never let client and server disagree:** protocol changes follow the ripple checklist in [docs/CODING_GUIDELINES.md](./docs/CODING_GUIDELINES.md) §1 — `shared/src/protocol.ts` first, then let the typecheck errors walk you through both sides in the same change.
 - **Determinism:** dice come from the roller's client (ADR 004) — tests script explicit faces through `server/src/engine.testkit.ts`; there is no server rng.
 - **If a rule seems ambiguous or contradictory**, implement the most literal reading of docs/GAME_RULES.md and note the ambiguity in your summary rather than redesigning.
+
+### Dice Blackjack
+
+- [x] Independent two-seat room kind, home selection and settings.
+- [x] One-die alternating turns, Stand/Continue, public accumulated hands and totals.
+- [x] Bust/standing comparison, zero-sum 10-chip win, d12 overtime resetting scores and doubling after every tie.
+- [x] Shared physical d12 mesh/hull/face convention, spectator playback, authoritative rest poses and persistent seat-side dice.
+- [x] Complete snapshot recovery, protocol validation, engine/rules/geometry/framing tests and WebSocket integration coverage.
+- [ ] User multi-tab visual verification — [Dice Blackjack checklist](docs/browser-testing.md#dice-blackjack--2-player-tabs--optional-spectator).

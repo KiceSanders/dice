@@ -60,7 +60,11 @@ export class RoomManager {
       active.push({
         roomId: room.id,
         phase: room.phase,
-        roundNumber: room.engine?.roundNumber ?? room.betALotEngine?.roundNumber ?? null,
+        roundNumber:
+          room.engine?.roundNumber ??
+          room.betALotEngine?.roundNumber ??
+          room.blackjackEngine?.roundNumber ??
+          null,
         playerNames: [...room.players.values()]
           .filter((player) => player.connected)
           .map((player) => player.name),

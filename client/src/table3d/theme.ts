@@ -6,6 +6,7 @@
 export interface TableTheme {
   /** Scene background + fog color (they must match or the horizon seam shows). */
   background: string;
+  numberedDie: { body: string; ink: string };
   felt: string;
   rail: string;
   railHighlight: string;
@@ -22,6 +23,7 @@ export interface TableTheme {
 
 export const DEFAULT_TABLE_THEME: TableTheme = {
   background: '#14191f',
+  numberedDie: { body: '#f4efe4', ink: '#18222d' },
   felt: '#1d6b3a',
   rail: '#3a2a1a',
   railHighlight: '#5c4228',

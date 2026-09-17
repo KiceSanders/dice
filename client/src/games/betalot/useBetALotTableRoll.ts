@@ -1,4 +1,4 @@
-import type { BetALotStatePublic, ClientMessage, Die, PoseFrame, RoomSnapshot } from '@dice/shared';
+import type { BetALotStatePublic, ClientMessage, PoseFrame, RoomSnapshot } from '@dice/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FRAME_FLUSH_MS,
@@ -8,6 +8,7 @@ import {
   shouldFlushFrameBatch,
 } from '../../game/throwProtocol';
 import type { DiceCount } from '../../table3d/dice/constants';
+import { isSixSidedDice } from '../../table3d/dice/sampleDieValues';
 import { resolveTableRestPose } from '../../table3d/dice/staticPose';
 import type { TableDiceProps, ThrowVelocity } from '../../table3d/dice/types';
 import { seatDisplayPlacement } from '../../table3d/layout';
@@ -101,7 +102,8 @@ export function useBetALotTableRoll(
   );
 
   const onSettled = useCallback(
-    (dice: Die[], settleFrame: PoseFrame) => {
+    (dice: number[], settleFrame: PoseFrame) => {
+      if (!isSixSidedDice(dice)) return true;
       setRolling(false);
       if (!game) return true;
       const canonical = poseFrameToCanonical(settleFrame, mySeat);

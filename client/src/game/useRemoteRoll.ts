@@ -1,4 +1,5 @@
-import type { BetALotStatePublic, GameStatePublic, RoomSnapshot } from '@dice/shared';
+import type { BetALotStatePublic, RoomSnapshot } from '@dice/shared';
+import { isBlackjackState, isDice5State } from '@dice/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRemotePoseAudioTap } from '../table3d/audio/remotePoseAudio';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
@@ -44,9 +45,13 @@ export function useRemoteRoll(
 
   const betALotGame =
     snapshot?.settings.kind === 'betalot' ? (snapshot.game as BetALotStatePublic | null) : null;
-  const dice5Game =
-    snapshot?.settings.kind === 'betalot' ? null : (snapshot?.game as GameStatePublic | null);
-  const turnPlayerId = betALotGame?.currentPlayerId ?? dice5Game?.currentTurn?.playerId ?? null;
+  const dice5Game = isDice5State(snapshot?.game) ? snapshot.game : null;
+  const blackjack = isBlackjackState(snapshot?.game) ? snapshot.game : null;
+  const turnPlayerId =
+    blackjack?.currentPlayerId ??
+    betALotGame?.currentPlayerId ??
+    dice5Game?.currentTurn?.playerId ??
+    null;
   const viewerSeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;
   const turnPlayerSeat = snapshot?.players.find((p) => p.id === turnPlayerId)?.seat ?? null;
   const occupiedSeats = snapshot?.players.flatMap((player) =>
@@ -60,8 +65,12 @@ export function useRemoteRoll(
   }, [occupiedSeatKey, viewerSeat, turnPlayerSeat]);
   const remote = turnPlayerId !== null && turnPlayerId !== myId && placement !== null;
 
+  const blackjackEpoch = blackjack
+    ? `${blackjack.roundNumber}-${blackjack.overtime}-${blackjack.turnNumber}`
+    : null;
+  const blackjackSettled = Boolean(blackjack?.tableDie);
   useEffect(() => {
-    if (!remote || turnPlayerId === null || placement === null) {
+    if (!remote || blackjackSettled || turnPlayerId === null || placement === null) {
       feed.clear();
       audioTap.clear();
       setLive(false);
@@ -84,7 +93,8 @@ export function useRemoteRoll(
         setCupInPlay(msg.frames.some((f) => f.cupVisible === true));
       }
       if (
-        (msg.type === 'turn:rolled' ||
+        (msg.type === 'blackjack:rolled' ||
+          msg.type === 'turn:rolled' ||
           msg.type === 'turn:bonusRolled' ||
           msg.type === 'betalot:rolled' ||
           msg.type === 'betalot:extraRolled') &&
@@ -101,7 +111,7 @@ export function useRemoteRoll(
       feed.clear();
       audioTap.clear();
     };
-  }, [ws, feed, audioTap, remote, turnPlayerId, placement]);
+  }, [ws, feed, audioTap, remote, turnPlayerId, placement, blackjackEpoch, blackjackSettled]);
 
   return {
     feed,

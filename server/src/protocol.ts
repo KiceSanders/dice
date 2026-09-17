@@ -4,6 +4,7 @@ import {
   type ClassicPotConfig,
   type ClientMessage,
   type FirstRollYahtzeePayoutConfig,
+  type GameSettings,
   isSpecialMomentKind,
   isValidSpecialSoundWav,
   type RoomSettings,
@@ -50,6 +51,7 @@ function isAutoIncrementConfig(v: unknown): v is AutoIncrementConfig {
 function isRoomSettings(v: unknown): v is RoomSettings {
   return (
     isRecord(v) &&
+    (v.kind === undefined || v.kind === 'dice5') &&
     isFiniteNumber(v.chipsPerRound) &&
     isFiniteNumber(v.betMultiplier) &&
     isAutoIncrementConfig(v.autoIncrement) &&
@@ -90,8 +92,16 @@ function isBetALotSettings(v: unknown): v is BetALotSettings {
   );
 }
 
-function isGameSettings(v: unknown): v is RoomSettings | BetALotSettings {
-  return isBetALotSettings(v) || isRoomSettings(v);
+function isGameSettings(v: unknown): v is GameSettings {
+  return (
+    (isRecord(v) &&
+      v.kind === 'blackjack' &&
+      isFiniteNumber(v.afterRollDelayMs) &&
+      isFiniteNumber(v.minBuyIn) &&
+      isFiniteNumber(v.maxBuyIn)) ||
+    isBetALotSettings(v) ||
+    isRoomSettings(v)
+  );
 }
 
 /** Die-keep indices: ≤5 unique integers in [0, 4]. */
@@ -159,6 +169,21 @@ type Validator = (m: Record<string, unknown>) => string | null;
 
 /** Per-type payload validators. Return an error string or null if valid. */
 const validators: Record<ClientMessage['type'], Validator> = {
+  'blackjack:throwStart': () => null,
+  'blackjack:decide': (m) =>
+    m.decision === 'stand' || m.decision === 'continue'
+      ? null
+      : 'decision must be stand or continue',
+  'blackjack:throwResult': (m) => {
+    if (!Number.isInteger(m.die) || (m.die as number) < 1 || (m.die as number) > 12)
+      return 'die must be an integer in [1, 12]';
+    if (
+      m.restPose !== undefined &&
+      (!Array.isArray(m.restPose) || m.restPose.length !== 1 || !m.restPose.every(isBodyPose))
+    )
+      return 'restPose must contain one body pose';
+    return null;
+  },
   'room:list': () => null,
   'room:create': (m) => {
     if (!isNonEmptyString(m.playerName, 24)) return 'playerName must be a 1-24 char string';

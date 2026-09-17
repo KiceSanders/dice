@@ -1,4 +1,4 @@
-import type { Die } from '@dice/shared';
+import type { DieSides } from '@dice/shared';
 import * as THREE from 'three';
 import { DICE_COUNT, type DiceCount, diceRuntimeCount, dieSlotPosition } from './constants';
 import { keepSlotForIndex, keptDieRailPosition } from './diceLayout';
@@ -51,12 +51,13 @@ export function cupLocalToWorld(
  * Non-cup mode (passive views): committed values at fixed felt slots.
  */
 export function buildRuntime(
-  dice: Die[],
+  dice: number[],
   keepIndices: number[],
   cupMode: boolean,
   tuning: DicePhysicsTuning,
   bonusMode = false,
   diceCount: DiceCount = DICE_COUNT,
+  dieSides: DieSides = 6,
 ): DieRuntime[] {
   if (!cupMode) {
     return Array.from({ length: diceCount }, (_, i) => {
@@ -75,7 +76,7 @@ export function buildRuntime(
         locked: true,
         inCup: false,
         position: dieSlotPosition(i, diceCount),
-        rotation: quatToEuler(quaternionForFace(value)),
+        rotation: quatToEuler(quaternionForFace(value, 0, dieSides)),
       };
     });
   }
@@ -104,7 +105,7 @@ export function buildRuntime(
         locked: true,
         inCup: false,
         position: keptDieRailPosition(keepSlotForIndex(i, keptSorted), keptSorted.length),
-        rotation: value ? quatToEuler(quaternionForFace(value)) : undefined,
+        rotation: value ? quatToEuler(quaternionForFace(value, 0, dieSides)) : undefined,
       };
     }
 

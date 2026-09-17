@@ -1,4 +1,4 @@
-import type { Die, PoseFrame } from '@dice/shared';
+import type { DieSides, PoseFrame } from '@dice/shared';
 import type { DiceCount } from './constants';
 
 /** World-space throw velocity sampled from pointer movement (units/sec). */
@@ -12,6 +12,9 @@ export interface ThrowVelocity {
 export interface TableDiceProps {
   /** Number of dice in the hand (1–6); defaults to the current five-die game. */
   diceCount?: DiceCount;
+  dieSides?: DieSides;
+  /** Fresh-cup identity for games that add one new die per turn. */
+  rollKey?: string;
   /**
    * Bonus mode: all hand dice are force-kept on the rail and one temporary
    * extra die rides in the cup (keepIndices carries the forced keep set; keep
@@ -22,7 +25,7 @@ export interface TableDiceProps {
   /** Which dice indices are locked (kept) this turn. */
   keepIndices: number[];
   /** Current logical dice (empty before first roll). */
-  dice: Die[];
+  dice: number[];
   /** Whether a turn is active on the table. */
   active: boolean;
   /** Increment when dice are released — apply `releaseVelocity`. */
@@ -35,7 +38,7 @@ export interface TableDiceProps {
    * source of the authoritative rest pose sent to the server (ADR 005).
    */
   /** Return true to keep the koozie hidden while the server delays a terminal/special result. */
-  onSettled: (dice: Die[], settleFrame: PoseFrame) => boolean | undefined;
+  onSettled: (dice: number[], settleFrame: PoseFrame) => boolean | undefined;
   /** Called when rolling state changes. */
   onRollingChange?: (rolling: boolean) => void;
   /** Called on mouseup after a drag with sampled throw velocity. */

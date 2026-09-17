@@ -208,10 +208,12 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       // Ephemeral pose relay (ADR 004). Invalid senders are dropped silently:
       // frames straddle turn boundaries, and erroring at stream rate would flood.
       const room = conn.roomId ? rooms.get(conn.roomId) : undefined;
-      if (!room || !conn.playerId || (!room.engine && !room.betALotEngine)) return;
+      if (!room || !conn.playerId || (!room.engine && !room.betALotEngine && !room.blackjackEngine))
+        return;
       if (
         room.engine?.currentTurnPlayerId !== conn.playerId &&
-        room.betALotEngine?.currentTurnPlayerId !== conn.playerId
+        room.betALotEngine?.currentTurnPlayerId !== conn.playerId &&
+        room.blackjackEngine?.currentTurnPlayerId !== conn.playerId
       )
         return;
       if (!withinFrameBudget(conn)) return;
@@ -233,6 +235,36 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       if (error) conn.sendError(error.code, error.message);
     },
 
+    'blackjack:throwStart': (conn) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.blackjackEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a blackjack room');
+        return;
+      }
+      const issue = c.room.blackjackEngine.beginThrow(c.playerId);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+    'blackjack:throwResult': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.blackjackEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a blackjack room');
+        return;
+      }
+      const issue = c.room.blackjackEngine.commitThrow(c.playerId, msg.die, msg.restPose);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+    'blackjack:decide': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.blackjackEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a blackjack room');
+        return;
+      }
+      const issue = c.room.blackjackEngine.decide(c.playerId, msg.decision);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
     'betalot:call': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;

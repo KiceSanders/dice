@@ -96,6 +96,7 @@ export function replayRoom(roomId: RoomId, events: RoomEvent[]): Room | null {
   for (const player of room.players.values()) player.connected = false;
   room.engine?.pause();
   room.betALotEngine?.pause();
+  room.blackjackEngine?.pause();
   room.emptySince = Date.now();
   return room;
 }

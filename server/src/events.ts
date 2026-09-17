@@ -1,6 +1,7 @@
 import type {
   BodyPose,
   Die,
+  GameKind,
   GameSettings,
   HandScore,
   PlayerId,
@@ -9,6 +10,7 @@ import type {
   StraightKind,
 } from '@dice/shared';
 import type { BetALotPersistedState } from './games/betalot/engine.js';
+import type { BlackjackPersistedState } from './games/blackjack/engine.js';
 
 /**
  * Persistence event model (PLAN.md Phase 6). Every state-mutating change to a
@@ -42,7 +44,7 @@ export interface PersistedGame {
   lastFirstRollerSeat?: number | null;
 }
 
-export type PersistedRoomGame = PersistedGame | BetALotPersistedState;
+export type PersistedRoomGame = PersistedGame | BetALotPersistedState | BlackjackPersistedState;
 
 export interface ChatHistoryEntry {
   playerId: PlayerId;
@@ -66,7 +68,7 @@ export interface PersistedRoomState {
 
 export type RoomEvent =
   // -- log bootstrap ---------------------------------------------------------
-  | { type: 'created'; roomId: RoomId; settings: GameSettings; gameKind?: 'dice5' | 'betalot' }
+  | { type: 'created'; roomId: RoomId; settings: GameSettings; gameKind?: GameKind }
   /** Compaction marker: full room state at a round boundary. */
   | { type: 'snapshot'; state: PersistedRoomState }
   // -- membership ------------------------------------------------------------

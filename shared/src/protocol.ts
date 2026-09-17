@@ -57,6 +57,10 @@ export type ClientMessage =
   | { type: 'dice:frames'; frames: PoseFrame[] }
   /** Voluntary stand; optional final selecting layout for the settled hand (ADR 005). */
   | { type: 'turn:stand'; restPose?: BodyPose[] }
+  /** Dice blackjack: one physics die, followed by an explicit stand/continue decision. */
+  | { type: 'blackjack:throwStart' }
+  | { type: 'blackjack:throwResult'; die: number; restPose?: BodyPose[] }
+  | { type: 'blackjack:decide'; decision: 'stand' | 'continue' }
   /** Bet-a-lot: the opener calls the face expected on the first one-die roll. */
   | { type: 'betalot:call'; face: Die }
   /** Bet-a-lot physics throw with the exact count required by the active ladder rung. */
@@ -86,6 +90,15 @@ export type ErrorCode =
   | 'INTERNAL';
 
 export type ServerMessage =
+  | { type: 'blackjack:throwStarted'; playerId: PlayerId }
+  | {
+      type: 'blackjack:rolled';
+      playerId: PlayerId;
+      die: number;
+      total: number;
+      restPose: BodyPose[] | null;
+    }
+  | { type: 'blackjack:roundEnded'; winnerId: PlayerId; loserId: PlayerId; amount: number }
   | { type: 'rooms:list'; rooms: ActiveRoomSummary[] }
   | { type: 'room:created'; roomId: RoomId; playerId: PlayerId; rejoinToken: string }
   | { type: 'room:joined'; playerId: PlayerId; rejoinToken: string; snapshot: RoomSnapshot }

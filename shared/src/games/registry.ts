@@ -1,6 +1,7 @@
 import {
   type BetALotSettings,
   DEFAULT_BETALOT_SETTINGS,
+  DEFAULT_BLACKJACK_SETTINGS,
   DEFAULT_SETTINGS,
   type GameKind,
   type GameSettings,
@@ -17,6 +18,14 @@ export interface GameDefinition {
 }
 
 export const GAME_DEFINITIONS: Record<GameKind, GameDefinition> = {
+  blackjack: {
+    kind: 'blackjack',
+    label: 'Dice Blackjack',
+    blurb: 'Roll toward 21. Stand or continue. Twelve-sided overtime doubles the stakes.',
+    minSeats: 2,
+    maxSeats: 2,
+    defaultSettings: DEFAULT_BLACKJACK_SETTINGS,
+  },
   dice5: {
     kind: 'dice5',
     label: 'Dice',
@@ -36,7 +45,7 @@ export const GAME_DEFINITIONS: Record<GameKind, GameDefinition> = {
 };
 
 export function gameKindOf(settings: GameSettings): GameKind {
-  return settings.kind === 'betalot' ? 'betalot' : 'dice5';
+  return settings.kind ?? 'dice5';
 }
 
 export function isBetALotSettings(settings: GameSettings): settings is BetALotSettings {
@@ -44,5 +53,5 @@ export function isBetALotSettings(settings: GameSettings): settings is BetALotSe
 }
 
 export function isDice5Settings(settings: GameSettings): settings is RoomSettings {
-  return settings.kind !== 'betalot';
+  return settings.kind === undefined || settings.kind === 'dice5';
 }

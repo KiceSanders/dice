@@ -1,6 +1,7 @@
 import type {
   AutoIncrementConfig,
   BetALotSettings,
+  BlackjackSettings,
   ClassicPotConfig,
   FirstRollYahtzeePayoutConfig,
   GameSettings,
@@ -74,10 +75,20 @@ function clampBetALotSettings(settings: BetALotSettings): BetALotSettings {
   };
 }
 
+export function clampSettings(settings: BlackjackSettings): BlackjackSettings;
 export function clampSettings(settings: BetALotSettings): BetALotSettings;
 export function clampSettings(settings: RoomSettings): RoomSettings;
 export function clampSettings(settings: GameSettings): GameSettings;
 export function clampSettings(settings: GameSettings): GameSettings {
+  if (settings.kind === 'blackjack') {
+    const minBuyIn = clampInt(settings.minBuyIn, 1, 1_000_000);
+    return {
+      kind: 'blackjack',
+      minBuyIn,
+      maxBuyIn: clampInt(settings.maxBuyIn, minBuyIn, 10_000_000),
+      afterRollDelayMs: clampInt(settings.afterRollDelayMs, 0, 10_000),
+    };
+  }
   if (settings.kind === 'betalot') return clampBetALotSettings(settings);
   const minBuyIn = clampInt(settings.minBuyIn, 1, 1_000_000);
   const straight: Partial<StraightPayoutConfig> = settings.straightPayout ?? {};

@@ -1,3 +1,4 @@
+import type { DieSides } from '@dice/shared';
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import type * as THREE from 'three';
@@ -5,6 +6,7 @@ import { useTableEvent } from '../tableEvents';
 import { DICE_COUNT, type DiceCount, diceRuntimeCount } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
+import PolyhedralDie from './PolyhedralDie';
 import type { RemoteRollFeed } from './remoteFeed';
 import { STRAIGHT_GLOW } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
@@ -26,10 +28,12 @@ const REMOTE_GLOW_DELAY_MS = 250;
 export default function RemoteDiceView({
   feed,
   diceCount = DICE_COUNT,
+  dieSides = 6,
   bonusMode = false,
 }: {
   feed: RemoteRollFeed;
   diceCount?: DiceCount;
+  dieSides?: DieSides;
   bonusMode?: boolean;
 }) {
   const tuning = useDicePhysicsTuning();
@@ -110,7 +114,7 @@ export default function RemoteDiceView({
             dieRefs.current[i] = el;
           }}
         >
-          <PipDie glow={glow[i]} />
+          {dieSides === 12 ? <PolyhedralDie /> : <PipDie glow={glow[i]} />}
         </group>
       ))}
     </group>

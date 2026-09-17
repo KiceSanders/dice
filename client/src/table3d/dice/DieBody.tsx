@@ -1,9 +1,16 @@
+import { D12_VERTICES, type DieSides } from '@dice/shared';
 import type { ThreeEvent } from '@react-three/fiber';
-import { CuboidCollider, type RapierRigidBody, RigidBody } from '@react-three/rapier';
+import {
+  ConvexHullCollider,
+  CuboidCollider,
+  type RapierRigidBody,
+  RigidBody,
+} from '@react-three/rapier';
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { handleDieContactForce } from '../audio/rollerImpacts';
 import { DIE_HALF, SOFT_CCD_PREDICTION } from './constants';
 import PipDie from './PipDie';
+import PolyhedralDie from './PolyhedralDie';
 import type { GlowHandle } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
 
@@ -11,7 +18,10 @@ export interface DieBodyHandle {
   body: RapierRigidBody | null;
 }
 
+const D12_COLLIDER = new Float32Array(D12_VERTICES.flat());
+
 interface Props {
+  dieSides?: DieSides;
   locked: boolean;
   /** Kinematic body driven each frame (e.g. carried inside a moving cup). */
   driven?: boolean;
@@ -30,6 +40,7 @@ interface Props {
 
 const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
   {
+    dieSides = 6,
     locked,
     driven = false,
     pickable = true,
@@ -69,16 +80,29 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
       ccd={false}
       softCcdPrediction={!locked && !driven ? SOFT_CCD_PREDICTION : 0}
     >
-      <CuboidCollider
-        // `name` tags this side of a contact for impact audio (impactRules.ts);
-        // onContactForce only exists here — dice touch everything we sound.
-        name="die"
-        args={[DIE_HALF * 0.96, DIE_HALF * 0.96, DIE_HALF * 0.96]}
-        friction={tuning.dice.friction}
-        restitution={tuning.dice.restitution}
-        density={tuning.dice.density}
-        onContactForce={handleDieContactForce}
-      />
+      {dieSides === 12 ? (
+        <ConvexHullCollider
+          // `name` tags this side of a contact for impact audio (impactRules.ts);
+          // onContactForce only exists here — dice touch everything we sound.
+          name="die"
+          args={[D12_COLLIDER]}
+          friction={tuning.dice.friction}
+          restitution={tuning.dice.restitution}
+          density={tuning.dice.density}
+          onContactForce={handleDieContactForce}
+        />
+      ) : (
+        <CuboidCollider
+          // `name` tags this side of a contact for impact audio (impactRules.ts);
+          // onContactForce only exists here — dice touch everything we sound.
+          name="die"
+          args={[DIE_HALF * 0.96, DIE_HALF * 0.96, DIE_HALF * 0.96]}
+          friction={tuning.dice.friction}
+          restitution={tuning.dice.restitution}
+          density={tuning.dice.density}
+          onContactForce={handleDieContactForce}
+        />
+      )}
       <group
         visible={meshVisible}
         raycast={pickable ? undefined : () => null}
@@ -86,7 +110,7 @@ const DieBody = forwardRef<DieBodyHandle, Props>(function DieBody(
         onPointerEnter={pickable ? onPointerEnter : undefined}
         onPointerLeave={pickable ? onPointerLeave : undefined}
       >
-        <PipDie glow={glow} />
+        {dieSides === 12 ? <PolyhedralDie /> : <PipDie glow={glow} />}
       </group>
     </RigidBody>
   );

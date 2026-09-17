@@ -520,3 +520,38 @@ Sounds only start after a tab's first click/keypress (browser autoplay policy).
 - **Rejoin:** `client/src/state/persist.ts` + `Room.tsx` — token used only when `stored.playerName ===` current display name.
 
 When changing join/reconnect behavior, re-run **both** Phase 7 and Phase 8 flows above.
+
+## Dice Blackjack — 2 player tabs + optional spectator
+
+Browser verification is user-owned. Start one dev stack, set different `dice:name` values
+per tab, and wait for **Connection: open** before joining. Choose **Dice Blackjack**, seat
+both players with 100 chips, approve the guest, and start. A third visitor can spectate.
+
+1. **One die and alternating turns:** A grabs the cup, shakes and pours one die. Both tabs
+   see the same tumble, resting face and updated total. After the reveal, A chooses Continue.
+   The die parks beside A; B gets one fresh die. Repeat several turns and confirm neither
+   player's prior dice disappear, reroll, or duplicate on the felt.
+2. **Stand and solo continuation:** A stands. Both tabs and the spectator visibly show
+   A's total and **Standing**. B can Continue repeatedly with a fresh cup each time until
+   beating A, choosing Stand, or busting. A cannot roll or change their standing total.
+3. **Bust and payouts:** exceed 21. The score updates immediately, but the winner and
+   10-chip transfer wait for the reveal delay. Chip totals stay conserved. Check a lower
+   voluntary stand also pays the higher scorer and cannot pay twice.
+4. **Tie and overtime:** in development, set `window.__forceSettleFaces = [5]` in each tab
+   before rolling and Stand on both equal hands. Totals and rail dice reset; the band shows
+   **Overtime 1 / 20 chips**, and the cup now contains a numbered twelve-sided die. Force
+   equal hands again: **Overtime 2 / 40 chips**. Check natural d12 throws show matching
+   geometry and faces in both tabs. Delete `window.__forceSettleFaces` after scripting.
+5. **Exact 21:** build 21. That player auto-stands; the opponent can tie to trigger overtime
+   or bust. A completed overtime pays its displayed stake (or the loser's remaining stack).
+   Next round returns to d6 / 10 chips and alternates the normal opener.
+6. **Refresh/rejoin:** refresh after a roll or a Stand; join a spectator mid-hand. Scores,
+   rails, standing status, overtime and the latest felt die must agree. The unsettled cup
+   stream may end on disconnect because the player forfeits; server-restart recovery retries
+   an uncommitted throw and preserves already-committed dice/results.
+7. **Layout:** inspect desktop and a narrow phone viewport. Names, chip totals, scores,
+   Standing status and both decision buttons stay readable. Long hands stay near the seat
+   edge with the center clear. The spectator has no decision or Next round controls.
+
+Delete forced faces when done. Automated tests and headless physics checks do not certify
+this multi-tab visual checklist.

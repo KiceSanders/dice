@@ -1895,3 +1895,62 @@ button.die:hover {
   width: 4rem;
   min-width: 0;
 }
+
+/* Blackjack: totals and standing status stay with the matching player's seat. */
+.seat--blackjack {
+  flex-wrap: wrap;
+}
+.blackjack-seat-score {
+  flex: 1 0 100%;
+  order: 3;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--surface-2);
+}
+.blackjack-seat-score strong {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+.blackjack-seat-score small {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.blackjack-seat-score > span {
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+.blackjack-round-status {
+  display: flex;
+  line-height: 1.15;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: center;
+  text-align: center;
+  font-size: clamp(0.65rem, 1.5vw, 0.9rem);
+}
+.blackjack-round-status strong {
+  color: var(--accent);
+}
+.blackjack-controls {
+  display: flex;
+  flex-direction: row;
+  max-width: none;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.table-3d--blackjack .table-top-band-slot--roll {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-content: center;
+}
+.table-3d--blackjack .table-top-band-slot--pot {
+  grid-column: 1;
+  grid-row: 1;
+}
+.table-3d--blackjack .table-top-band-slot--classic {
+  display: none;
+}

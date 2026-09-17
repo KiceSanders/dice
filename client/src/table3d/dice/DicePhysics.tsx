@@ -1,4 +1,4 @@
-import type { BodyPose, Die, PoseFrame } from '@dice/shared';
+import type { BodyPose, PoseFrame } from '@dice/shared';
 import { RigidBodyType } from '@dimforge/rapier3d-compat';
 import { type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -50,7 +50,7 @@ import {
   quatToEuler,
 } from './diceRuntime';
 import { buildSelectingRuntime, type DiePose } from './diceSettleHandoff';
-import { quaternionForFace, readTopFace } from './faceValue';
+import { quaternionForFace } from './faceValue';
 import KoozieBody, { type KoozieBodyHandle } from './KoozieBody';
 import { spawnDiceInCupLocal } from './koozieColliders';
 import {
@@ -62,6 +62,7 @@ import {
   pouringPoseAt,
   stepHeldPose,
 } from './koozieMotion';
+import { sampleDieValues } from './sampleDieValues';
 import { STRAIGHT_GLOW } from './straightGlow';
 import TableColliders from './TableColliders';
 import { type DicePhysicsTuning, getDicePhysicsTuning, useDicePhysicsTuning } from './tuning';
@@ -239,6 +240,7 @@ function respawnDieOnFelt(
 
 export default function DicePhysics({
   diceCount = DICE_COUNT,
+  dieSides = 6,
   bonusMode = false,
   keepIndices,
   dice,
@@ -313,7 +315,7 @@ export default function DicePhysics({
   const dieHoverCountRef = useRef(0);
   const [layoutGen, setLayoutGen] = useState(0);
   const [runtime, setRuntime] = useState<DieRuntime[]>(() =>
-    buildRuntime(dice, keepIndices, canDrag, tuning, bonusMode, diceCount),
+    buildRuntime(dice, keepIndices, canDrag, tuning, bonusMode, diceCount, dieSides),
   );
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
@@ -348,7 +350,7 @@ export default function DicePhysics({
   cupPhaseRef.current = cupPhase;
 
   const resetToIdleInCup = useCallback(
-    (nextDice?: Die[]) => {
+    (nextDice?: number[]) => {
       const latestTuning = getDicePhysicsTuning();
       const cupMode = canDragRef.current;
       clearStraightGlow();
@@ -366,6 +368,7 @@ export default function DicePhysics({
           latestTuning,
           bonusMode,
           diceCount,
+          dieSides,
         ),
       );
       setCupPosition(homePosition(latestTuning));
@@ -379,11 +382,11 @@ export default function DicePhysics({
       pourStateRef.current = null;
       feltPoseRef.current = Array(runtimeDiceCount).fill(null);
     },
-    [bonusMode, clearStraightGlow, diceCount, runtimeDiceCount, transitionCupPhase],
+    [bonusMode, clearStraightGlow, diceCount, runtimeDiceCount, transitionCupPhase, dieSides],
   );
 
   const enterSelectingPhase = useCallback(
-    (values: Die[], keepKoozieHidden = false) => {
+    (values: number[], keepKoozieHidden = false) => {
       const latestTuning = getDicePhysicsTuning();
       const kept = keepRef.current;
 
@@ -407,6 +410,7 @@ export default function DicePhysics({
         diceRef.current,
         feltPoseRef.current,
         diceCount,
+        dieSides,
       );
       feltPoseRef.current = feltPoses;
 
@@ -421,7 +425,7 @@ export default function DicePhysics({
       heldStateRef.current = null;
       pourStateRef.current = null;
     },
-    [diceCount, transitionCupPhase],
+    [diceCount, transitionCupPhase, dieSides],
   );
 
   const applyKeepLayout = useCallback(
@@ -440,7 +444,7 @@ export default function DicePhysics({
         if (kept.includes(i)) {
           const slot = keepSlotForIndex(i, keptSorted);
           const value = diceRef.current[i];
-          const rotation = value ? quatToEuler(quaternionForFace(value)) : rt.rotation;
+          const rotation = value ? quatToEuler(quaternionForFace(value, 0, dieSides)) : rt.rotation;
           next[i] = {
             ...rt,
             locked: true,
@@ -476,7 +480,7 @@ export default function DicePhysics({
         onPoseFrameRef.current?.(frame);
       }
     },
-    [diceCount, runtimeDiceCount],
+    [diceCount, runtimeDiceCount, dieSides],
   );
 
   const wakeUnkeptDice = useCallback(() => {
@@ -543,38 +547,24 @@ export default function DicePhysics({
   }, []);
 
   const readCurrentDieValues = useCallback(
-    (fallbackDice?: Die[]): Die[] => {
-      // Dev-only settle override (see the Window declaration above): substitutes
-      // unkept faces only, so the server's kept-unchanged check still passes.
-      const forcedRaw = import.meta.env.DEV ? window.__forceSettleFaces : undefined;
-      const forced =
-        forcedRaw?.length === diceCount &&
-        forcedRaw.every((d) => Number.isInteger(d) && d >= 1 && d <= 6)
-          ? (forcedRaw as Die[])
-          : null;
-
-      const values: Die[] = [];
-      for (let i = 0; i < runtimeDiceCount; i++) {
-        if (keepRef.current.includes(i) && diceRef.current[i]) {
-          values.push(diceRef.current[i]!);
-          continue;
-        }
-        if (forced && i < diceCount) {
-          values.push(forced[i]!);
-          continue;
-        }
-        const body = liveBody(dieRefs.current[i]?.body);
-        if (!body) {
-          values.push(fallbackDice?.[i] ?? diceRef.current[i] ?? 1);
-          continue;
-        }
-        const rot = body.rotation();
-        _quat.set(rot.x, rot.y, rot.z, rot.w);
-        values.push(readTopFace(_quat));
-      }
-      return values;
+    (fallbackDice?: number[]): number[] => {
+      return sampleDieValues({
+        diceCount,
+        runtimeCount: runtimeDiceCount,
+        sides: dieSides,
+        kept: keepRef.current,
+        committed: diceRef.current,
+        fallback: fallbackDice,
+        forced: import.meta.env.DEV ? window.__forceSettleFaces : undefined,
+        rotation: (i) => {
+          const body = liveBody(dieRefs.current[i]?.body);
+          if (!body) return null;
+          const r = body.rotation();
+          return [r.x, r.y, r.z, r.w];
+        },
+      });
     },
-    [diceCount, runtimeDiceCount],
+    [diceCount, runtimeDiceCount, dieSides],
   );
 
   const samplePoseFrame = useCallback(
@@ -599,7 +589,7 @@ export default function DicePhysics({
   );
 
   const finishWithCurrentFaces = useCallback(
-    (fallbackDice?: Die[]) => {
+    (fallbackDice?: number[]) => {
       if (finishPendingRef.current) return;
       finishPendingRef.current = true;
       rollingRef.current = false;
@@ -841,9 +831,17 @@ export default function DicePhysics({
     layoutGenRef.current += 1;
     setLayoutGen(layoutGenRef.current);
     setRuntime(
-      buildRuntime(diceRef.current, keepIndices, canDrag, tuningRef.current, bonusMode, diceCount),
+      buildRuntime(
+        diceRef.current,
+        keepIndices,
+        canDrag,
+        tuningRef.current,
+        bonusMode,
+        diceCount,
+        dieSides,
+      ),
     );
-  }, [dice, keepIndices, dragging, canDrag, bonusMode, diceCount]);
+  }, [dice, keepIndices, dragging, canDrag, bonusMode, diceCount, dieSides]);
 
   useEffect(() => {
     if (cupPhaseRef.current !== 'selecting' && cupPhaseRef.current !== 'held') return;
@@ -1206,6 +1204,7 @@ export default function DicePhysics({
         const canToggleKeep = cupPhase === 'selecting' && canDrag && !rt.inCup;
         return (
           <DieBody
+            dieSides={dieSides}
             key={rt.locked ? `die-${i}-locked-${layoutGen}` : `die-${i}-dynamic-${layoutGen}`}
             ref={(el) => {
               dieRefs.current[i] = el;

@@ -1,9 +1,10 @@
-import type { ClientMessage, Die, GameStatePublic, PoseFrame, RoomSnapshot } from '@dice/shared';
-import { canStandVoluntarily } from '@dice/shared';
+import type { ClientMessage, GameStatePublic, PoseFrame, RoomSnapshot } from '@dice/shared';
+import { canStandVoluntarily, isDice5Settings, isDice5State } from '@dice/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TurnActions } from '../components/GameArea';
 import { describeScore } from '../components/GameHud';
 import { BONUS_DIE_INDEX, DICE_COUNT } from '../table3d/dice/constants';
+import { isSixSidedDice } from '../table3d/dice/sampleDieValues';
 import type { TableDiceProps, ThrowVelocity } from '../table3d/dice/types';
 import { seatDisplayPlacement } from '../table3d/layout';
 import { poseFrameToCanonical } from '../table3d/seatTransform';
@@ -66,10 +67,7 @@ export function useTableRoll(
   const [releaseVelocity, setReleaseVelocity] = useState<ThrowVelocity>(ZERO_VELOCITY);
   const [frameBatch] = useState(() => new FrameBatch());
   const latestCanonicalFrameRef = useRef<PoseFrame | null>(null);
-  const game =
-    snapshot?.settings.kind === 'betalot'
-      ? null
-      : (snapshot?.game as GameStatePublic | null | undefined);
+  const game = isDice5State(snapshot?.game) ? snapshot.game : null;
 
   const turn = game?.currentTurn ?? null;
   const { pendingKeep, pendingKeepRef, toggleKeep } = usePendingKeep(turn, {
@@ -113,7 +111,8 @@ export function useTableRoll(
   );
 
   const onSettled = useCallback(
-    (dice: Die[], settleFrame: PoseFrame) => {
+    (dice: number[], settleFrame: PoseFrame) => {
+      if (!isSixSidedDice(dice)) return true;
       setRolling(false);
       if (bonusModeRef.current) {
         // Only the temporary sixth die was thrown; no rest pose, so the
@@ -129,7 +128,9 @@ export function useTableRoll(
         dice,
         rollNumber,
         turn?.rollCap ?? Number.POSITIVE_INFINITY,
-        snapshot?.settings.kind !== 'betalot' && snapshot?.settings.yahtzeeBonus.enabled === true,
+        snapshot !== null &&
+          isDice5Settings(snapshot.settings) &&
+          snapshot.settings.yahtzeeBonus.enabled === true,
       );
     },
     [send, mySeat, snapshot?.settings, turn],

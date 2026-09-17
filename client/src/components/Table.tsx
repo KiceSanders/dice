@@ -1,16 +1,13 @@
-import type {
-  BetALotStatePublic,
-  GameStatePublic,
-  PoseFrame,
-  RoomSettings,
-  RoomSnapshot,
-} from '@dice/shared';
+import type { BetALotStatePublic, PoseFrame, RoomSnapshot } from '@dice/shared';
+import { isBlackjackState, isDice5Settings, isDice5State } from '@dice/shared';
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react';
 import BetALotCalledFace from '../games/betalot/BetALotCalledFace';
 import BetALotFacePicker from '../games/betalot/BetALotFacePicker';
 import BetALotPayoutNotices from '../games/betalot/BetALotPayoutNotices';
 import BetALotRoundHistory from '../games/betalot/BetALotRoundHistory';
 import BetALotScoreOverlay from '../games/betalot/BetALotScoreOverlay';
+import { BlackjackControls, BlackjackRoundStatus } from '../games/blackjack/BlackjackHud';
+import { blackjackRailFrames } from '../games/blackjack/presentation';
 import ClassicPotOverlay from '../table3d/ClassicPotOverlay';
 import type { DiceCount } from '../table3d/dice/constants';
 import type { RemoteRollFeed } from '../table3d/dice/remoteFeed';
@@ -166,14 +163,15 @@ export default function Table({
   const viewportFitStyle = useTableViewportFit(stacked);
   const isBetALot = snapshot.settings.kind === 'betalot';
   const betALotGame = isBetALot ? (snapshot.game as BetALotStatePublic | null) : null;
-  const dice5Game = isBetALot ? null : (snapshot.game as GameStatePublic | null);
-  const dice5Settings = isBetALot ? null : (snapshot.settings as RoomSettings);
+  const dice5Game = isDice5State(snapshot.game) ? snapshot.game : null;
+  const dice5Settings = isDice5Settings(snapshot.settings) ? snapshot.settings : null;
+  const blackjack = isBlackjackState(snapshot.game) ? snapshot.game : null;
   const betALotOnFire = Boolean(betALotGame?.fire.some((entry) => entry.onFire));
 
   return (
     <div
       ref={frameRef}
-      className={`table table-3d${stacked ? ' table-3d--stacked' : ''}`}
+      className={`table table-3d${stacked ? ' table-3d--stacked' : ''}${blackjack ? ' table-3d--blackjack' : ''}`}
       style={viewportFitStyle}
     >
       <div
@@ -189,9 +187,11 @@ export default function Table({
           remoteFeed={remoteFeed}
           heldPose={heldPose}
           parkedKoozieAngle={parkedKoozieAngle}
-          tieBreaker={Boolean(dice5Game?.subRound) || betALotOnFire}
+          tieBreaker={Boolean(dice5Game?.subRound) || betALotOnFire || Boolean(blackjack?.overtime)}
+          dieSides={blackjack?.dieSides}
+          railFrames={blackjack ? blackjackRailFrames(blackjack, snapshot, myId) : undefined}
           diceCount={diceCount}
-          remoteBonusMode={!isBetALot}
+          remoteBonusMode={isDice5Settings(snapshot.settings)}
         />
         {layout && <TableCenterOverlay snapshot={snapshot} aspect={viewportAspect} />}
       </div>
@@ -199,7 +199,9 @@ export default function Table({
           flow, so they can never overlap each other or the seat arc below. */}
       <div className="table-top-band">
         <div className="table-top-band-slot table-top-band-slot--pot">
-          {betALotGame ? (
+          {blackjack ? (
+            <PotChipOverlay pot={0} label="Payout" />
+          ) : betALotGame ? (
             <div className="classic-pot-overlay betalot-pot-overlay">
               <PotChipOverlay pot={betALotGame.sevensPot} label="Sevens Pot" />
               <div className="classic-pot-label">Sevens Pot</div>
@@ -209,7 +211,9 @@ export default function Table({
           )}
         </div>
         <div className="table-top-band-slot table-top-band-slot--roll">
-          {betALotGame ? (
+          {blackjack ? (
+            <BlackjackRoundStatus snapshot={snapshot} />
+          ) : betALotGame ? (
             <BetALotScoreOverlay game={betALotGame} players={snapshot.players} />
           ) : (
             dice5Game && <RollToBeatOverlay game={dice5Game} players={snapshot.players} />
@@ -245,6 +249,7 @@ export default function Table({
       )}
       {connection && <ConnectionDot status={connection} />}
       {stand && <StandControlView stand={stand} />}
+      {blackjack && <BlackjackControls snapshot={snapshot} myId={myId} />}
       {stacked ? (
         <SeatStrip snapshot={snapshot} myId={myId} winnerId={winnerId} />
       ) : (

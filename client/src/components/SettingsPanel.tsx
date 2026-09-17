@@ -1,6 +1,7 @@
 import type { RoomSettings, RoomSnapshot } from '@dice/shared';
 import { useEffect, useState } from 'react';
 import BetALotSettingsPanel from '../games/betalot/BetALotSettingsPanel';
+import { BlackjackSettingsPanel } from '../games/blackjack/BlackjackSettings';
 import { useApp } from '../state/context';
 import SettingsFields, { fillEmptySettings } from './SettingsFields';
 
@@ -15,6 +16,8 @@ export default function SettingsPanel({
   snapshot: RoomSnapshot;
   isHost: boolean;
 }) {
+  if (snapshot.settings.kind === 'blackjack')
+    return <BlackjackSettingsPanel settings={snapshot.settings} isHost={isHost} />;
   if (snapshot.settings.kind === 'betalot') {
     return <BetALotSettingsPanel snapshot={snapshot} isHost={isHost} />;
   }

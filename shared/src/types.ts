@@ -6,7 +6,7 @@
 export type PlayerId = string;
 export type RoomId = string;
 /** The ruleset selected before a room is created. */
-export type GameKind = 'dice5' | 'betalot';
+export type GameKind = 'dice5' | 'betalot' | 'blackjack';
 
 /** Fixed room capacity. Player count is not configurable per room. */
 export const MAX_SEATED_PLAYERS = 8;
@@ -205,7 +205,51 @@ export const DEFAULT_BETALOT_SETTINGS: BetALotSettings = {
  * Legacy dice5 settings intentionally omit a kind on the wire for backwards
  * compatibility with persisted rooms. New rooms normalize it to `dice5`.
  */
-export type GameSettings = RoomSettings | BetALotSettings;
+export type GameSettings = RoomSettings | BetALotSettings | BlackjackSettings;
+
+export interface BlackjackSettings extends BaseRoomSettings {
+  kind: 'blackjack';
+}
+
+export const DEFAULT_BLACKJACK_SETTINGS: BlackjackSettings = {
+  kind: 'blackjack',
+  afterRollDelayMs: 2_000,
+  minBuyIn: 20,
+  maxBuyIn: 1_000,
+};
+
+export type DieSides = 6 | 12;
+
+export interface BlackjackHand {
+  playerId: PlayerId;
+  dice: number[];
+  total: number;
+  stood: boolean;
+}
+
+export interface BlackjackStatePublic {
+  kind: 'blackjack';
+  roundNumber: number;
+  overtime: number;
+  dieSides: DieSides;
+  payout: number;
+  openerId: PlayerId;
+  currentPlayerId: PlayerId | null;
+  /** Advances whenever a fresh cup is offered, including consecutive solo turns. */
+  turnNumber: number;
+  throwing: boolean;
+  resolving: boolean;
+  awaitingDecision: boolean;
+  hands: BlackjackHand[];
+  /** The latest die stays on the felt until the stand/continue decision. */
+  tableDie: { playerId: PlayerId; die: number; restPose: BodyPose[] | null } | null;
+  result: {
+    winnerId: PlayerId;
+    loserId: PlayerId;
+    amount: number;
+    reason: 'bust' | 'higher' | 'forfeit';
+  } | null;
+}
 
 /**
  * Final score of a stood hand. Comparison order: count > face > fewer rollsUsed.
@@ -338,7 +382,13 @@ export interface BetALotStatePublic {
   fire: BetALotFireState[];
 }
 
-export type AnyGameStatePublic = GameStatePublic | BetALotStatePublic;
+export type AnyGameStatePublic = GameStatePublic | BetALotStatePublic | BlackjackStatePublic;
+
+export function isBlackjackState(
+  game: AnyGameStatePublic | null | undefined,
+): game is BlackjackStatePublic {
+  return game != null && 'kind' in game && game.kind === 'blackjack';
+}
 
 export function isBetALotState(
   game: AnyGameStatePublic | null | undefined,
@@ -347,7 +397,7 @@ export function isBetALotState(
 }
 
 export function isDice5State(game: AnyGameStatePublic | null | undefined): game is GameStatePublic {
-  return game !== null && game !== undefined && !isBetALotState(game);
+  return game !== null && game !== undefined && !('kind' in game);
 }
 
 /** Authoritative room snapshot pushed to clients after every state change. */

@@ -444,3 +444,21 @@ add unit tests next to them. Geometry constants are also re-exported from
 3. `npm run verify` green (framing/symmetry/guard tests are the net).
 4. Hand the user the browser checklist from `docs/browser-testing.md` (multi-tab — one
    view is never enough). Never launch or drive browser testing unless explicitly asked.
+
+### Dice Blackjack
+
+Blackjack uses one new die per turn: `dieSides` is 6 normally and 12 in overtime, shared by
+`DicePhysics`, `RemoteDiceView`, and `StaticDiceView`. The d12's mesh, convex collider and
+face convention share `shared/src/game/polyhedral.ts`; never emulate it by relabeling a
+cube. Every new cup uses `rollKey` so consecutive turns by the same player still reset.
+Settlement unmounts the local one-die physics and uses the existing authoritative rest-pose
+resolver for everyone. No new per-client pose capture is introduced.
+
+Snapshot-owned `railFrames` render outside local/remote playback. They retain both players'
+previous dice throughout a throw; the latest undecided die is excluded from the rail until
+Stand/Continue. `games/blackjack/presentation.ts` uses the existing kept-die positions for
+small hands, then neighboring rail/felt rows for long hands, with framing tests up to the
+maximum 21-die hand. Player totals and Standing/Bust/Winner labels stay beside the seat;
+round/stake/result use the top band and decisions use the existing control gutter.
+
+Blackjack spans the unused pot/Classic lanes with its round status to keep the top band readable on narrow screens; the zero-pot chip-flight renderer remains mounted for payouts.

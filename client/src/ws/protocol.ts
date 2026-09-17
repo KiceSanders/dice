@@ -33,6 +33,21 @@ function isActiveRoomSummary(v: unknown): boolean {
 type Validator = (m: Record<string, unknown>) => string | null;
 
 const validators: Record<ServerMessage['type'], Validator> = {
+  'blackjack:throwStarted': (m) =>
+    isNonEmptyString(m.playerId) ? null : 'blackjack:throwStarted missing playerId',
+  'blackjack:rolled': (m) =>
+    isNonEmptyString(m.playerId) &&
+    Number.isInteger(m.die) &&
+    (m.die as number) >= 1 &&
+    (m.die as number) <= 12 &&
+    isFiniteNumber(m.total) &&
+    (m.restPose === null || Array.isArray(m.restPose))
+      ? null
+      : 'blackjack:rolled invalid fields',
+  'blackjack:roundEnded': (m) =>
+    isNonEmptyString(m.winnerId) && isNonEmptyString(m.loserId) && isFiniteNumber(m.amount)
+      ? null
+      : 'blackjack:roundEnded invalid fields',
   'rooms:list': (m) =>
     Array.isArray(m.rooms) && m.rooms.every(isActiveRoomSummary)
       ? null

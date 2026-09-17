@@ -92,7 +92,11 @@ const QUAT_NORM_TOLERANCE = 1e-2;
  * Returns null when acceptable, else a reason string (for logs). Callers drop
  * a bad pose but never reject the throw — dice values stay authoritative.
  */
-export function validateRestPose(restPose: BodyPose[], dice: Die[]): string | null {
+export function validateRestPose(
+  restPose: BodyPose[],
+  dice: number[],
+  readFace: (q: Quat) => number = readTopFaceFromQuat,
+): string | null {
   if (dice.length < 1 || dice.length > 6) {
     return `expected 1-6 dice, got ${dice.length}`;
   }
@@ -116,7 +120,7 @@ export function validateRestPose(restPose: BodyPose[], dice: Die[]): string | nu
     if (y < REST_POSE_BOUNDS.minY || y > REST_POSE_BOUNDS.maxY) {
       return `die ${i}: height ${y.toFixed(3)} outside table range`;
     }
-    const face = readTopFaceFromQuat([qx, qy, qz, qw]);
+    const face = readFace([qx, qy, qz, qw]);
     const expected = dice[i];
     if (expected === undefined || face !== expected) {
       return `die ${i}: top face ${face} does not match reported value ${expected}`;

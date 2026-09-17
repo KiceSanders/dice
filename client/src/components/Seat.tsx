@@ -17,6 +17,7 @@ const STATUS_TITLES: Record<SeatStatus, string> = {
 
 interface Props {
   seatIndex: number;
+  score?: { total: number; status: string };
   player: PlayerPublic | null;
   isMe: boolean;
   /** This player just won the round (round-end highlight). */
@@ -80,6 +81,7 @@ export default function Seat({
   isWinner = false,
   isOnFire = false,
   status = null,
+  score,
 }: Props) {
   if (!player) {
     return (
@@ -92,6 +94,7 @@ export default function Seat({
 
   const classes = [
     'seat',
+    score ? 'seat--blackjack' : '',
     status ? STATUS_CLASSES[status] : '',
     isMe ? 'seat--me' : '',
     isWinner ? 'seat--winner' : '',
@@ -106,6 +109,15 @@ export default function Seat({
       <span className={`seat-name${nameSizeClass(player.name)}`} data-chip-player={player.id}>
         {player.name}
       </span>
+      {score && (
+        <div className="blackjack-seat-score" aria-live="polite">
+          <strong>
+            {score.total}
+            <small> / 21</small>
+          </strong>
+          <span>{score.status}</span>
+        </div>
+      )}
       <div className="seat-chips">
         <span>{player.chips}</span>
         <ChipIcon />

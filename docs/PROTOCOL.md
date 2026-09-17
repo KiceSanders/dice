@@ -13,13 +13,13 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | Type | Payload | Notes |
 |---|---|---|
 | `room:list` | `{}` | Requests the public directory of rooms with at least one connected player |
-| `room:create` | `{ playerName, settings }` | Replies `room:created`; `settings.kind: 'betalot'` selects the heads-up Bet-a-lot ruleset; omitted / `dice5` selects the existing game |
+| `room:create` | `{ playerName, settings }` | Replies `room:created`; `settings.kind: 'betalot'` selects Bet-a-lot; `blackjack` selects Dice Blackjack; omitted / `dice5` selects the existing game |
 | `room:join` | `{ roomId, playerName, rejoinToken? }` | Join as spectator; token reclaims identity |
 | `seat:request` | `{ buyIn }` | Spectator asks for a seat |
 | `seat:approve` / `seat:deny` | `{ playerId }` | Host only |
 | `player:kick` | `{ playerId }` | Host only |
 | `settings:update` | `{ settings }` | Host only; the selected room game determines the accepted settings and their effective point |
-| `game:start` | `{}` | Host only; Dice5 requires ≥2 seated players and Bet-a-lot requires exactly 2 |
+| `game:start` | `{}` | Host only; Dice5 requires ≥2 seated players; Bet-a-lot and Dice Blackjack require exactly 2 |
 | `round:continue` | `{}` | Idempotently starts the next round in `roundEnd`: Dice5 sends it when the recap closes; Bet-a-lot sends it after the sequential payout queue drains |
 | `dice:frames` | `{ frames: PoseFrame[] }` | ~20 Hz throw poses; relayed, never persisted |
 | `special-sound:update` | `{ kind, wavBase64 }` | Publish/replace one player recording in the current room, or clear it with `null`. Ephemeral, rate/size bounded, never persisted |
@@ -152,8 +152,7 @@ through `room:state` snapshots (plus `chat:message` for chat). Replay path:
 `server/src/persistence.ts` `applyReplayEvent` re-drives game events through the engine
 (`replayRolled` re-applies straight payouts and Classic Pot transfers) and everything else through `room.applyEvent`.
 
-`RoomSettings` deliberately has no player-cap field. The server always enforces
-`MAX_SEATED_PLAYERS = 8`; an extra legacy `maxPlayers` JSON key is ignored rather than
+`RoomSettings` deliberately has no player-cap field. The registry enforces eight seats for Dice5 and two for heads-up games; an extra legacy `maxPlayers` JSON key is ignored rather than
 allowed to change room capacity.
 
 ## Ephemeral vs persisted
@@ -195,3 +194,40 @@ quiet window applies only to the next throw. The settled rung and score render i
 payments, an earned extra die, round end, and koozie ownership do not change until the delay
 elapses. `BetALotStatePublic.roundHistory` carries the newest-first last ten
 `{ roundNumber, winnerId }` results, so history dots survive refresh, rejoin, and crash recovery.
+
+## Dice Blackjack
+
+`settings.kind: 'blackjack'` selects a two-seat room. `BlackjackSettings` contains only
+buy-in bounds and reveal delay. `BlackjackStatePublic` is independent of Dice5/Bet-a-lot:
+`hands` exposes ordered dice, totals, and standing status; `tableDie` carries the undecided
+settled die and its canonical rest pose; `overtime`, `dieSides`, and `payout` expose the
+current stakes. `turnNumber` identifies each fresh cup, including consecutive turns by the
+same player. `result` survives rejoin at round end. `round:continue` starts the next normal
+round, idempotently, for seated clients only.
+
+| Client → Server | Payload | Notes |
+|---|---|---|
+| `blackjack:throwStart` | `{}` | Current player only, before their one-die throw |
+| `blackjack:throwResult` | `{ die, restPose? }` | One whole face in 1–6 (normal) or 1–12 (overtime); optional one-die pose. Structurally malformed poses are rejected; invalid face/pose agreement or bounds drops only the pose |
+| `blackjack:decide` | `{ decision: 'stand' \| 'continue' }` | Only after the player's settled roll has finished its reveal delay; banks that die and passes or reoffers the cup |
+
+| Server → Client | Payload | Notes |
+|---|---|---|
+| `blackjack:throwStarted` | `{ playerId }` | Throw is in flight |
+| `blackjack:rolled` | `{ playerId, die, total, restPose }` | Face/total render immediately; stops remote pose playback. Consequences wait for reveal |
+| `blackjack:roundEnded` | `{ winnerId, loserId, amount }` | Actual stack-limited payout, reduced to the shared seat-to-seat chip animation |
+
+| Blackjack engine event | Persisted room event | Wire message | Client handling |
+|---|---|---|---|
+| `throwStarted` | `snapshot` (pending throw is abandoned on recovery) | `blackjack:throwStarted` | socket flow; snapshot owns throwing state |
+| `rolled` | `snapshot` with pending reveal and committed die | `blackjack:rolled` | activity line + socket-direct remote-feed clear |
+| `stateChanged` | `snapshot` | `room:state` | live scores, decisions, banked dice, overtime and turn ownership |
+| `roundEnded` | `snapshot` with result and post-payment stacks | `blackjack:roundEnded` | activity line + `lastTransfer` |
+| `gameEnded` | `snapshot` without game | `room:state` | return to lobby |
+
+`server/src/roomEngines.ts` is the exhaustive blackjack event adapter. Like Bet-a-lot,
+blackjack compacts a self-contained room snapshot at every transition. Recovery resolves
+pending committed rolls once; it never rerolls faces or repeats a completed payment. Shared
+`dice:frames` remains transient, current-player-only, and carries cup + one d6/d12 pose.
+The d12 mesh, convex hull, orientation convention and pose validator all derive from
+`shared/src/game/polyhedral.ts` (ADR 008).

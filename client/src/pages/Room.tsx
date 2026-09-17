@@ -1,5 +1,6 @@
 // biome-ignore-all lint/a11y/noAutofocus: the join form's name field is this page's single purpose
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
+import { GAME_DEFINITIONS, gameKindOf, isDice5Settings } from '@dice/shared';
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ActivityLogPanel from '../components/ActivityLogPanel';
@@ -15,6 +16,7 @@ import Table from '../components/Table';
 import Toasts from '../components/Toasts';
 import { useTableChipEvents, useTableScene } from '../game/useTableScene';
 import { useBetALotTableRoll } from '../games/betalot/useBetALotTableRoll';
+import BlackjackTable from '../games/blackjack/BlackjackTable';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import TableAudio from '../table3d/audio/TableAudio';
@@ -34,7 +36,7 @@ export default function Room() {
   useSpecialSoundRoom(ws, roomId, state.me?.playerId ?? null, connected, send);
   const canContinueRound =
     snapshot?.phase === 'roundEnd' &&
-    snapshot.settings.kind !== 'betalot' &&
+    isDice5Settings(snapshot.settings) &&
     (snapshot.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
       false);
   const dismissRoundEnd = useCallback(() => {
@@ -190,7 +192,7 @@ export default function Room() {
       <ChatPanel />
       <TableAudio />
 
-      {state.roundEnd && snapshot.settings.kind !== 'betalot' && (
+      {state.roundEnd && isDice5Settings(snapshot.settings) && (
         <RoundEndModal
           roundEnd={state.roundEnd}
           players={snapshot.players}
@@ -198,46 +200,52 @@ export default function Room() {
         />
       )}
 
-      <Table
-        connection={state.connection}
-        snapshot={snapshot}
-        myId={myId}
-        winnerId={state.roundEnd?.winnerId ?? betALotWinnerId}
-        dice={isBetALot ? betALotRoll.tableDice : roll3d.tableDice}
-        diceCount={
-          isBetALot
-            ? betALotRoll.showHeldPose && !remoteRoll.live
-              ? betALotRoll.heldDiceCount
-              : (((snapshot.game as import('@dice/shared').BetALotStatePublic | null)
-                  ?.currentDiceCount ?? 1) as 1 | 2 | 3 | 4 | 5 | 6)
-            : undefined
-        }
-        remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
-        heldPose={
-          isBetALot
-            ? betALotRoll.showHeldPose && !remoteRoll.live
-              ? betALotRoll.heldPose
-              : null
-            : showHeldPose
-              ? heldPose
-              : null
-        }
-        parkedKoozieAngle={
-          isBetALot
-            ? remoteRoll.cupInPlay
-              ? null
-              : betALotRoll.parkedKoozieAngle
-            : turn?.throwing || remoteRoll.cupInPlay
-              ? null
-              : roll3d.parkedKoozieAngle
-        }
-        diceAiming={isBetALot ? betALotRoll.diceAiming : roll3d.diceAiming}
-        koozieInPlay={isBetALot && (betALotRoll.dragging || betALotRoll.rolling || remoteRoll.live)}
-        onTablePointer={isBetALot ? betALotRoll.onTablePointer : roll3d.onTablePointer}
-        stand={isBetALot ? undefined : standControl}
-      />
+      {snapshot.settings.kind === 'blackjack' ? (
+        <BlackjackTable snapshot={snapshot} myId={myId} remoteRoll={remoteRoll} />
+      ) : (
+        <Table
+          connection={state.connection}
+          snapshot={snapshot}
+          myId={myId}
+          winnerId={state.roundEnd?.winnerId ?? betALotWinnerId}
+          dice={isBetALot ? betALotRoll.tableDice : roll3d.tableDice}
+          diceCount={
+            isBetALot
+              ? betALotRoll.showHeldPose && !remoteRoll.live
+                ? betALotRoll.heldDiceCount
+                : (((snapshot.game as import('@dice/shared').BetALotStatePublic | null)
+                    ?.currentDiceCount ?? 1) as 1 | 2 | 3 | 4 | 5 | 6)
+              : undefined
+          }
+          remoteFeed={remoteRoll.live ? remoteRoll.feed : undefined}
+          heldPose={
+            isBetALot
+              ? betALotRoll.showHeldPose && !remoteRoll.live
+                ? betALotRoll.heldPose
+                : null
+              : showHeldPose
+                ? heldPose
+                : null
+          }
+          parkedKoozieAngle={
+            isBetALot
+              ? remoteRoll.cupInPlay
+                ? null
+                : betALotRoll.parkedKoozieAngle
+              : turn?.throwing || remoteRoll.cupInPlay
+                ? null
+                : roll3d.parkedKoozieAngle
+          }
+          diceAiming={isBetALot ? betALotRoll.diceAiming : roll3d.diceAiming}
+          koozieInPlay={
+            isBetALot && (betALotRoll.dragging || betALotRoll.rolling || remoteRoll.live)
+          }
+          onTablePointer={isBetALot ? betALotRoll.onTablePointer : roll3d.onTablePointer}
+          stand={isBetALot ? undefined : standControl}
+        />
+      )}
 
-      {snapshot.settings.kind !== 'betalot' && inGame && (
+      {isDice5Settings(snapshot.settings) && inGame && (
         <GameArea
           snapshot={snapshot}
           myId={myId}
@@ -256,17 +264,17 @@ export default function Room() {
                 className="start-button"
                 disabled={
                   seatedCount < 2 ||
-                  (snapshot.settings.kind === 'betalot' && seatedCount !== 2) ||
+                  (!isDice5Settings(snapshot.settings) && seatedCount !== 2) ||
                   !connected
                 }
                 onClick={() => send({ type: 'game:start' })}
               >
                 Start game
               </button>
-              {(seatedCount < 2 || (snapshot.settings.kind === 'betalot' && seatedCount !== 2)) && (
+              {(seatedCount < 2 || (!isDice5Settings(snapshot.settings) && seatedCount !== 2)) && (
                 <small className="muted">
-                  {snapshot.settings.kind === 'betalot'
-                    ? 'Bet-a-lot requires exactly 2 seated players.'
+                  {!isDice5Settings(snapshot.settings)
+                    ? `${GAME_DEFINITIONS[gameKindOf(snapshot.settings)].label} requires exactly 2 seated players.`
                     : 'Need at least 2 seated players to start.'}
                 </small>
               )}

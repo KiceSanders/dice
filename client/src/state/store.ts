@@ -9,7 +9,14 @@ import type {
   RoomSnapshot,
   ServerMessage,
 } from '@dice/shared';
-import { assertUnreachable, effectiveStakeAmount, isBetALotState } from '@dice/shared';
+import {
+  assertUnreachable,
+  effectiveStakeAmount,
+  isBetALotState,
+  isBlackjackState,
+  isDice5Settings,
+  isDice5State,
+} from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
 export const CHAT_BUFFER_SIZE = 200;
@@ -212,8 +219,7 @@ function playerName(state: AppState, id: PlayerId): string {
 }
 
 function dice5Game(state: AppState): GameStatePublic | null {
-  if (state.snapshot?.settings.kind === 'betalot') return null;
-  return (state.snapshot?.game as GameStatePublic | null) ?? null;
+  return isDice5State(state.snapshot?.game) ? state.snapshot.game : null;
 }
 
 function callDisplayFromSnapshot(snapshot: RoomSnapshot): BetALotCallDisplay | null {
@@ -322,6 +328,21 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
           }
         }
       }
+      if (isBlackjackState(next.game) && isBlackjackState(prev?.game)) {
+        if (next.game.overtime > prev.game.overtime)
+          activityLines.push(
+            activityLine(
+              `Tie! Overtime ${next.game.overtime}: twelve-sided dice, ${next.game.payout} chips`,
+            ),
+          );
+        for (const hand of next.game.hands) {
+          if (hand.stood && !prev.game.hands.find((p) => p.playerId === hand.playerId)?.stood) {
+            activityLines.push(
+              activityLine(`${playerName(state, hand.playerId)} stands on ${hand.total}`),
+            );
+          }
+        }
+      }
       const prevCall = prev && isBetALotState(prev.game) ? prev.game.pendingCall : null;
       const nextCall = callDisplayFromSnapshot(next);
       let betALotCallDisplay = state.betALotCallDisplay;
@@ -346,6 +367,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     // off the ws client; app state only changes via the snapshot and the
     // turn:rolled that follow. dice:frames especially must never churn the
     // reducer — it arrives at stream rate.
+    case 'blackjack:throwStarted':
     case 'turn:throwStarted':
     case 'turn:bonusThrowStarted':
     case 'dice:frames':
@@ -529,7 +551,7 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
     case 'turn:bonusOffered': {
       const snapshot = state.snapshot;
       const amount =
-        snapshot?.settings.kind === 'betalot' || snapshot?.game?.roundNumber === undefined
+        !snapshot || !isDice5Settings(snapshot.settings) || snapshot.game?.roundNumber === undefined
           ? undefined
           : effectiveStakeAmount(
               snapshot.settings.yahtzeeBonus.amountPerPlayer,
@@ -580,6 +602,26 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
         activityLog: pushActivityLog(state.activityLog, [activityLine(text)]),
       };
     }
+
+    case 'blackjack:rolled':
+      return {
+        ...state,
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(`${playerName(state, msg.playerId)} rolled ${msg.die} · total ${msg.total}`),
+        ]),
+      };
+    case 'blackjack:roundEnded':
+      return {
+        ...state,
+        lastTransfer: {
+          toPlayerId: msg.winnerId,
+          payments: [{ playerId: msg.loserId, amount: msg.amount }],
+          receivedAt: Date.now(),
+        },
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(`${playerName(state, msg.winnerId)} wins ${msg.amount} chips`),
+        ]),
+      };
 
     case 'betalot:throwStarted': {
       const display = state.betALotCallDisplay;

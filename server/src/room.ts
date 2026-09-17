@@ -9,12 +9,12 @@ import type {
   ServerMessage,
 } from '@dice/shared';
 import { assertNever, GAME_DEFINITIONS, gameKindOf, MAX_SEATED_PLAYERS } from '@dice/shared';
-import { type EngineOptions, GameEngine } from './engine.js';
+import type { EngineOptions, GameEngine } from './engine.js';
 import type { ChatHistoryEntry, PersistedRoomState, RoomEvent, RoomRecorder } from './events.js';
 import { clampSettings } from './gameSettings.js';
-import { BetALotEngine } from './games/betalot/engine.js';
-import { handleBetALotEvent } from './games/betalot/roomBridge.js';
-import { handleEngineEvent } from './roomGameBridge.js';
+import type { BetALotEngine } from './games/betalot/engine.js';
+import type { BlackjackEngine } from './games/blackjack/engine.js';
+import { attachRoomEngine } from './roomEngines.js';
 import { SpecialSoundProfiles } from './specialSoundProfiles.js';
 
 /** Anything that can receive server messages (Connection in prod, fakes in tests). */
@@ -73,6 +73,7 @@ export class Room {
 
   engine: GameEngine | null = null;
   betALotEngine: BetALotEngine | null = null;
+  blackjackEngine: BlackjackEngine | null = null;
   /** Event log sink; null while a room is being replayed (or persistence is off). */
   recorder: RoomRecorder | null = null;
 
@@ -139,14 +140,16 @@ export class Room {
       }
       case 'settingsUpdated':
         this.settings = clampSettings(event.settings);
-        if (this.settings.kind === 'betalot') this.betALotEngine?.updateSettings(this.settings);
+        if (this.settings.kind === 'blackjack') this.blackjackEngine?.updateSettings(this.settings);
+        else if (this.settings.kind === 'betalot')
+          this.betALotEngine?.updateSettings(this.settings);
         else this.engine?.updateSettings(this.settings);
         break;
       case 'hostChanged':
         this.hostId = event.hostId;
         break;
       case 'gameStarted':
-        this.attachEngine();
+        attachRoomEngine(this);
         break;
       case 'chat':
         this.chatHistory.push({
@@ -230,6 +233,7 @@ export class Room {
     // Wake a recovered (paused) game on the first reconnect.
     this.engine?.resume();
     this.betALotEngine?.resume();
+    this.blackjackEngine?.resume();
   }
 
   handleDisconnect(playerId: PlayerId): void {
@@ -242,7 +246,7 @@ export class Room {
 
     if (player.seat !== null) {
       this.scheduleForfeit(playerId);
-      if (this.isCurrentTurn(playerId)) this.onForcedStand?.(playerId);
+      if (this.blackjackEngine || this.isCurrentTurn(playerId)) this.onForcedStand?.(playerId);
     }
 
     if (this.connectedCount() === 0) this.emptySince = Date.now();
@@ -312,7 +316,8 @@ export class Room {
     if (!player) return err('BAD_REQUEST', 'unknown player');
     if (playerId === this.hostId) return err('BAD_REQUEST', 'host cannot kick themself');
 
-    if (player.seat !== null && this.isCurrentTurn(playerId)) this.onForcedStand?.(playerId);
+    if (player.seat !== null && (this.blackjackEngine || this.isCurrentTurn(playerId)))
+      this.onForcedStand?.(playerId);
     this.cancelForfeit(playerId);
     this.commit({ type: 'kicked', playerId });
     return null;
@@ -375,7 +380,8 @@ export class Room {
   private isCurrentTurn(playerId: PlayerId): boolean {
     return (
       this.engine?.currentTurnPlayerId === playerId ||
-      this.betALotEngine?.currentTurnPlayerId === playerId
+      this.betALotEngine?.currentTurnPlayerId === playerId ||
+      this.blackjackEngine?.currentTurnPlayerId === playerId
     );
   }
 
@@ -383,7 +389,8 @@ export class Room {
 
   startGame(byPlayerId: PlayerId): RoomError | null {
     if (byPlayerId !== this.hostId) return err('NOT_HOST', 'only the host can start the game');
-    if (this.engine || this.betALotEngine) return err('BAD_REQUEST', 'game already in progress');
+    if (this.engine || this.betALotEngine || this.blackjackEngine)
+      return err('BAD_REQUEST', 'game already in progress');
     const rules = GAME_DEFINITIONS[gameKindOf(this.settings)];
     if (
       this.seatedPlayers().length < rules.minSeats ||
@@ -400,6 +407,7 @@ export class Room {
     this.commit({ type: 'gameStarted' });
     (this.engine as GameEngine | null)?.start();
     (this.betALotEngine as BetALotEngine | null)?.start();
+    (this.blackjackEngine as BlackjackEngine | null)?.start();
     return null;
   }
 
@@ -408,74 +416,26 @@ export class Room {
     const player = this.players.get(byPlayerId);
     if (!player) return err('BAD_REQUEST', 'unknown player');
     if (player.seat === null) return err('NOT_SEATED', 'only seated players can continue a round');
-    if (!this.engine && !this.betALotEngine) return err('BAD_REQUEST', 'no game in progress');
+    if (!this.engine && !this.betALotEngine && !this.blackjackEngine)
+      return err('BAD_REQUEST', 'no game in progress');
     // Multiple seated clients auto-dismiss at nearly the same time. The first
     // starts the round; later requests are harmless and must not produce errors.
     this.engine?.continueRound();
     this.betALotEngine?.continueRound();
+    this.blackjackEngine?.continueRound();
     return null;
-  }
-
-  /** Create the engine without starting it (live start + replay both use this). */
-  private attachEngine(): void {
-    if (this.settings.kind === 'betalot') {
-      this.betALotEngine = new BetALotEngine(
-        () => this.seatedPlayers(),
-        this.settings,
-        (event) =>
-          handleBetALotEvent(event, {
-            engine: () => this.betALotEngine,
-            recorder: () => this.recorder,
-            buildPersistedState: () => this.buildPersistedState(),
-            broadcast: (msg) => this.broadcast(msg),
-            broadcastState: () => this.broadcastState(),
-            setPhase: (phase) => {
-              this.phase = phase;
-            },
-            endGame: () => this.endGame(),
-          }),
-      );
-      this.onForcedStand = (playerId) => this.betALotEngine?.forceStand(playerId);
-      this.phase = 'playing';
-      return;
-    }
-    this.engine = new GameEngine(
-      () => this.seatedPlayers(),
-      this.settings,
-      (event) => this.onEngineEvent(event),
-      this.engineOpts,
-    );
-    this.onForcedStand = (playerId) => this.engine?.forceStand(playerId);
-    this.phase = 'playing';
   }
 
   /** Tear the engine down (logged gameEnded live; reused by replay). */
   endGame(): void {
     this.engine?.stop();
     this.betALotEngine?.stop();
+    this.blackjackEngine?.stop();
     this.engine = null;
     this.betALotEngine = null;
+    this.blackjackEngine = null;
     this.onForcedStand = null;
     this.phase = 'lobby';
-  }
-
-  private onEngineEvent(event: Parameters<typeof handleEngineEvent>[0]): void {
-    handleEngineEvent(event, {
-      recorder: this.recorder,
-      broadcast: (msg) => this.broadcast(msg),
-      broadcastState: () => this.broadcastState(),
-      setPhasePlaying: () => {
-        this.phase = 'playing';
-      },
-      setPhaseRoundEnd: () => {
-        this.phase = 'roundEnd';
-      },
-      compactAtRoundEnd: () => {
-        this.recorder?.compact(this.buildPersistedState());
-      },
-      endGame: () => this.endGame(),
-      isEnginePlaying: () => this.engine?.phase === 'playing',
-    });
   }
 
   // -- chat (Phase 10) ---------------------------------------------------------
@@ -562,7 +522,11 @@ export class Room {
         joinedAt: p.joinedAt,
         seatedAt: p.seatedAt,
       })),
-      game: this.engine?.persistedState() ?? this.betALotEngine?.persistedState() ?? null,
+      game:
+        this.engine?.persistedState() ??
+        this.betALotEngine?.persistedState() ??
+        this.blackjackEngine?.persistedState() ??
+        null,
       chat: [...this.chatHistory],
     };
   }
@@ -583,9 +547,11 @@ export class Room {
     }
     this.phase = state.phase;
     if (state.game) {
-      this.attachEngine();
+      attachRoomEngine(this);
       this.phase = state.phase;
-      if (this.settings.kind === 'betalot') {
+      if (this.settings.kind === 'blackjack') {
+        this.blackjackEngine!.restore(state.game as ReturnType<BlackjackEngine['persistedState']>);
+      } else if (this.settings.kind === 'betalot') {
         this.betALotEngine!.restore(state.game as ReturnType<BetALotEngine['persistedState']>);
       } else {
         this.engine!.restore(state.game as import('./events.js').PersistedGame);
@@ -617,7 +583,11 @@ export class Room {
       phase: this.phase,
       players,
       hostId: this.hostId,
-      game: this.engine?.publicState() ?? this.betALotEngine?.publicState() ?? null,
+      game:
+        this.engine?.publicState() ??
+        this.betALotEngine?.publicState() ??
+        this.blackjackEngine?.publicState() ??
+        null,
       seatRequests,
     };
   }
@@ -648,8 +618,10 @@ export class Room {
   destroy(): void {
     this.engine?.stop();
     this.betALotEngine?.stop();
+    this.blackjackEngine?.stop();
     this.engine = null;
     this.betALotEngine = null;
+    this.blackjackEngine = null;
     for (const timer of this.forfeitTimers.values()) clearTimeout(timer);
     this.forfeitTimers.clear();
     this.links.clear();

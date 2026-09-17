@@ -1,6 +1,8 @@
 import type { BetALotStatePublic, GameStatePublic, PlayerPublic, RoomSnapshot } from '@dice/shared';
+import { isBlackjackState } from '@dice/shared';
 import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import Seat, { type SeatStatus } from '../components/Seat';
+import { blackjackHandStatus } from '../games/blackjack/presentation';
 import {
   clampCardLeftPx,
   type OverlayRect,
@@ -84,6 +86,10 @@ function onFirePlayerId(snapshot: RoomSnapshot): string | null {
 function seatStatus(snapshot: RoomSnapshot, playerId: string): SeatStatus | null {
   const game = snapshot.game;
   if (!game || snapshot.phase !== 'playing') return null;
+  if (isBlackjackState(game)) {
+    if (game.hands.find((hand) => hand.playerId === playerId)?.stood) return 'toBeat';
+    return game.currentPlayerId === playerId ? 'rolling' : null;
+  }
   if (snapshot.settings.kind === 'betalot') {
     const betALot = game as BetALotStatePublic;
     if (betALot.currentPlayerId === playerId) return 'rolling';
@@ -116,6 +122,14 @@ function seatCard(
   const player = derived.bySeat.get(seatIndex) ?? null;
   return (
     <Seat
+      score={
+        player && isBlackjackState(snapshot.game)
+          ? {
+              total: snapshot.game.hands.find((hand) => hand.playerId === player.id)?.total ?? 0,
+              status: blackjackHandStatus(snapshot.game, player.id),
+            }
+          : undefined
+      }
       seatIndex={seatIndex}
       player={player}
       isMe={player !== null && player.id === myId}

@@ -1,10 +1,11 @@
-import type { BodyPose, PoseFrame } from '@dice/shared';
+import type { BodyPose, DieSides, PoseFrame } from '@dice/shared';
 import { type ReactNode, useMemo } from 'react';
 import * as THREE from 'three';
 import { useTableEvent } from '../tableEvents';
-import { DICE_COUNT, type DiceCount } from './constants';
+import { DICE_COUNT } from './constants';
 import KoozieMesh from './KoozieMesh';
 import PipDie from './PipDie';
+import PolyhedralDie from './PolyhedralDie';
 import { STRAIGHT_GLOW } from './straightGlow';
 import { useDicePhysicsTuning } from './tuning';
 import { useStraightGlow } from './useStraightGlow';
@@ -29,9 +30,11 @@ function StaticBody({ pose, children }: { pose: BodyPose; children: ReactNode })
 export default function StaticDiceView({
   frame,
   diceCount = DICE_COUNT,
+  dieSides = 6,
 }: {
   frame: PoseFrame;
-  diceCount?: DiceCount;
+  diceCount?: number;
+  dieSides?: DieSides;
 }) {
   const tuning = useDicePhysicsTuning();
   const [cupPose, ...dicePoses] = frame.bodies;
@@ -59,7 +62,7 @@ export default function StaticDiceView({
         if (!pose) return null;
         return (
           <StaticBody key={i} pose={pose}>
-            <PipDie glow={glow[i]} />
+            {dieSides === 12 ? <PolyhedralDie /> : <PipDie glow={glow[i]} />}
           </StaticBody>
         );
       })}

@@ -1,5 +1,5 @@
-import type { ClientMessage, GameStatePublic, RoomSnapshot } from '@dice/shared';
-import { detectStraight } from '@dice/shared';
+import type { ClientMessage, RoomSnapshot } from '@dice/shared';
+import { detectStraight, isDice5State } from '@dice/shared';
 import { useEffect, useMemo, useRef } from 'react';
 import type {
   AnteInfo,
@@ -30,10 +30,7 @@ export function useTableScene(
   connected: boolean,
   ws: WsClient,
 ) {
-  const game =
-    snapshot?.settings.kind === 'betalot'
-      ? null
-      : (snapshot?.game as GameStatePublic | null | undefined);
+  const game = isDice5State(snapshot?.game) ? snapshot.game : null;
   const roll3d = useTableRoll(snapshot, myId, send, connected);
   const remoteRoll = useRemoteRoll(ws, snapshot, myId);
   const viewerSeat = snapshot?.players.find((p) => p.id === myId)?.seat ?? null;

@@ -42,3 +42,5 @@ Tradeoffs, follow-ups, what we explicitly did *not* do.
 | [004](./004-physics-authoritative-rolls.md) | Physics-authoritative rolls with live pose streaming |
 | [005](./005-authoritative-rest-pose.md) | Authoritative dice rest pose (settled layout as state) |
 | [006](./006-device-recorded-special-moment-audio.md) | Device-recorded special-moment audio with ephemeral room sharing |
+| [007](./007-multiple-room-game-kinds.md) | Multiple room game kinds |
+| [008](./008-dice-blackjack-and-polyhedral-dice.md) | Dice Blackjack and physical twelve-sided dice |

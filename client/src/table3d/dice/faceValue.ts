@@ -1,5 +1,5 @@
-import type { Die } from '@dice/shared';
-import { quaternionFaceUp, readTopFaceFromQuat } from '@dice/shared';
+import type { Die, DieSides } from '@dice/shared';
+import { polyhedralFaceUp, readTopFaceFromQuat } from '@dice/shared';
 import * as THREE from 'three';
 
 /**
@@ -15,8 +15,12 @@ export function readTopFace(rotation: THREE.Quaternion): Die {
 }
 
 /** Orientation that puts `value` face up (world +Y), with slight jitter optional. */
-export function quaternionForFace(value: Die, jitter = 0): THREE.Quaternion {
-  const [qx, qy, qz, qw] = quaternionFaceUp(value);
+export function quaternionForFace(
+  value: number,
+  jitter = 0,
+  sides: DieSides = 6,
+): THREE.Quaternion {
+  const [qx, qy, qz, qw] = polyhedralFaceUp(value, sides);
   const quat = new THREE.Quaternion(qx, qy, qz, qw);
   if (jitter > 0) {
     quat.multiply(

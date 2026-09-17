@@ -1,4 +1,4 @@
-import type { BodyPose, Die, GameStatePublic, PlayerId, PoseFrame } from '@dice/shared';
+import type { BodyPose, DieSides, GameStatePublic, PlayerId, PoseFrame } from '@dice/shared';
 import type { SeatDisplayPlacement } from '../layout';
 import { poseFrameForSeatDisplay, poseFrameToCanonical } from '../seatTransform';
 import { DICE_COUNT, type DiceCount, dieSlotPosition } from './constants';
@@ -7,8 +7,8 @@ import { quaternionForFace } from './faceValue';
 
 const HIDDEN_CUP_POSE: BodyPose = [0, 0, 0, 0, 0, 0, 1];
 
-function diePose(position: [number, number, number], value: Die): BodyPose {
-  const q = quaternionForFace(value);
+function diePose(position: [number, number, number], value: number, sides: DieSides): BodyPose {
+  const q = quaternionForFace(value, 0, sides);
   return [position[0], position[1], position[2], q.x, q.y, q.z, q.w];
 }
 
@@ -19,9 +19,10 @@ function diePose(position: [number, number, number], value: Die): BodyPose {
  * when no authoritative rest pose exists (pre-first-roll, dropped pose).
  */
 export function staticPoseFromDice(
-  dice: Die[],
+  dice: number[],
   keepIndices: number[] = [],
   diceCount: DiceCount = DICE_COUNT,
+  dieSides: DieSides = 6,
 ): PoseFrame | null {
   if (dice.length < diceCount) return null;
 
@@ -35,7 +36,7 @@ export function staticPoseFromDice(
     const position = kept.has(i)
       ? keptDieRailPosition(keepSlotForIndex(i, keptSorted), keptSorted.length)
       : dieSlotPosition(i, diceCount);
-    bodies.push(diePose(position, value));
+    bodies.push(diePose(position, value, dieSides));
   }
 
   return { t: 0, bodies, cupVisible: false };
@@ -48,7 +49,7 @@ export function staticPoseFromDice(
  */
 export interface HeldRollInput {
   playerId: PlayerId;
-  dice: Die[];
+  dice: number[];
   kept: number[];
   restPose: BodyPose[] | null;
 }
@@ -154,6 +155,7 @@ export function resolveTableRestPose(
   input: HeldRollInput,
   placement: SeatDisplayPlacement,
   diceCount: DiceCount = DICE_COUNT,
+  dieSides: DieSides = 6,
 ): { frame: PoseFrame | null; source: 'authoritative' | 'slot-fallback' } {
   if (input.restPose && input.restPose.length === diceCount) {
     // No face re-check here: the server already validated pose ↔ values, and
@@ -165,7 +167,7 @@ export function resolveTableRestPose(
   if (import.meta.env.DEV) {
     console.warn('[dice] slot-layout fallback', { dice: input.dice, kept: input.kept });
   }
-  const localFallback = staticPoseFromDice(input.dice, input.kept, diceCount);
+  const localFallback = staticPoseFromDice(input.dice, input.kept, diceCount, dieSides);
   const canonicalFallback = localFallback
     ? poseFrameToCanonical(localFallback, placement.seatIndex)
     : null;

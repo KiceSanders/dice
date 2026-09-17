@@ -1,4 +1,4 @@
-import type { PoseFrame } from '@dice/shared';
+import type { DieSides, PoseFrame } from '@dice/shared';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import { Suspense } from 'react';
@@ -31,6 +31,8 @@ function SceneContent({
   tieBreaker,
   diceCount,
   remoteBonusMode,
+  dieSides,
+  railFrames,
 }: {
   dice?: TableDiceProps;
   remoteFeed?: RemoteRollFeed;
@@ -43,6 +45,8 @@ function SceneContent({
   diceCount: DiceCount;
   /** Whether a remote pose feed may include its one temporary extra die. */
   remoteBonusMode: boolean;
+  dieSides: DieSides;
+  railFrames?: PoseFrame[];
 }) {
   const tuning = useDicePhysicsTuning();
   const gravityY = tuning.world.gravityY * tuning.world.timeScale * tuning.world.timeScale;
@@ -94,7 +98,7 @@ function SceneContent({
             the hand stays railed and one temporary extra die rides in the cup. */}
         {dice ? (
           <DicePhysics
-            key={`${dice.diceCount ?? DICE_COUNT}-${dice.bonusMode ? 'bonus' : 'hand'}`}
+            key={`${dice.diceCount ?? DICE_COUNT}-${dice.dieSides ?? 6}-${dice.rollKey ?? ''}-${dice.bonusMode ? 'bonus' : 'hand'}`}
             {...dice}
           />
         ) : (
@@ -110,12 +114,23 @@ function SceneContent({
       {!dice && remoteFeed && (
         <RemoteDiceView
           key={`${diceCount}-${remoteBonusMode ? 'bonus' : 'hand'}`}
+          dieSides={dieSides}
           feed={remoteFeed}
           diceCount={diceCount}
           bonusMode={remoteBonusMode}
         />
       )}
-      {!remoteFeed && heldPose && <StaticDiceView frame={heldPose} diceCount={diceCount} />}
+      {!remoteFeed && heldPose && (
+        <StaticDiceView frame={heldPose} diceCount={diceCount} dieSides={dieSides} />
+      )}
+      {railFrames?.map((frame, index) => (
+        <StaticDiceView
+          key={index}
+          frame={frame}
+          diceCount={frame.bodies.length - 1}
+          dieSides={dieSides}
+        />
+      ))}
       {showParkedKoozie && <ParkedKoozie displayAngle={parkedKoozieAngle} />}
     </>
   );
@@ -131,6 +146,8 @@ interface Props {
   diceCount?: DiceCount;
   /** Legacy default preserves six-body remote bonus streams. */
   remoteBonusMode?: boolean;
+  dieSides?: DieSides;
+  railFrames?: PoseFrame[];
 }
 
 /** Cap pixel ratio on high-DPR displays so Chromebook-class GPUs keep frame budget. */
@@ -148,6 +165,8 @@ export default function TableCanvas({
   tieBreaker = false,
   diceCount = DICE_COUNT,
   remoteBonusMode = true,
+  dieSides = 6,
+  railFrames,
 }: Props) {
   return (
     <Canvas
@@ -178,6 +197,8 @@ export default function TableCanvas({
           tieBreaker={tieBreaker}
           diceCount={diceCount}
           remoteBonusMode={remoteBonusMode}
+          dieSides={dieSides}
+          railFrames={railFrames}
         />
       </Suspense>
     </Canvas>

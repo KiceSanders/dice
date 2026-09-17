@@ -148,3 +148,11 @@ with the table viewport or chat sheet.
 ## See also
 
 - [002 — Rapier physics stack](./002-rapier-physics-stack.md)
+
+### Dice Blackjack extension (ADR 008)
+
+Blackjack's Stand/Continue banks the newly settled die into the same player-side kept-dice
+area; previous dice stay there during subsequent throws by either player. Both viewers
+and spectators derive this history from snapshots, independently of live dice rendering.
+Each fresh one-die cup remounts through a turn-specific key, including solo continuation
+after the other player stands. Player cards carry live totals and explicit standing status.

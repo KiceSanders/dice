@@ -1,6 +1,7 @@
-import type { Die, GameStatePublic, PoseFrame, RoomSnapshot } from '@dice/shared';
+import type { GameStatePublic, PoseFrame, RoomSnapshot } from '@dice/shared';
 import { useCallback, useRef, useState } from 'react';
 import type { LastRoll } from '../state/store';
+import { isSixSidedDice } from '../table3d/dice/sampleDieValues';
 import type { ThrowVelocity } from '../table3d/dice/types';
 import { cloneScene, type PlaygroundScene } from './fixtures';
 
@@ -37,7 +38,8 @@ export function usePlaygroundTurn(initialScene: PlaygroundScene) {
     setReleaseSignal((s) => s + 1);
   }, []);
 
-  const commitRoll = useCallback((dice: Die[], settleFrame?: PoseFrame) => {
+  const commitRoll = useCallback((dice: number[], settleFrame?: PoseFrame) => {
+    if (!isSixSidedDice(dice)) return undefined;
     setRolling(false);
     setSceneState((prev) => {
       const game = prev.snapshot.game as GameStatePublic | null;

@@ -18,7 +18,7 @@ Consequence: a change in `shared/` immediately affects both sides — typecheck 
 ## Game kinds
 
 Each room selects its game kind before settings are shown on the home page. `dice5` is the
-original five-die game; `betalot` is a heads-up, 1–6 die ladder. The shared room layer owns
+original five-die game; `betalot` is a heads-up, 1–6 die ladder; `blackjack` is a heads-up race to 21. The shared room layer owns
 connections, chat, seats, host transfer, rejoin tokens, pose-frame relay, and persistence
 bootstrap. Game-specific state, settings, protocol messages, and rule engines live behind the
 room kind. `shared/src/games/registry.ts` is the canonical metadata registry.
@@ -29,7 +29,7 @@ Bet-a-lot is served at the same `/room/:roomId` URL. Its server engine is
 `client/src/games/betalot/`. The table physics accepts `diceCount` from 1 through 6 while
 preserving Dice5's five-die default and optional sixth bonus die.
 
-The two games share only actual room/table primitives. `BaseRoomSettings` contains reveal
+The games share only actual room/table primitives. `BaseRoomSettings` contains reveal
 delay and buy-in bounds; Dice5 and Bet-a-lot settings independently extend it, so Bet-a-lot
 does not carry Classic Pot, Yahtzee, ante, or keep settings. Their public game states are also
 independent. `server/src/games/betalot/roomBridge.ts` owns Bet-a-lot event-to-wire/snapshot
@@ -198,3 +198,27 @@ Vitest, colocated `*.test.ts` plus server integration specs in `server/test/`; o
 Browser multi-tab behavior is not unit-tested — use the smoke scripts
 (`server/scripts/smoke-*.mjs`) and the browser flows in [browser-testing.md](./browser-testing.md);
 the `verify-game-flow` skill wraps both.
+
+## Dice Blackjack and polyhedral dice
+
+`blackjack` is the third immutable room kind, with exactly two seats. Its pure outcome
+rules live in `shared/src/games/blackjack/rules.ts`; its engine in
+`server/src/games/blackjack/engine.ts` owns alternating decisions, standing, busts, repeated
+overtime, zero-sum payments, and recovery. `server/src/roomEngines.ts` now creates and wires
+all three engines, keeping game-specific adapters out of the membership class. The public
+room directory includes blackjack's current round number.
+
+The client binding and blackjack UI live under `client/src/games/blackjack/`. Each fresh
+one-die cup has a `rollKey`; a committed roll switches the local viewer to the same
+`resolveTableRestPose` renderer used by spectators. The current player's rail excludes
+that undecided die until Stand/Continue. Snapshot-owned rail frames render independently
+of live local/remote dice, so previous dice remain visible through every throw. Scores and
+standing status live on player cards, and the shared top band holds round/stake/result.
+Payments reuse `lastTransfer` and the existing shared chip-flight event.
+
+`TableDiceProps.dieSides` chooses six or twelve faces; its default remains six. Physics,
+remote and static renderers share the d12 mesh. `shared/src/game/polyhedral.ts` derives
+regular dodecahedron geometry, face normals, orientations and rest-pose validation; the
+mesh and convex hull use identical vertices. `sampleDieValues.ts` reads physical faces
+and honors side-aware dev overrides. Dice5 and Bet-a-lot retain their six-face validators
+and rule types. No random or relabeled result is substituted for the physical d12.

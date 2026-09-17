@@ -1,6 +1,8 @@
 import {
   type BetALotSettings,
+  type BlackjackSettings,
   DEFAULT_BETALOT_SETTINGS,
+  DEFAULT_BLACKJACK_SETTINGS,
   DEFAULT_SETTINGS,
   type GameKind,
   type GameSettings,
@@ -13,6 +15,7 @@ import SettingsFields, { fillEmptySettings } from '../components/SettingsFields'
 import SpecialSoundSettings from '../components/SpecialSoundSettings';
 import Toasts from '../components/Toasts';
 import BetALotSettingsFields from '../games/betalot/BetALotSettingsFields';
+import { BlackjackSettingsFields } from '../games/blackjack/BlackjackSettings';
 import { CLIENT_GAMES } from '../games/registry';
 import { useApp } from '../state/context';
 import { loadName, saveName } from '../state/persist';
@@ -26,6 +29,9 @@ export default function Home() {
   const [name, setName] = useState(loadName() ?? '');
   const [settings, setSettings] = useState<RoomSettings>(DEFAULT_SETTINGS);
   const [betALotSettings, setBetALotSettings] = useState<BetALotSettings>(DEFAULT_BETALOT_SETTINGS);
+  const [blackjackSettings, setBlackjackSettings] = useState<BlackjackSettings>(
+    DEFAULT_BLACKJACK_SETTINGS,
+  );
   const [gameKind, setGameKind] = useState<GameKind>('dice5');
   const [showSettings, setShowSettings] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -51,9 +57,13 @@ export default function Home() {
     if (!playerName) return;
     saveName(playerName);
     const next: GameSettings =
-      gameKind === 'dice5' ? fillEmptySettings(settings) : { ...betALotSettings, kind: 'betalot' };
+      gameKind === 'dice5'
+        ? fillEmptySettings(settings)
+        : gameKind === 'blackjack'
+          ? blackjackSettings
+          : betALotSettings;
     if (gameKind === 'dice5') setSettings(next as RoomSettings);
-    else setBetALotSettings(next as BetALotSettings);
+
     if (send({ type: 'room:create', playerName, settings: next })) setCreating(true);
   }
 
@@ -119,26 +129,18 @@ export default function Home() {
           <h2>Create a room</h2>
           <fieldset className="game-kind-picker">
             <legend>Game type</legend>
-            <label>
-              <input
-                checked={gameKind === 'dice5'}
-                name="game-kind"
-                type="radio"
-                value="dice5"
-                onChange={() => setGameKind('dice5')}
-              />
-              {CLIENT_GAMES.dice5.label} — {CLIENT_GAMES.dice5.blurb}
-            </label>
-            <label>
-              <input
-                checked={gameKind === 'betalot'}
-                name="game-kind"
-                type="radio"
-                value="betalot"
-                onChange={() => setGameKind('betalot')}
-              />
-              {CLIENT_GAMES.betalot.label} — {CLIENT_GAMES.betalot.blurb}
-            </label>
+            {Object.values(CLIENT_GAMES).map((game) => (
+              <label key={game.kind}>
+                <input
+                  checked={gameKind === game.kind}
+                  name="game-kind"
+                  type="radio"
+                  value={game.kind}
+                  onChange={() => setGameKind(game.kind)}
+                />
+                {game.label} — {game.blurb}
+              </label>
+            ))}
           </fieldset>
           <button type="button" className="link-button" onClick={() => setShowSettings((v) => !v)}>
             {showSettings ? 'Hide settings' : 'Customize settings'}
@@ -146,6 +148,8 @@ export default function Home() {
           {showSettings &&
             (gameKind === 'dice5' ? (
               <SettingsFields value={settings} onChange={setSettings} />
+            ) : gameKind === 'blackjack' ? (
+              <BlackjackSettingsFields value={blackjackSettings} onChange={setBlackjackSettings} />
             ) : (
               <BetALotSettingsFields value={betALotSettings} onChange={setBetALotSettings} />
             ))}
