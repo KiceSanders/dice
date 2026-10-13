@@ -1,4 +1,5 @@
 // Bet-a-lot transport smoke: run against `npm run dev`.
+import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 
 const url = process.env.WS_URL ?? 'ws://localhost:3001/ws';
@@ -37,7 +38,7 @@ const settings = {
   kind: 'betalot',
   afterRollDelayMs: 0,
   minBuyIn: 10,
-  maxBuyIn: 100,
+  maxBuyIn: 1000,
   callPayout: 3,
   openingOnePenalty: 1,
   lossPayouts: { twoDice: 5, threeDice: 4, fourDice: 3, fiveDice: 2, sixDice: 1 },
@@ -59,12 +60,12 @@ try {
   const created = await alice.next((m) => m.type === 'room:created', 'room created');
   bob.send({ type: 'room:join', roomId: created.roomId, playerName: 'Bob' });
   await bob.next((m) => m.type === 'room:joined', 'Bob joined');
-  alice.send({ type: 'seat:request', buyIn: 20 });
+  alice.send({ type: 'seat:request', buyIn: 200 });
   await alice.next(
     (m) => m.type === 'room:state' && m.snapshot.players[0]?.seat !== null,
     'Alice seated',
   );
-  bob.send({ type: 'seat:request', buyIn: 20 });
+  bob.send({ type: 'seat:request', buyIn: 200 });
   const request = await alice.next((m) => m.type === 'seat:requested', 'Bob seat request');
   alice.send({ type: 'seat:approve', playerId: request.playerId });
   await alice.next(
@@ -77,26 +78,69 @@ try {
     (m) => m.type === 'room:state' && m.snapshot.game?.kind === 'betalot',
     'game started',
   );
-  alice.send({ type: 'betalot:call', face: 3 });
-  alice.send({ type: 'betalot:throwStart' });
-  await alice.next((m) => m.type === 'betalot:throwStarted', 'opening throw started');
-  alice.send({ type: 'betalot:throwResult', dice: [3] });
-  await bob.next((m) => m.type === 'betalot:rolled', 'opening roll settled');
-  bob.send({ type: 'betalot:throwStart' });
-  await bob.next((m) => m.type === 'betalot:throwStarted', 'second throw started');
-  bob.send({ type: 'betalot:throwResult', dice: [1, 2] });
-  await alice.next((m) => m.type === 'betalot:roundEnded', 'tie loses round');
-
-  // The result modal's shared round:continue action must actually release the
-  // room from roundEnd; this was the original two-roll freeze.
-  alice.send({ type: 'round:continue' });
+  for (const [index, opener] of [alice, bob, alice].entries()) {
+    const opponent = opener === alice ? bob : alice;
+    opener.send({ type: 'betalot:call', face: 3 });
+    opener.send({ type: 'betalot:throwStart' });
+    await opener.next((m) => m.type === 'betalot:throwStarted', 'opening throw started');
+    opener.send({ type: 'betalot:throwResult', dice: [3] });
+    await alice.next((m) => m.type === 'betalot:slotTicket', 'opening-call ticket earned');
+    await opponent.next(
+      (m) =>
+        m.type === 'room:state' &&
+        m.snapshot.game?.roundNumber === index + 1 &&
+        m.snapshot.game.currentDiceCount === 2,
+      'opponent ready',
+    );
+    opponent.send({ type: 'betalot:throwStart' });
+    await opponent.next((m) => m.type === 'betalot:throwStarted', 'second throw started');
+    opponent.send({ type: 'betalot:throwResult', dice: [1, 2] });
+    await alice.next((m) => m.type === 'betalot:roundEnded', 'tie loses round');
+    alice.send({ type: 'round:continue' });
+    if (index < 2) {
+      const next = await alice.next(
+        (m) => m.type === 'room:state' && m.snapshot.game?.roundNumber === index + 2,
+        'single tickets saved for later',
+      );
+      assert.equal(next.snapshot.game.slots.active, null);
+      assert.equal(next.snapshot.game.slots.tickets.length, index + 1);
+    }
+  }
+  const slotState = (phase) =>
+    alice.next(
+      (m) => m.type === 'room:state' && m.snapshot.game?.slots?.active?.round.phase === phase,
+      `slot bonus ${phase}`,
+    );
+  const ready = (await slotState('ready')).snapshot;
+  const playSlot = (bonus, action) =>
+    alice.send({
+      type: 'betalot:slotsAction',
+      bonusId: bonus.id,
+      revision: bonus.revision,
+      action,
+    });
+  playSlot(ready.game.slots.active, 'spin');
+  const choosing = (await slotState('choosing')).snapshot;
+  playSlot(choosing.game.slots.active, 'collect');
+  const paid = (await slotState('complete')).snapshot;
+  const prize = paid.game.slots.active.round.payout;
+  assert.equal(
+    paid.players.reduce((sum, p) => sum + p.chips, paid.game.sevensPot),
+    400,
+  );
+  for (const before of ready.players) {
+    const after = paid.players.find((p) => p.id === before.id);
+    assert.equal(after.chips, before.chips + (before.id === created.playerId ? prize : -prize));
+  }
+  console.log(`ok: two earned tickets redeemed, ${prize}-chip slot payout conserved chips`);
+  playSlot(paid.game.slots.active, 'continue');
   await alice.next(
     (m) =>
       m.type === 'room:state' &&
       m.snapshot.game?.kind === 'betalot' &&
-      m.snapshot.game.roundNumber === 2 &&
+      m.snapshot.game.roundNumber === 4 &&
       m.snapshot.game.currentPlayerId === request.playerId,
-    'second round started with alternating opener',
+    'fourth round started with alternating opener',
   );
 
   bob.send({ type: 'betalot:call', face: 2 });

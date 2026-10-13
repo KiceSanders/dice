@@ -1,0 +1,6 @@
+interface:
+  display_name: "Test Dice Games"
+  short_description: "On-demand game testing with a short review video"
+  default_prompt: "Use $test-betalot to test the feature I name and send me a short recording."
+policy:
+  allow_implicit_invocation: false

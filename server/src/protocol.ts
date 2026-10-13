@@ -251,6 +251,24 @@ const validators: Record<ClientMessage['type'], Validator> = {
     Number.isInteger(m.face) && (m.face as number) >= 1 && (m.face as number) <= 6
       ? null
       : 'face must be an integer in [1, 6]',
+  'betalot:slotsAction': (m) => {
+    if (
+      !isNonEmptyString(m.bonusId, 64) ||
+      !Number.isSafeInteger(m.revision) ||
+      (m.revision as number) < 0
+    )
+      return 'slot bonusId and nonnegative revision are required';
+    if (m.action === 'spin' || m.action === 'collect' || m.action === 'continue') return null;
+    if (
+      m.action === 'lock' &&
+      Number.isInteger(m.index) &&
+      (m.index as number) >= 0 &&
+      (m.index as number) < 5 &&
+      typeof m.locked === 'boolean'
+    )
+      return null;
+    return 'invalid slot action';
+  },
   'betalot:throwStart': () => null,
   'betalot:throwResult': (m) => {
     if (!isBetALotDiceArray(m.dice)) return 'dice must contain 1-6 integers in [1, 6]';

@@ -3,8 +3,8 @@
 The wire contract is `shared/src/protocol.ts` — this file explains it and MUST be updated in
 the same commit as any protocol change (see docs/CODING_GUIDELINES.md §1, or run the
 `protocol-change` skill). All messages are JSON `{ "type": string, ...payload }`. The server
-is authoritative over state; dice values come exclusively from the roller's physics sim
-(ADR 004) — there is no server-side roll.
+is authoritative over state; physical table dice come from the roller's physics sim
+(ADR 004). Hit List's symbolic slot reels use server randomness (ADR 009).
 
 ## Client → Server (`ClientMessage`)
 
@@ -42,6 +42,7 @@ is authoritative over state; dice values come exclusively from the roller's phys
 | `betalot:call` | `{ face }` | Bet-a-lot opener calls the face expected on rung 1 |
 | `betalot:throwStart` / `betalot:throwResult` | `{}` / `{ dice, restPose? }` | Bet-a-lot normal throw. The engine requires exactly the current rung's 1–6 dice |
 | `betalot:extraThrowStart` / `betalot:extraThrowResult` | `{}` / `{ die, restPose? }` | Extra die earned by a 3–6 die all-same result |
+| `betalot:slotsAction` | `{ bonusId, revision, action }` | `spin`, `collect`, `continue`, or `lock`; `lock` also requires `index: 0..4` and `locked: boolean`. Ticket owner only; stale revisions rejected; no client-supplied outcome |
 
 Ingress is structurally validated in `server/src/protocol.ts` (`parseClientMessage`). The
 validator table is `Record<ClientMessage['type'], Validator>` — adding a message type
@@ -96,6 +97,7 @@ without a validator (or a handler in `server/src/handlers.ts`) fails `npm run ch
 | `betalot:paid` | `{ fromPlayerId, toPlayerId, amount, reason, sevensPot }` | Bet-a-lot chip movement; `toPlayerId: null` is a Sevens Pot contribution |
 | `betalot:roundEnded` | `{ winnerId, loserId, amount }` | Bet-a-lot ladder ended |
 | `betalot:fireChanged` | `{ fire }` | Bet-a-lot consecutive-win / on-fire state |
+| `betalot:slotTicket` | `{ playerId }` | A matched opening call earned a ticket, after the reveal delay; activity-log notification |
 
 Egress is lightly validated by the client in `client/src/ws/protocol.ts`
 (`parseServerMessage`) before it reaches app state. Its validator table is
@@ -194,6 +196,38 @@ quiet window applies only to the next throw. The settled rung and score render i
 payments, an earned extra die, round end, and koozie ownership do not change until the delay
 elapses. `BetALotStatePublic.roundHistory` carries the newest-first last ten
 `{ roundNumber, winnerId }` results, so history dots survive refresh, rejoin, and crash recovery.
+
+## Hit List slot bonus
+
+`BetALotStatePublic.slots` contains one owner entry per unspent ticket and an optional `active`
+bonus. The active bonus carries a unique `id`, owner, monotonic `revision`, shared
+`SlotRound` (targets, settled/pending dice, locks, spins, phase, payout), captured
+`fireMultiplier` / `payoutLimit`, and server `settlesAt` / `expiresAt` timestamps.
+Old recovery snapshots default to no tickets and no active bonus.
+
+`round:continue` spends two tickets from the same owner to open a bonus before
+the next ladder. Single tickets carry across rounds; players cannot pool tickets. It is harmless while
+a bonus is active, including its completed result. The bonus owner's versioned
+`continue` action or eight-second result timeout resumes the ladder. The client
+also suppresses automatic `round:continue` while a bonus is visible.
+
+The server chooses the three targets and all symbolic faces with `crypto.randomInt`.
+Each spin consumes one of five spins before a 1,530ms reel reveal; existing locks
+are preserved by the shared reducer. No physical `dice:frames` or rest poses are
+involved. Controls are unavailable during reveal. After 60 seconds without a
+decision, the current hand is collected (zero if unstarted). Commands cannot alter
+the payout or supply dice. Each accepted mutation and timed settlement is compacted.
+
+| Bet-a-lot engine event | Persisted room event | Wire message | Client handling |
+|---|---|---|---|
+| `slotTicketEarned` | `snapshot` at the completing roll transition | `betalot:slotTicket` | ticket toast and activity log; snapshot carries queued tickets |
+| `stateChanged` (slot start/spin/lock/settle/finish) | `snapshot` including pending faces and deadlines | `room:state` | same machine for owner, opponent and spectators; owner-only controls |
+| `paid` with reason `slots` | `snapshot` with completed bonus and post-payment balances | `betalot:paid` | existing payout queue, chip transfer and activity log |
+
+Completed payouts are never reapplied on recovery. An in-flight spin resumes from
+the stored result and deadline, never a new draw. Normal Bet-a-lot payments retain
+their existing semantics; the `slots` reason is already Fire-adjusted and capped
+to match the displayed target cards exactly.
 
 ## Dice Blackjack
 

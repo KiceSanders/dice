@@ -276,6 +276,17 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       if (issue) conn.sendError(issue.code, issue.message);
     },
 
+    'betalot:slotsAction': (conn, msg) => {
+      const c = ctx(conn);
+      if (!c) return;
+      if (!c.room.betALotEngine) {
+        conn.sendError('BAD_REQUEST', 'this is not a Bet-a-lot room');
+        return;
+      }
+      const issue = c.room.betALotEngine.slotsAction(c.playerId, msg);
+      if (issue) conn.sendError(issue.code, issue.message);
+    },
+
     'betalot:throwStart': (conn) => {
       const c = ctx(conn);
       if (!c) return;

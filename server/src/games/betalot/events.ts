@@ -23,5 +23,6 @@ export type BetALotEvent =
   | BetALotPaidEvent
   | { type: 'roundEnded'; winnerId: PlayerId; loserId: PlayerId; amount: number }
   | { type: 'fireChanged'; fire: BetALotFireState[] }
+  | { type: 'slotTicketEarned'; playerId: PlayerId }
   | { type: 'stateChanged' }
   | { type: 'gameEnded'; reason: string };

@@ -188,6 +188,11 @@ export default function Home() {
         </section>
       </div>
 
+      <section className="card">
+        <h2>Bet-a-lot bonus arcade</h2>
+        <p className="muted">Try Hit List: five dice reels, five spins, and three prize targets.</p>
+        <Link to="/slots">Play Hit List slots — practice</Link>
+      </section>
       <SpecialSoundSettings showAudioControls />
     </main>
   );

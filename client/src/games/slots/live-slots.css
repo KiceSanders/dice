@@ -1,0 +1,40 @@
+.slots-live-dialog {
+  width: min(860px, calc(100% - 20px));
+  max-height: calc(100dvh - 24px);
+  border: 0;
+  padding: 12px;
+  border-radius: 24px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.slots-live-dialog::backdrop {
+  background: #080b10db;
+}
+
+.slots-live-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 8px 18px;
+}
+
+.slots-live-heading strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.slots-live-heading span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.slots-live-dialog .slots-marquee {
+  padding-top: 20px;
+}
+.slots-live-dialog .slots-marquee h1 {
+  font-size: clamp(2.4rem, 6vw, 3.4rem);
+}
+.slots-live-dialog .slots-body {
+  padding-top: 16px;
+}

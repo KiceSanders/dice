@@ -15,3 +15,8 @@ The phased progress log lives in [PLAN.md](../PLAN.md).
 
 **Agents:** read [decisions/README.md](./decisions/README.md) before changing 3D physics,
 colliders, table/cup geometry, or the roll protocol (ADR 004).
+
+## Ideas
+
+- [Bet-a-lot casino night ideas](./games/betalot-ideas.md) — brainstorming backlog for
+  bonus games, higher-stakes challenges, and rivalry features; proposed, not current rules.

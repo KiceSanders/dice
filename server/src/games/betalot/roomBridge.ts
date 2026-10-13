@@ -72,6 +72,9 @@ export function handleBetALotEvent(event: BetALotEvent, ctx: BetALotBridgeContex
     case 'fireChanged':
       ctx.broadcast({ type: 'betalot:fireChanged', fire: event.fire });
       break;
+    case 'slotTicketEarned':
+      ctx.broadcast({ type: 'betalot:slotTicket', playerId: event.playerId });
+      break;
     case 'stateChanged':
       compact = true;
       if (ctx.engine()?.phase === 'playing') ctx.setPhase('playing');

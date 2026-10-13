@@ -22,7 +22,8 @@ export type BetALotPaymentReason =
   | 'sevenOpponent'
   | 'sevenPot'
   | 'overTwentyFive'
-  | 'sevensPotWon';
+  | 'sevensPotWon'
+  | 'slots';
 
 export interface BetALotPaidEvent {
   type: 'paid';
@@ -126,6 +127,15 @@ export class BetALotPayments {
     return this.pay(this.other(winnerId), winnerId, amount, reason);
   }
 
+  slotTerms(playerId: PlayerId): { fireMultiplier: number; payoutLimit: number } {
+    const payer = this.other(playerId);
+    const firePlayer = [...this.fire.values()].find((state) => state.onFire)?.playerId;
+    return {
+      fireMultiplier: firePaymentAmount(1, payer, firePlayer ?? null),
+      payoutLimit: this.player(payer)?.chips ?? 0,
+    };
+  }
+
   pay(
     fromPlayerId: PlayerId,
     toPlayerId: PlayerId | null,
@@ -135,7 +145,9 @@ export class BetALotPayments {
     const payer = this.player(fromPlayerId);
     if (!payer || amount <= 0) return 0;
     const firePlayer = [...this.fire.values()].find((state) => state.onFire)?.playerId;
-    const multiplied = firePaymentAmount(amount, fromPlayerId, firePlayer ?? null);
+    // Slot cards already display the captured Fire multiplier and payer cap.
+    const multiplied =
+      reason === 'slots' ? amount : firePaymentAmount(amount, fromPlayerId, firePlayer ?? null);
     const paid = Math.min(payer.chips, multiplied);
     payer.chips -= paid;
     if (toPlayerId) this.player(toPlayerId)!.chips += paid;

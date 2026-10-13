@@ -123,6 +123,8 @@ const validators: Record<ServerMessage['type'], Validator> = {
       ? null
       : 'betalot:roundEnded missing fields',
   'betalot:fireChanged': (m) => (Array.isArray(m.fire) ? null : 'betalot:fireChanged missing fire'),
+  'betalot:slotTicket': (m) =>
+    isNonEmptyString(m.playerId) ? null : 'slot ticket missing playerId',
   'round:started': (m) =>
     isFiniteNumber(m.roundNumber) && Array.isArray(m.antes) ? null : 'round:started missing fields',
   'stakes:raised': (m) =>

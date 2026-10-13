@@ -380,6 +380,7 @@ export interface BetALotStatePublic {
   /** Newest-first authoritative winners, capped at the last ten rounds. */
   roundHistory: BetALotRoundResult[];
   fire: BetALotFireState[];
+  slots: import('./games/slots/round.js').BetALotSlotsState;
 }
 
 export type AnyGameStatePublic = GameStatePublic | BetALotStatePublic | BlackjackStatePublic;

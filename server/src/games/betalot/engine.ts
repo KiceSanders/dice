@@ -17,6 +17,7 @@ import {
 import type { EnginePlayer } from '../../engine.js';
 import type { BetALotEvent } from './events.js';
 import { BetALotPayments } from './payments.js';
+import { BetALotSlots, type SlotCommand } from './slots.js';
 import {
   type BetALotExtraRollState,
   type BetALotPersistedState,
@@ -40,8 +41,8 @@ const error = (code: BetALotError['code'], message: string): BetALotError => ({ 
 
 /**
  * Socket-free authoritative state machine for the heads-up Bet-a-lot ladder.
- * It deliberately never generates dice; the current roller reports physics
- * results, just like the existing game engine.
+ * Ladder dice come from the roller's physics. The separate slot bonus controller
+ * generates its symbolic reel faces on the server (ADR 009).
  */
 export class BetALotEngine {
   phase: BetALotPhase = 'playing';
@@ -64,12 +65,35 @@ export class BetALotEngine {
   );
   private readonly timing = new BetALotTiming();
   private pendingSettings: BetALotSettings | null = null;
+  private readonly slots: BetALotSlots;
 
   constructor(
     private readonly getPlayers: () => EnginePlayer[],
     private settings: BetALotSettings,
     private readonly emit: (event: BetALotEvent) => void,
-  ) {}
+    slotDrawIndex?: (max: number) => number,
+  ) {
+    this.slots = new BetALotSlots(
+      {
+        terms: (id) => this.payments.slotTerms(id),
+        eligible: (id) =>
+          this.getPlayers().filter((p) => p.seat !== null).length === 2 &&
+          this.getPlayers().some((p) => p.id === id && p.seat !== null) &&
+          this.getPlayers().some((p) => p.id === this.other(id) && p.seat !== null),
+        pay: (id, amount) => {
+          this.payments.payOpponent(id, amount, 'slots');
+        },
+        changed: () => this.emit({ type: 'stateChanged' }),
+        finished: () => this.continueRound(),
+      },
+      slotDrawIndex,
+    );
+  }
+
+  slotsAction(playerId: PlayerId, command: SlotCommand): BetALotError | null {
+    if (this.phase !== 'roundEnd') return error('BAD_REQUEST', 'slots are played between rounds');
+    return this.slots.command(playerId, command);
+  }
 
   start(): void {
     this.startRound();
@@ -211,7 +235,14 @@ export class BetALotEngine {
 
   continueRound(): void {
     if (this.phase !== 'roundEnd') return;
+    if (this.slots.active) return;
     this.timing.cancelRoundFallback();
+    if (this.payments.bankruptPlayer()) {
+      this.phase = 'ended';
+      this.emit({ type: 'gameEnded', reason: 'a player ran out of chips' });
+      return;
+    }
+    if (this.slots.startNext()) return;
     this.startRound();
   }
 
@@ -228,6 +259,7 @@ export class BetALotEngine {
       extraRoll: this.extraRoll,
       ladder: this.ladder,
       roundHistory: this.roundHistory,
+      slots: this.slots.snapshot(),
     });
   }
 
@@ -259,6 +291,7 @@ export class BetALotEngine {
     this.ladder = cloneLadder(publicState.ladder);
     this.roundHistory = publicState.roundHistory.map((round) => ({ ...round }));
     this.payments.restore(publicState.sevensPot, publicState.fire);
+    this.slots.restore(publicState.slots);
     this.phase = persisted.phase;
     this.pendingSettings = persisted.pendingSettings;
     if (publicState.resolving) {
@@ -275,12 +308,14 @@ export class BetALotEngine {
 
   pause(): void {
     this.timing.pause();
+    this.slots.pause();
     this.throwing = false;
   }
 
   resume(): void {
     if (!this.timing.resume()) return;
-    if (this.phase === 'roundEnd') this.scheduleRoundFallback();
+    this.slots.resume();
+    if (this.phase === 'roundEnd' && !this.slots.active) this.scheduleRoundFallback();
     else this.emit({ type: 'stateChanged' });
   }
 
@@ -317,6 +352,10 @@ export class BetALotEngine {
   ): void {
     if (!this.resolving || this.phase !== 'playing') return;
     this.pendingSettings = null;
+    if (this.rung === 1 && dice[0] === this.pendingCall) {
+      this.slots.award(playerId);
+      this.emit({ type: 'slotTicketEarned', playerId });
+    }
     this.payments.applyPerRollEffects({
       playerId,
       dice,
@@ -413,7 +452,8 @@ export class BetALotEngine {
   }
 
   private scheduleRoundFallback(): void {
-    if (this.phase === 'roundEnd') this.timing.scheduleRoundFallback(() => this.startRound());
+    if (this.phase === 'roundEnd' && !this.slots.active)
+      this.timing.scheduleRoundFallback(() => this.continueRound());
   }
 
   private other(playerId: PlayerId): PlayerId {
@@ -422,5 +462,6 @@ export class BetALotEngine {
 
   stop(): void {
     this.timing.stop();
+    this.slots.stop();
   }
 }

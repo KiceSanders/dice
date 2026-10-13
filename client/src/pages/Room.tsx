@@ -1,6 +1,12 @@
 // biome-ignore-all lint/a11y/noAutofocus: the join form's name field is this page's single purpose
 import type { PlayerPublic, RoomSnapshot } from '@dice/shared';
-import { GAME_DEFINITIONS, gameKindOf, isDice5Settings } from '@dice/shared';
+import {
+  GAME_DEFINITIONS,
+  gameKindOf,
+  isBetALotState,
+  isDice5Settings,
+  SLOT_TICKET_COST,
+} from '@dice/shared';
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ActivityLogPanel from '../components/ActivityLogPanel';
@@ -17,6 +23,7 @@ import Toasts from '../components/Toasts';
 import { useTableChipEvents, useTableScene } from '../game/useTableScene';
 import { useBetALotTableRoll } from '../games/betalot/useBetALotTableRoll';
 import BlackjackTable from '../games/blackjack/BlackjackTable';
+import LiveSlotBonus from '../games/slots/LiveSlotBonus';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
 import TableAudio from '../table3d/audio/TableAudio';
@@ -73,6 +80,7 @@ export default function Room() {
   useEffect(() => {
     if (snapshot?.settings.kind !== 'betalot') return;
     if (snapshot.phase !== 'roundEnd') return;
+    if (isBetALotState(snapshot.game) && snapshot.game.slots?.active) return;
     if (state.betALotPayoutQueue.length > 0) return;
     const seated =
       snapshot.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
@@ -191,6 +199,7 @@ export default function Room() {
       <Toasts />
       <ChatPanel />
       <TableAudio />
+      {isBetALot && <LiveSlotBonus />}
 
       {state.roundEnd && isDice5Settings(snapshot.settings) && (
         <RoundEndModal
@@ -324,6 +333,18 @@ export default function Room() {
               {copied ? 'Link copied!' : 'Copy invite link'}
             </button>
             <ConnectionStatus status={state.connection} />
+            {isBetALotState(snapshot.game) && me && me.seat !== null && (
+              <span>
+                Your slot tickets: {snapshot.game.slots.tickets.filter((id) => id === myId).length}
+                {' / '}
+                {SLOT_TICKET_COST}
+              </span>
+            )}
+            {isBetALot && (
+              <Link to="/slots" target="_blank" rel="noopener noreferrer">
+                Hit List slots — practice ↗
+              </Link>
+            )}
           </div>
         </section>
 

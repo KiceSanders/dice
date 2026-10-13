@@ -15,6 +15,7 @@ export const BETALOT_PAYOUT_LABELS: Record<BetALotPaidReason, string> = {
   sevenPot: 'Sevens pot',
   overTwentyFive: 'Over 25',
   sevensPotWon: 'Sevens pot claim',
+  slots: 'Hit List slots',
 };
 
 /** `{BetType} {win|loss}: payout {amount}` from the local viewer's perspective. */

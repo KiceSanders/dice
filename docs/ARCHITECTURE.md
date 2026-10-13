@@ -199,6 +199,45 @@ Browser multi-tab behavior is not unit-tested — use the smoke scripts
 (`server/scripts/smoke-*.mjs`) and the browser flows in [browser-testing.md](./browser-testing.md);
 the `verify-game-flow` skill wraps both.
 
+Explicit-only Bet-a-lot and Blackjack video checks use `.claude/skills/test-betalot/SKILL.md`
+and `npm run visual:betalot`. Presets in `server/test/visual-betalot-scenarios.ts` and
+`server/test/visual-blackjack-fixture.ts` prepare fresh rooms through the existing
+WebSocket protocol; the setup process retains its
+connections until the browser run ends. Local dev links bootstrap per-tab sessionStorage
+identities in `client/src/dev/visualTest.ts` and queue the existing forced-face overrides
+for the final real UI throws. Ordinary identities remain in localStorage; production
+builds exclude the bootstrap. Blackjack queues accept one d6/d12 face per throw.
+The same command-generated local fixture links enable `dev/testRollButton.ts`: a
+**Test roll** button mounted only for the local physics renderer. It checks the live
+cup/turn barrier, grabs the cup at the projected table center, then calls its ordinary
+release after 250 ms; settlement, pose streaming, forced-face queues and server scoring
+are unchanged. Unmount cancels a pending release. Ordinary rooms have no button and
+production builds remove the control entirely.
+`scripts/record-game-window.sh` rebuilds and runs the native Swift recorder, which
+initializes AppKit on the main actor before capturing one selected Chrome game window
+to MP4. A three-second probe must succeed before gameplay. Temporary output lives
+under ignored `artifacts/betalot/`.
+
+## Hit List slots
+
+`shared/src/games/slots/` owns the target catalog, literal-face predicates, highest
+prize selection and pure five-spin/lock reducer. Bet-a-lot's separate controller in
+`server/src/games/betalot/slots.ts` owns tickets, server-random reel outcomes,
+versioned commands, reveal/decision/result timers and recovery. The ledger quotes
+the current Fire multiplier and opponent cap before a bonus starts, then transfers
+the displayed prize without multiplying again. Slots pause the ladder at round end only when one player has two tickets.
+The shared ticket rule spends exactly two owner entries; single tickets and other
+players’ balances carry across rounds and survive recovery.
+Every transition uses Bet-a-lot's compact snapshot persistence, including pending
+faces and completed payouts. The normal physics throw path is unchanged (ADR 009).
+
+`client/src/games/slots/SlotMachine.tsx` is the shared presentation for the live
+`LiveSlotBonus` dialog and the free `HitListSlots` practice page. The live controller
+sends only actions and reads room snapshots; spectators use the same machine with
+disabled controls. `/slots` is outside `AppProvider`, so practicing in another tab
+does not join a room, reclaim its identity, or change live chips. Vertical reel
+strips stop on the sampled face, with staggered stops and reduced-motion support.
+
 ## Dice Blackjack and polyhedral dice
 
 `blackjack` is the third immutable room kind, with exactly two seats. Its pure outcome

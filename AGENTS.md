@@ -97,6 +97,11 @@ commands so both tools get the same procedure:
 | Game rule change | `game-rule-change` skill | `/game-rule-change` |
 | Table UI / visual / effect change | `table-ui-change` skill | `/table-ui-change` |
 | End-to-end multi-tab verification | `verify-game-flow` skill | `/verify-game-flow` |
+| Explicitly requested Bet-a-lot or Blackjack video review | `test-betalot` skill | `/test-betalot` |
+
+`test-betalot` is explicit-only: invoke `$test-betalot` for prepared local scenarios,
+computer-use actions, and a short review recording of either game. Never add it to routine feature work.
+Its Codex discovery link points to the same `.claude/skills/test-betalot` source.
 
 Source of truth is `.claude/skills/*/SKILL.md`. `.cursor/commands/*.md` is **generated** by
 `scripts/sync-cursor-commands.mjs` — edit the skill, never the generated command file. The

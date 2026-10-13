@@ -51,6 +51,7 @@ export function buildPublicState(input: {
   extraRoll: BetALotExtraRollState | null;
   ladder: BetALotLadderRoll[];
   roundHistory: BetALotRoundResult[];
+  slots: BetALotStatePublic['slots'];
 }): BetALotStatePublic {
   return {
     kind: 'betalot',
@@ -73,6 +74,7 @@ export function buildPublicState(input: {
     ladder: cloneLadder(input.ladder),
     roundHistory: input.roundHistory.map((round) => ({ ...round })),
     fire: input.payments.fireState(),
+    slots: input.slots,
   };
 }
 
@@ -82,6 +84,7 @@ function withRoundHistory(publicState: BetALotStatePublic): BetALotStatePublic {
     // Recovery compatibility for snapshots written before round history was
     // promoted from transient client state into the authoritative game state.
     roundHistory: publicState.roundHistory?.map((round) => ({ ...round })) ?? [],
+    slots: publicState.slots ?? { tickets: [], active: null },
   };
 }
 

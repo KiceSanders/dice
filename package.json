@@ -26,6 +26,7 @@
     "format": "biome format --write .",
     "verify": "npm run lint && npm run check && npm test",
     "sync:cursor": "node scripts/sync-cursor-commands.mjs",
+    "visual:betalot": "node --import tsx server/scripts/visual-betalot.ts",
     "prepare": "git config core.hooksPath .githooks",
     "build": "npm run build --workspace=shared && npm run build --workspace=server && npm run build --workspace=client",
     "start": "NODE_ENV=production npm run start --workspace=server"

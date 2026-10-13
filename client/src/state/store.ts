@@ -16,6 +16,7 @@ import {
   isBlackjackState,
   isDice5Settings,
   isDice5State,
+  SLOT_TICKET_COST,
 } from '@dice/shared';
 import type { ConnectionStatus } from '../ws/client';
 
@@ -681,6 +682,19 @@ function applyServerMessage(state: AppState, msg: ServerMessage): AppState {
 
     case 'betalot:fireChanged':
       return state;
+
+    case 'betalot:slotTicket':
+      return {
+        ...state,
+        toasts: pushToast(
+          state.toasts,
+          'info',
+          `${msg.playerId === state.me?.playerId ? 'You' : playerName(state, msg.playerId)} earned a slot ticket! Save ${SLOT_TICKET_COST} to play between rounds.`,
+        ),
+        activityLog: pushActivityLog(state.activityLog, [
+          activityLine(`${playerName(state, msg.playerId)} earned a Hit List slot ticket`),
+        ]),
+      };
 
     default: {
       // Compile error here = a new ServerMessage is missing a case above.

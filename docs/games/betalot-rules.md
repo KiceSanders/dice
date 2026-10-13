@@ -122,6 +122,17 @@ payer-chip cap as every other transfer.
 If a throw's total is greater than 25, the opponent pays the roller twice the amount over 25:
 `2 × (total − 25)`.
 
+## Hit List slot tickets
+
+A matched opening call also earns one Hit List ticket. Tickets carry across rounds;
+two tickets from the same player are redeemed after a ladder ends and before the next
+round. The owner gets five slot spins with lockable dice
+and one visible target at each difficulty. Only the highest matching final-hand
+prize pays, funded by the opponent and capped at their stack. Prize cards include
+the Fire multiplier active when the bonus opens. Slots do not change ladder scores,
+round history or Fire streaks. See [Hit List rules](./hit-list-slots.md) for targets,
+payouts, collection, timeouts and recovery.
+
 ## Fire
 
 Winning three consecutive rounds arms Fire for that player beginning with the fourth round.

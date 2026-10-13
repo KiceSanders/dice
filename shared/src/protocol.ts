@@ -1,8 +1,8 @@
 /**
  * WebSocket message contracts. All messages are JSON: { type, ...payload }.
  * The server is authoritative over game state; dice values come exclusively
- * from the current roller's physics sim (turn:throwResult, ADR 004). There is
- * no server-side roll — a turn that never produces dice is forfeited.
+ * from the current roller's physics sim (turn:throwResult, ADR 004). Slot-machine
+ * reels are a separate server-random bonus (ADR 009), not physical table throws.
  * Keep this file in sync with the tables in docs/PROTOCOL.md (same commit —
  * see docs/CODING_GUIDELINES.md §1).
  */
@@ -69,6 +69,11 @@ export type ClientMessage =
   /** Bet-a-lot extra die earned by three or more matching dice. */
   | { type: 'betalot:extraThrowStart' }
   | { type: 'betalot:extraThrowResult'; die: Die; restPose?: BodyPose[] }
+  /** Slot reels use server randomness; revision guards reject stale/repeated commands. */
+  | ({ type: 'betalot:slotsAction'; bonusId: string; revision: number } & (
+      | { action: 'spin' | 'collect' | 'continue' }
+      | { action: 'lock'; index: number; locked: boolean }
+    ))
   /** Publish or clear one device-local player recording for this room (ephemeral). */
   | { type: 'special-sound:update'; kind: SpecialMomentKind; wavBase64: string | null }
   | { type: 'chat:send'; text: string };
@@ -162,11 +167,13 @@ export type ServerMessage =
         | 'sevenOpponent'
         | 'sevenPot'
         | 'overTwentyFive'
-        | 'sevensPotWon';
+        | 'sevensPotWon'
+        | 'slots';
       sevensPot: number;
     }
   | { type: 'betalot:roundEnded'; winnerId: PlayerId; loserId: PlayerId; amount: number }
   | { type: 'betalot:fireChanged'; fire: BetALotFireState[] }
+  | { type: 'betalot:slotTicket'; playerId: PlayerId }
   /** Exact chips collected from each participant when a normal round begins. */
   | {
       type: 'round:started';

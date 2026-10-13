@@ -389,6 +389,11 @@ seats flow below the canvas; the band overlays the canvas's top edge at every si
 
 ## DicePhysics.tsx — edit with care (and usually, don't)
 
+The explicit local visual-test workflow mounts a **Test roll** button through
+`dev/testRollButton.ts`. This dev-only control calls the existing cup grab/release
+callbacks and normal physics; it must never manufacture settled results or bypass
+`canDrag`/cup-phase guards. It only appears on command-generated fixture pages.
+
 ### Variable dice counts
 
 `TableDiceProps.diceCount` selects an ordinary hand size from 1 through 6; omitted means
@@ -434,6 +439,17 @@ add unit tests next to them. Geometry constants are also re-exported from
   touches can still scroll the room page.
 - Every reactive RigidBody prop must be a **stable value** — a per-render computed
   position/rotation teleports bodies on unrelated re-renders (historical jitter bug).
+
+## Hit List bonus presentation
+
+The live Hit List slot machine is a snapshot-driven native dialog mounted once in
+Room, outside the 3D renderers. Owner, opponent and spectators share `SlotMachine`;
+only the owner's connected controls are enabled. It appears between ladder rounds,
+so table physics never generates or animates the symbolic reels. The normal payout
+event and chip ledger remain shared. The dialog contains keyboard focus, cannot be
+dismissed to skip the bonus, and scrolls on short screens. Reduced motion skips reel
+movement; it does not bypass the server's reveal barrier. Free `/slots` practice
+uses the same presentation without joining a room.
 
 ## Checklist before "done" (UI work)
 

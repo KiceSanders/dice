@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import { AppProvider } from './state/context';
 
 const Room = lazy(() => import('./pages/Room'));
+const HitListSlots = lazy(() => import('./games/slots/HitListSlots'));
 const Playground = import.meta.env.DEV ? lazy(() => import('./dev/Playground')) : null;
 
 function AppRoutes() {
@@ -22,6 +23,7 @@ export default function App() {
     <BrowserRouter>
       <Suspense fallback={<main className="page">Loading…</main>}>
         <Routes>
+          <Route path="/slots" element={<HitListSlots />} />
           {Playground && <Route path="/dev/play" element={<Playground />} />}
           <Route path="/*" element={<AppRoutes />} />
         </Routes>

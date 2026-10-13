@@ -94,6 +94,17 @@ no console errors; connection stays `open`.
 
 ## Bet-a-lot (2 tabs)
 
+For an explicitly requested agent-driven recording, invoke `$test-betalot` with the
+feature to review (for example, "Use $test-betalot to record the Fire payout"). The
+[skill](../.claude/skills/test-betalot/SKILL.md) provides 14 Bet-a-lot and 3 Blackjack scenarios and
+a native window recorder. `npm run visual:betalot -- list` lists presets. They use
+forced dice for reproducible visual outcomes; natural settling still needs unforced
+throws. Recording requires macOS Screen Recording permission and remains opt-in.
+Command-generated fixture links expose **Test roll** only in localhost development.
+Click it after selecting any required opening face; it runs a real physics cup release.
+It is disabled until rolling is allowed and absent from ordinary rooms/production.
+Use manual dragging when the gesture itself is being reviewed.
+
 1. In Tab A, select **Bet-a-lot** before opening room settings, enter Alice's name, and create
    the room. Confirm the snapshot settings contain `"kind": "betalot"`.
 2. In Tab B, set `dice:name` to Bob, join the room, and have both players request / receive a
@@ -128,6 +139,41 @@ koozie flow, coin pot, and table score; completed rounds continue; the room stay
 URL; chip transfers agree in both tabs; and no console errors occur.
 
 ---
+
+## Hit List slots — 2 players and optional spectator
+
+1. Create a Bet-a-lot room with two seated players. Match an opening call and verify
+   a toast and the activity log announce one slot ticket in both tabs. Finish that ladder:
+   the next round starts normally and the room shows 1 / 2 tickets. Refresh and verify
+   that ticket remains. One ticket per player must not trigger a bonus.
+2. Have the same player match another opening call. After that ladder’s ordinary
+   payouts, both tabs show the same Hit List bonus; exactly two of that player’s
+   tickets are spent and the opponent’s tickets remain. The ticket owner
+   can play; the other player and an optional spectator can only watch. The next
+   ladder must wait. Each sees one easy, medium and hard card with chip prizes.
+3. Spin: five reels scroll through die faces 1–6 and stop in sequence. Locks and
+   Spin/Collect stay unavailable while moving. Lock two dice and spin again:
+   those exact positions stay fixed for everyone. Unlock one and confirm it spins.
+4. Verify the counter counts five total spins, not five rerolls. All five locked
+   disables Spin but allows Collect. Collect a matching hand early and confirm
+   only its highest prize moves from the opponent; repeat with all five spins.
+5. Refresh the ticket owner's tab during a spin. Verify targets, locks, used spins
+   and eventual faces survive, with no extra spin or repeated payment. Verify a
+   spectator joining mid-bonus sees the same state and has no enabled controls.
+6. Verify Fire-adjusted prizes are already printed on the cards, short stacks cap
+   them, and a slot win does not add a ladder-history dot. Returning resumes the
+   correct next opener; an emptied stack ends the game after the result.
+7. Leave a hand idle for 60 seconds: it collects automatically. Leave its result
+   for eight seconds: the ladder resumes. An unstarted bonus expires at zero.
+8. On a narrow screen and with reduced motion enabled, verify all five lock buttons,
+   targets and actions remain usable. Check keyboard navigation stays in the bonus.
+9. Open the Home/room **Hit List slots — practice** link (`/slots`). It is independent
+   of the room. New practice rounds replace all three targets and reset five spins;
+   practice must not change live chips, tickets, identity or the other player's view.
+
+Automated coverage includes rules, server authority, caps, chip conservation, idle
+timeouts, real WebSocket owner/spectator/rejoin behavior, and disk restart recovery.
+Browser visuals and interaction remain user-owned and are not claimed verified.
 
 ## Dice5 — lobby and play (2–8 players)
 
@@ -522,6 +568,13 @@ Sounds only start after a tab's first click/keypress (browser autoplay policy).
 When changing join/reconnect behavior, re-run **both** Phase 7 and Phase 8 flows above.
 
 ## Dice Blackjack — 2 player tabs + optional spectator
+
+For an explicitly requested recording, use `$test-betalot` and name Blackjack. Prepared
+presets cover Continue/auto-win (`blackjack-decisions`), d12 overtime and doubled payout
+(`blackjack-overtime`), and bust (`blackjack-bust`). They use forced dice for reproducibility.
+The skill requires a working recording probe before the UI action. Keep both players
+connected: closing or refreshing either player forfeits the hand; use a spectator for
+refresh checks. This remains opt-in and does not run after routine implementation.
 
 Browser verification is user-owned. Start one dev stack, set different `dice:name` values
 per tab, and wait for **Connection: open** before joining. Choose **Dice Blackjack**, seat

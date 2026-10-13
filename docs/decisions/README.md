@@ -44,3 +44,4 @@ Tradeoffs, follow-ups, what we explicitly did *not* do.
 | [006](./006-device-recorded-special-moment-audio.md) | Device-recorded special-moment audio with ephemeral room sharing |
 | [007](./007-multiple-room-game-kinds.md) | Multiple room game kinds |
 | [008](./008-dice-blackjack-and-polyhedral-dice.md) | Dice Blackjack and physical twelve-sided dice |
+| [009](./009-hit-list-slot-bonuses.md) | Server-owned Hit List slot bonuses |

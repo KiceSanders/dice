@@ -276,12 +276,32 @@ Conventions for all phases:
 
 ---
 
+### On-demand Bet-a-lot and Blackjack video review
+
+- [x] Explicit-only `test-betalot` skill with a focused computer-use workflow.
+- [x] Fourteen repeatable local scenarios, isolated tab identities, and queued forced faces.
+- [x] Three Blackjack presets: Continue/auto-win, d12 overtime, and bust.
+- [x] Native Chrome game-window MP4 recorder and review-frame inspection helper.
+- [x] Fix native graphics initialization crash; rebuild stale recorders and require a recorded probe.
+- [x] Fixture-only Test roll button using the normal cup/physics path, with no control in ordinary rooms or production.
+- [x] Automated WebSocket coverage for every preset and client bootstrap isolation tests.
+- [x] Validate a complete authorized Blackjack overtime recording: real cup drag, d12 result, 20-chip payout in both views, and reset to d6/10 on the next round.
+
+### Hit List slot bonus
+
+- [x] Classic five-reel dice machine with individual locks and five total spins.
+- [x] Curated easy/medium/hard targets, explicit highest-final-hand payout and early collection.
+- [x] Opening-call tickets, two tickets per session carried across rounds, between-round redemption, opponent-funded capped prizes and visible Fire amounts.
+- [x] Shared live owner/spectator presentation, authoritative spins, revisions, idle fallback and restart recovery.
+- [x] Free practice route and Home/Bet-a-lot links, responsive and reduced-motion presentation.
+- [ ] User browser verification — [Hit List checklist](docs/browser-testing.md#hit-list-slots--2-players-and-optional-spectator).
+
 ## Worker Agent Operating Notes
 
 - **One phase at a time.** Read the phase's goal, [docs/GAME_RULES.md](./docs/GAME_RULES.md), and [docs/PROTOCOL.md](./docs/PROTOCOL.md) before writing code.
 - **Check off tasks in this file** (`[ ]` → `[x]`) in the same change that completes them.
 - **Never let client and server disagree:** protocol changes follow the ripple checklist in [docs/CODING_GUIDELINES.md](./docs/CODING_GUIDELINES.md) §1 — `shared/src/protocol.ts` first, then let the typecheck errors walk you through both sides in the same change.
-- **Determinism:** dice come from the roller's client (ADR 004) — tests script explicit faces through `server/src/engine.testkit.ts`; there is no server rng.
+- **Determinism:** physical dice come from the roller's client (ADR 004) — tests script explicit faces through `server/src/engine.testkit.ts`. Symbolic Hit List reels use server randomness with an injected draw source in tests (ADR 009).
 - **If a rule seems ambiguous or contradictory**, implement the most literal reading of docs/GAME_RULES.md and note the ambiguity in your summary rather than redesigning.
 
 ### Dice Blackjack

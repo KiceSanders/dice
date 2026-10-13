@@ -3,6 +3,7 @@ import { RigidBodyType } from '@dimforge/rapier3d-compat';
 import { type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { mountTestRollButton } from '../../dev/testRollButton';
 import { useTableEvent } from '../tableEvents';
 import {
   DICE_COUNT,
@@ -68,19 +69,6 @@ import TableColliders from './TableColliders';
 import { type DicePhysicsTuning, getDicePhysicsTuning, useDicePhysicsTuning } from './tuning';
 import type { TableDiceProps } from './types';
 import { useStraightGlow } from './useStraightGlow';
-
-declare global {
-  interface Window {
-    /**
-     * Dev-only settle override: with one face per configured hand die, the next settle reports them
-     * instead of the physics read (kept dice keep their committed values so
-     * the server's kept-unchanged check still passes). The only way to force a
-     * straight through the physics path — e.g. in the console:
-     * `window.__forceSettleFaces = [1, 2, 3, 4, 5]` (delete to stop).
-     */
-    __forceSettleFaces?: number[];
-  }
-}
 
 const _quat = new THREE.Quaternion();
 
@@ -631,7 +619,7 @@ export default function DicePhysics({
   );
 
   const finishDrag = useCallback(
-    (e: PointerEvent) => {
+    (e: Pick<PointerEvent, 'button' | 'clientX' | 'clientY'>) => {
       if (!draggingRef.current || e.button !== 0) return;
       const latestTuning = tuningRef.current;
       recordSample(e.clientX, e.clientY);
@@ -772,6 +760,23 @@ export default function DicePhysics({
     },
     [recordSample, wakeUnkeptDice, pullUnkeptDiceIntoCup, gl, camera, transitionCupPhase],
   );
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !active) return;
+    return mountTestRollButton({
+      canvas: gl.domElement,
+      camera,
+      height: tuningRef.current.cup.floatCenterY,
+      beginDrag,
+      finishDrag,
+      canRoll: () =>
+        canDragRef.current &&
+        !rollingRef.current &&
+        !draggingRef.current &&
+        (cupPhaseRef.current === 'idle' || cupPhaseRef.current === 'selecting') &&
+        liveBody(koozieRef.current?.body) !== null,
+    });
+  }, [active, beginDrag, finishDrag, camera, gl]);
 
   const handleDieClick = useCallback(
     (index: number) => {
