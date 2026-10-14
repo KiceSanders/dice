@@ -6,9 +6,13 @@ export function BlackjackRoundStatus({ snapshot }: { snapshot: RoomSnapshot }) {
   if (!game) return null;
   const name = snapshot.players.find((p) => p.id === game.currentPlayerId)?.name ?? 'Player';
   const winner = snapshot.players.find((p) => p.id === game.result?.winnerId)?.name ?? 'Player';
+  const fireName = snapshot.players.find((p) => p.id === game.bonus?.firePlayerId)?.name;
   return (
     <div className="blackjack-round-status" role="status">
-      <span className="hud-label">Dice Blackjack · Round {game.roundNumber}</span>
+      <span className="hud-label">
+        Dice Blackjack ·{' '}
+        {game.bonus ? `Round ${game.bonus.afterRound} bonus` : `Round ${game.roundNumber}`}
+      </span>
       <strong>
         {game.result
           ? `${winner} wins ${game.result.amount} chips`
@@ -25,6 +29,12 @@ export function BlackjackRoundStatus({ snapshot }: { snapshot: RoomSnapshot }) {
               : 'Higher score wins'
           : `${game.dieSides}-sided die · Target 21`}
       </span>
+      {game.bonus && !game.result && (
+        <span>
+          Winner takes chips from the opponent{fireName ? ` · Fire doubles ${fireName}’s win` : ''}.{' '}
+          Then back to Bet-a-lot.
+        </span>
+      )}
       <small>
         {!game.result &&
           (game.resolving
@@ -58,7 +68,7 @@ export function BlackjackControls({
           disabled={!connected}
           onClick={() => send({ type: 'round:continue' })}
         >
-          Next round
+          {game.bonus ? 'Back to Bet-a-lot' : 'Next round'}
         </button>
       </div>
     );

@@ -123,3 +123,13 @@ describe('blackjack table presentation', () => {
     expect(status).toContain('12');
   });
 });
+
+it('labels a Bet-a-lot bonus and explains its Fire payout before playing', () => {
+  const bonusGame = { ...game, bonus: { afterRound: 10, firePlayerId: 'a' } };
+  const html = renderToStaticMarkup(
+    createElement(BlackjackRoundStatus, { snapshot: snapshot(bonusGame) }),
+  );
+  expect(html).toContain('Round 10 bonus');
+  expect(html).toContain('Fire doubles A’s win');
+  expect(html).toContain('Then back to Bet-a-lot');
+});

@@ -3,6 +3,11 @@
 A heads-up game for exactly two seated players. Others may spectate and chat. All dice
 are public. The target is **21**; every face counts at its printed value (1 is always 1).
 
+Blackjack is available as its own room and automatically after every ten completed
+Bet-a-lot ladder rounds. The Bet-a-lot bonus needs no tickets and returns to the ladder
+after one resolved hand; [Bet-a-lot rules](./betalot-rules.md#dice-blackjack-every-ten-rounds)
+define bonus ordering and Fire. Both versions share the rules below.
+
 ## A round
 
 1. Players alternate turns. Each turn starts with **one new six-sided die** in the cup.
@@ -18,7 +23,7 @@ are public. The target is **21**; every face counts at its printed value (1 is a
    Reaching exactly 21 automatically stands; the other player can still tie it.
 6. If both stand at the same total, start overtime. Otherwise the higher standing total wins.
 
-The winner receives **10 chips from the loser**. There is no ante or separate pot.
+The winner receives **10 chips from the loser** (before any Bet-a-lot Fire multiplier). There is no ante or separate pot.
 Payments are limited to the loser's available chips and conserve the total chips in the room.
 The result remains visible with a Next round button; any seated player can continue,
 with an eight-second server fallback. A new regulation round alternates the opening player.

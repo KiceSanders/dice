@@ -23,6 +23,7 @@ import Toasts from '../components/Toasts';
 import { useTableChipEvents, useTableScene } from '../game/useTableScene';
 import { useBetALotTableRoll } from '../games/betalot/useBetALotTableRoll';
 import BlackjackTable from '../games/blackjack/BlackjackTable';
+import { blackjackTableSnapshot } from '../games/blackjack/bonusSnapshot';
 import LiveSlotBonus from '../games/slots/LiveSlotBonus';
 import { useApp } from '../state/context';
 import { loadIdentity, loadName, saveName } from '../state/persist';
@@ -80,7 +81,8 @@ export default function Room() {
   useEffect(() => {
     if (snapshot?.settings.kind !== 'betalot') return;
     if (snapshot.phase !== 'roundEnd') return;
-    if (isBetALotState(snapshot.game) && snapshot.game.slots?.active) return;
+    if (isBetALotState(snapshot.game) && (snapshot.game.slots?.active || snapshot.game.blackjack))
+      return;
     if (state.betALotPayoutQueue.length > 0) return;
     const seated =
       snapshot.players.some((player) => player.id === state.me?.playerId && player.seat !== null) ??
@@ -177,6 +179,7 @@ export default function Room() {
   const myRequest = snapshot.seatRequests.find((r) => r.playerId === myId) ?? null;
   const inviteUrl = `${window.location.origin}/room/${snapshot.roomId}`;
   const isBetALot = snapshot.settings.kind === 'betalot';
+  const blackjackSnapshot = blackjackTableSnapshot(snapshot);
   const betALotWinnerId =
     isBetALot && snapshot.phase === 'roundEnd'
       ? ((snapshot.game as import('@dice/shared').BetALotStatePublic | null)?.roundHistory[0]
@@ -209,8 +212,8 @@ export default function Room() {
         />
       )}
 
-      {snapshot.settings.kind === 'blackjack' ? (
-        <BlackjackTable snapshot={snapshot} myId={myId} remoteRoll={remoteRoll} />
+      {blackjackSnapshot ? (
+        <BlackjackTable snapshot={blackjackSnapshot} myId={myId} remoteRoll={remoteRoll} />
       ) : (
         <Table
           connection={state.connection}
@@ -341,9 +344,12 @@ export default function Room() {
               </span>
             )}
             {isBetALot && (
-              <Link to="/slots" target="_blank" rel="noopener noreferrer">
-                Hit List slots — practice ↗
-              </Link>
+              <>
+                <span>Dice Blackjack every 10 rounds</span>
+                <Link to="/slots" target="_blank" rel="noopener noreferrer">
+                  Hit List slots — practice ↗
+                </Link>
+              </>
             )}
           </div>
         </section>

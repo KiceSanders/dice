@@ -11,6 +11,7 @@ export * from './game/stakes.js';
 export * from './game/stand.js';
 export * from './game/turnOrder.js';
 export * from './game/yahtzeeBonus.js';
+export * from './games/betalot/blackjack.js';
 export * from './games/betalot/rules.js';
 export * from './games/blackjack/rules.js';
 export * from './games/registry.js';

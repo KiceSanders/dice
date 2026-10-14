@@ -213,7 +213,8 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
       if (
         room.engine?.currentTurnPlayerId !== conn.playerId &&
         room.betALotEngine?.currentTurnPlayerId !== conn.playerId &&
-        room.blackjackEngine?.currentTurnPlayerId !== conn.playerId
+        (room.blackjackEngine ?? room.betALotEngine?.blackjackEngine)?.currentTurnPlayerId !==
+          conn.playerId
       )
         return;
       if (!withinFrameBudget(conn)) return;
@@ -238,31 +239,34 @@ export function createHandlers(rooms: RoomManager): HandlerMap {
     'blackjack:throwStart': (conn) => {
       const c = ctx(conn);
       if (!c) return;
-      if (!c.room.blackjackEngine) {
-        conn.sendError('BAD_REQUEST', 'this is not a blackjack room');
+      const engine = c.room.blackjackEngine ?? c.room.betALotEngine?.blackjackEngine;
+      if (!engine) {
+        conn.sendError('BAD_REQUEST', 'Blackjack is not active');
         return;
       }
-      const issue = c.room.blackjackEngine.beginThrow(c.playerId);
+      const issue = engine.beginThrow(c.playerId);
       if (issue) conn.sendError(issue.code, issue.message);
     },
     'blackjack:throwResult': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;
-      if (!c.room.blackjackEngine) {
-        conn.sendError('BAD_REQUEST', 'this is not a blackjack room');
+      const engine = c.room.blackjackEngine ?? c.room.betALotEngine?.blackjackEngine;
+      if (!engine) {
+        conn.sendError('BAD_REQUEST', 'Blackjack is not active');
         return;
       }
-      const issue = c.room.blackjackEngine.commitThrow(c.playerId, msg.die, msg.restPose);
+      const issue = engine.commitThrow(c.playerId, msg.die, msg.restPose);
       if (issue) conn.sendError(issue.code, issue.message);
     },
     'blackjack:decide': (conn, msg) => {
       const c = ctx(conn);
       if (!c) return;
-      if (!c.room.blackjackEngine) {
-        conn.sendError('BAD_REQUEST', 'this is not a blackjack room');
+      const engine = c.room.blackjackEngine ?? c.room.betALotEngine?.blackjackEngine;
+      if (!engine) {
+        conn.sendError('BAD_REQUEST', 'Blackjack is not active');
         return;
       }
-      const issue = c.room.blackjackEngine.decide(c.playerId, msg.decision);
+      const issue = engine.decide(c.playerId, msg.decision);
       if (issue) conn.sendError(issue.code, issue.message);
     },
     'betalot:call': (conn, msg) => {

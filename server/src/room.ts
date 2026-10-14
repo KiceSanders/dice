@@ -246,7 +246,12 @@ export class Room {
 
     if (player.seat !== null) {
       this.scheduleForfeit(playerId);
-      if (this.blackjackEngine || this.isCurrentTurn(playerId)) this.onForcedStand?.(playerId);
+      if (
+        this.blackjackEngine ||
+        this.betALotEngine?.blackjackEngine ||
+        this.isCurrentTurn(playerId)
+      )
+        this.onForcedStand?.(playerId);
     }
 
     if (this.connectedCount() === 0) this.emptySince = Date.now();
@@ -316,7 +321,10 @@ export class Room {
     if (!player) return err('BAD_REQUEST', 'unknown player');
     if (playerId === this.hostId) return err('BAD_REQUEST', 'host cannot kick themself');
 
-    if (player.seat !== null && (this.blackjackEngine || this.isCurrentTurn(playerId)))
+    if (
+      player.seat !== null &&
+      (this.blackjackEngine || this.betALotEngine?.blackjackEngine || this.isCurrentTurn(playerId))
+    )
       this.onForcedStand?.(playerId);
     this.cancelForfeit(playerId);
     this.commit({ type: 'kicked', playerId });

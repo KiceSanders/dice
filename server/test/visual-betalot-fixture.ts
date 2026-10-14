@@ -109,6 +109,32 @@ export async function createVisualFixture(url: string, scenarioName: string, rev
       const roundNumber = game().roundNumber;
       alice.send({ type: 'round:continue' });
       snapshot = await waitState(
+        (s, g) =>
+          (s.phase === 'playing' && g.roundNumber === roundNumber + 1) ||
+          g.blackjack?.bonus?.afterRound === roundNumber,
+      );
+      // History presets cross round 10. Play its scheduled hand through the real protocol.
+      while (game().blackjack && !game().blackjack!.result) {
+        const bonus = game().blackjack!;
+        const active = byId.get(bonus.currentPlayerId!)!;
+        active.send({ type: 'blackjack:throwStart' });
+        active.send({
+          type: 'blackjack:throwResult',
+          die: bonus.currentPlayerId === bonus.openerId ? 5 : 4,
+        });
+        snapshot = await waitState(
+          (_s, g) => g.blackjack?.turnNumber === bonus.turnNumber && g.blackjack.awaitingDecision,
+        );
+        active.send({ type: 'blackjack:decide', decision: 'stand' });
+        snapshot = await waitState(
+          (_s, g) =>
+            Boolean(g.blackjack?.result) ||
+            Boolean(g.blackjack && g.blackjack.turnNumber > bonus.turnNumber),
+        );
+      }
+      if (game().blackjack?.result) alice.send({ type: 'round:continue' });
+      else continue;
+      snapshot = await waitState(
         (s, g) => s.phase === 'playing' && g.roundNumber === roundNumber + 1,
       );
     }

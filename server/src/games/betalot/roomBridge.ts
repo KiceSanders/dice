@@ -17,6 +17,27 @@ interface BetALotBridgeContext {
 export function handleBetALotEvent(event: BetALotEvent, ctx: BetALotBridgeContext): void {
   let compact = false;
   switch (event.type) {
+    case 'blackjack':
+      compact = true;
+      switch (event.event.type) {
+        case 'throwStarted':
+          ctx.broadcast({ ...event.event, type: 'blackjack:throwStarted' });
+          break;
+        case 'rolled':
+          ctx.broadcast({ ...event.event, type: 'blackjack:rolled' });
+          break;
+        case 'roundEnded':
+          ctx.broadcast({ ...event.event, type: 'blackjack:roundEnded' });
+          break;
+        case 'stateChanged':
+          break;
+        case 'gameEnded':
+          ctx.endGame();
+          break;
+        default:
+          assertNever(event.event, 'unhandled bonus blackjack event');
+      }
+      break;
     case 'throwStarted':
       ctx.broadcast({
         type: 'betalot:throwStarted',

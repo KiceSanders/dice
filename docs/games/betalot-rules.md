@@ -122,6 +122,23 @@ payer-chip cap as every other transfer.
 If a throw's total is greater than 25, the opponent pays the roller twice the amount over 25:
 `2 × (total − 25)`.
 
+## Dice Blackjack every ten rounds
+
+After completed ladder rounds **10, 20, 30, …**, pause the ladder for one
+[Dice Blackjack hand](./blackjack-rules.md), including as many tied overtimes as needed.
+Both seated players play on the same table; spectators see every throw and decision.
+No tickets are required. Blackjack runs before any earned Hit List sessions at that boundary.
+The first bonus opens with the first seated player; subsequent bonus openers alternate.
+
+The starting stake is 10 chips, doubling on each overtime. Bet-a-lot's Fire multiplier
+also applies to the losing player's payment, capped at that player's chips. Blackjack
+wins do not advance or break Fire streaks, earn tickets, trigger ladder side bets, or
+change the Sevens Pot or ladder history. After the result, a seated player can choose
+**Back to Bet-a-lot**, or wait for the eight-second fallback. Any earned slots run next,
+then the ladder continues at round 11, 21, 31, etc., with its normal alternating opener.
+A bankrupt player ends the game. Recovery preserves both the active hand and the completed
+bonus marker so neither the bonus nor its payout happens twice.
+
 ## Hit List slot tickets
 
 A matched opening call also earns one Hit List ticket. Tickets carry across rounds;

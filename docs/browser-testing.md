@@ -608,3 +608,20 @@ both players with 100 chips, approve the guest, and start. A third visitor can s
 
 Delete forced faces when done. Automated tests and headless physics checks do not certify
 this multi-tab visual checklist.
+
+## Bet-a-lot tenth-round Blackjack — 2 players and optional spectator
+
+1. Seat two players in a Bet-a-lot room, using different stored names per tab, and wait
+   for **Connection: open**. Play ten ladder rounds. Earlier rounds should proceed normally.
+2. After round 10, both tabs (and a spectator) show **Dice Blackjack · Round 10 bonus**.
+   Tickets are not spent; queued slots wait. Both players see whose turn it is, chip stakes,
+   and the opponent's cup/die movement, settled face, accumulated dice and total.
+3. Choose Stand/Continue from each player's tab. A spectator cannot act. A tie resets both
+   hands with a d12 and doubles the stake. Check a Fire winner receives the displayed
+   multiplier, capped at the opponent's chips.
+4. Refresh during the hand or result. Hands, standings, overtime, balances and bonus context
+   persist. A refresh must not add another die or pay again.
+5. Choose **Back to Bet-a-lot** or wait eight seconds. Earned slots run next; then ladder
+   round 11 resumes. Pot, Fire streaks, tickets and ladder history remain consistent.
+6. At round 20 the bonus runs again, with the other player opening. Check both player
+   viewpoints and narrow-screen controls. Browser verification is user-owned.

@@ -261,3 +261,19 @@ regular dodecahedron geometry, face normals, orientations and rest-pose validati
 mesh and convex hull use identical vertices. `sampleDieValues.ts` reads physical faces
 and honors side-aware dev overrides. Dice5 and Bet-a-lot retain their six-face validators
 and rule types. No random or relabeled result is substituted for the physical d12.
+
+### Bet-a-lot Blackjack intermission
+
+`server/src/games/betalot/blackjack.ts` owns the every-ten-round bonus lifecycle and persisted
+served-round marker. It reuses `BlackjackEngine` with a single-hand completion callback and
+the Bet-a-lot ledger for Fire-adjusted, capped transfers. The ladder stays at `roundEnd`
+while its nested engine plays. Blackjack completes before pending slots; the existing
+continuation path then resumes the ladder without changing its round history, Fire or pot.
+All player references remain available during recovery to settle a kicked participant's
+pending reveal. `roomBridge.ts` forwards nested Blackjack events and compacts full snapshots.
+
+`activeBlackjackState` selects standalone or nested state for remote pose ownership.
+`client/src/games/blackjack/bonusSnapshot.ts` adapts the bonus for the existing Blackjack
+table, including the roller, spectator and static/rejoin renderers. Only this presentation
+snapshot uses the Blackjack discriminator; room settings and the actual room identity stay
+Bet-a-lot. Automatic ladder continuation is suppressed throughout the bonus and result.

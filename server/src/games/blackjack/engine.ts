@@ -24,6 +24,13 @@ export interface BlackjackPersistedState {
   forcedPlayerId: string | null;
 }
 
+interface BlackjackOptions {
+  bonus?: NonNullable<BlackjackStatePublic['bonus']>;
+  roundNumberOffset?: number;
+  pay?: (winnerId: string, loserId: string, amount: number) => number;
+  finished?: () => void;
+}
+
 export class BlackjackEngine {
   phase: BlackjackPersistedState['phase'] = 'playing';
   private players: EnginePlayer[] = [];
@@ -51,7 +58,11 @@ export class BlackjackEngine {
     private readonly getPlayers: () => EnginePlayer[],
     private settings: BlackjackSettings,
     private readonly emit: (event: BlackjackEvent) => void,
-  ) {}
+    private readonly options: BlackjackOptions = {},
+  ) {
+    this.state.roundNumber = options.roundNumberOffset ?? 0;
+    if (options.bonus) this.state.bonus = { ...options.bonus };
+  }
 
   get currentTurnPlayerId() {
     return this.state.currentPlayerId;
@@ -203,9 +214,13 @@ export class BlackjackEngine {
     this.timers.cancel();
     const winner = this.players.find((player) => player.id === winnerId)!;
     const loser = this.players.find((player) => player.id === loserId)!;
-    const amount = Math.min(this.state.payout, loser.chips);
-    loser.chips -= amount;
-    winner.chips += amount;
+    const amount = this.options.pay
+      ? this.options.pay(winnerId, loserId, this.state.payout)
+      : Math.min(this.state.payout, loser.chips);
+    if (!this.options.pay) {
+      loser.chips -= amount;
+      winner.chips += amount;
+    }
     this.state.result = { winnerId, loserId, amount, reason };
     this.state.tableDie = null;
     this.state.currentPlayerId = null;
@@ -222,7 +237,8 @@ export class BlackjackEngine {
   continueRound(): void {
     if (this.phase === 'roundEnd') {
       this.timers.cancel();
-      this.startRound();
+      if (this.options.finished) this.options.finished();
+      else this.startRound();
     }
   }
 

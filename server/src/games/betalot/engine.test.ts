@@ -62,6 +62,10 @@ describe('BetALotEngine', () => {
       roll(engine, opener, [3]);
       roll(engine, opponent, [1, 2]);
       if (round < 11) engine.continueRound();
+      if (engine.blackjackEngine) {
+        engine.blackjackEngine.forceStand('b');
+        engine.continueRound();
+      }
     }
 
     expect(engine.publicState().roundHistory).toHaveLength(10);

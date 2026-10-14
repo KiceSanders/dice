@@ -7,6 +7,7 @@ import type {
   Die,
   PlayerId,
 } from '@dice/shared';
+import type { BetALotBlackjackSaved } from './blackjack.js';
 import type { BetALotPayments } from './payments.js';
 
 export type BetALotPhase = 'playing' | 'roundEnd' | 'ended';
@@ -25,6 +26,7 @@ export interface BetALotPersistedState {
   rung: number;
   extraRoll: BetALotExtraRollState | null;
   pendingSettings: BetALotSettings | null;
+  blackjackBonus?: BetALotBlackjackSaved;
 }
 
 export function clonePose(restPose?: BodyPose[]): BodyPose[] | null {
@@ -52,6 +54,7 @@ export function buildPublicState(input: {
   ladder: BetALotLadderRoll[];
   roundHistory: BetALotRoundResult[];
   slots: BetALotStatePublic['slots'];
+  blackjack: BetALotStatePublic['blackjack'];
 }): BetALotStatePublic {
   return {
     kind: 'betalot',
@@ -75,6 +78,7 @@ export function buildPublicState(input: {
     roundHistory: input.roundHistory.map((round) => ({ ...round })),
     fire: input.payments.fireState(),
     slots: input.slots,
+    blackjack: input.blackjack,
   };
 }
 
@@ -85,19 +89,14 @@ function withRoundHistory(publicState: BetALotStatePublic): BetALotStatePublic {
     // promoted from transient client state into the authoritative game state.
     roundHistory: publicState.roundHistory?.map((round) => ({ ...round })) ?? [],
     slots: publicState.slots ?? { tickets: [], active: null },
+    blackjack: publicState.blackjack ?? null,
   };
 }
 
 export function readPersistedState(
   state: BetALotPersistedState | BetALotStatePublic,
   fallbackSettings: BetALotSettings,
-): {
-  publicState: BetALotStatePublic;
-  phase: BetALotPhase;
-  rung: number;
-  extraRoll: BetALotExtraRollState | null;
-  pendingSettings: BetALotSettings | null;
-} {
+): BetALotPersistedState {
   if ('publicState' in state) {
     return { ...state, publicState: withRoundHistory(state.publicState) };
   }

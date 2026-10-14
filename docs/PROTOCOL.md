@@ -232,7 +232,7 @@ to match the displayed target cards exactly.
 ## Dice Blackjack
 
 `settings.kind: 'blackjack'` selects a two-seat room. `BlackjackSettings` contains only
-buy-in bounds and reveal delay. `BlackjackStatePublic` is independent of Dice5/Bet-a-lot:
+buy-in bounds and reveal delay. `BlackjackStatePublic` is used by standalone rooms and nested Bet-a-lot bonuses:
 `hands` exposes ordered dice, totals, and standing status; `tableDie` carries the undecided
 settled die and its canonical rest pose; `overtime`, `dieSides`, and `payout` expose the
 current stakes. `turnNumber` identifies each fresh cup, including consecutive turns by the
@@ -265,3 +265,28 @@ pending committed rolls once; it never rerolls faces or repeats a completed paym
 `dice:frames` remains transient, current-player-only, and carries cup + one d6/d12 pose.
 The d12 mesh, convex hull, orientation convention and pose validator all derive from
 `shared/src/game/polyhedral.ts` (ADR 008).
+
+### Bet-a-lot scheduled Blackjack
+
+A Bet-a-lot snapshot keeps `settings.kind` and `game.kind` as `betalot` and the room phase
+as `roundEnd` while `game.blackjack` holds the active `BlackjackStatePublic` (otherwise null).
+Its optional `bonus: { afterRound, firePlayerId }` describes the ten-round boundary and Fire
+payout modifier. Older snapshots without `blackjack` are read as null. The same three
+`blackjack:*` client commands above route to the active nested engine; outside a bonus they
+are rejected in Bet-a-lot. Current-player checks and transient `dice:frames` include the
+nested engine. Any seated participant's kick/disconnect forfeits their bonus hand.
+
+`round:continue` cannot skip an active hand. After its result it finishes the single bonus,
+then starts queued slots or the next ladder round. The client suppresses ordinary Bet-a-lot
+auto-continuation for both an active hand and its result.
+
+| Bet-a-lot engine event | Persisted room event | Wire message | Client handling |
+|---|---|---|---|
+| `blackjack` wrapping `throwStarted` / `rolled` / `roundEnded` | `snapshot` with `blackjackBonus: { lastBonusRound, active }` | existing `blackjack:throwStarted` / `blackjack:rolled` / `blackjack:roundEnded` | shared Blackjack table, remote poses, activity and one chip transfer |
+| `blackjack` wrapping `stateChanged` | `snapshot` including the nested engine's pending reveal/forfeit | `room:state` | `game.blackjack` drives scores, decisions, stakes and result |
+| `blackjack` wrapping `gameEnded` | `snapshot` without game | `room:state` | return to lobby |
+
+`server/src/games/betalot/roomBridge.ts` maps nested events exhaustively. The Bet-a-lot ledger
+applies Fire and the payer cap; only `blackjack:roundEnded` announces that transfer, avoiding
+a duplicate `betalot:paid`. A persisted served-round marker prevents another bonus after
+recovery; settled hands never pay twice. The standalone event mapping remains unchanged.

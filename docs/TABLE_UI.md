@@ -478,3 +478,8 @@ maximum 21-die hand. Player totals and Standing/Bust/Winner labels stay beside t
 round/stake/result use the top band and decisions use the existing control gutter.
 
 Blackjack spans the unused pot/Classic lanes with its round status to keep the top band readable on narrow screens; the zero-pot chip-flight renderer remains mounted for payouts.
+
+Bet-a-lot's every-ten-round Blackjack bonus uses the same Blackjack table through
+`blackjackTableSnapshot`; do not add a separate set of dice renderers. The round-status
+band labels the originating Bet-a-lot round and any Fire multiplier, and the result action
+reads “Back to Bet-a-lot.” Remote pose ownership follows the nested Blackjack player.

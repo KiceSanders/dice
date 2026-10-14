@@ -312,3 +312,10 @@ Conventions for all phases:
 - [x] Shared physical d12 mesh/hull/face convention, spectator playback, authoritative rest poses and persistent seat-side dice.
 - [x] Complete snapshot recovery, protocol validation, engine/rules/geometry/framing tests and WebSocket integration coverage.
 - [ ] User multi-tab visual verification — [Dice Blackjack checklist](docs/browser-testing.md#dice-blackjack--2-player-tabs--optional-spectator).
+
+### Bet-a-lot scheduled Blackjack correction
+
+- [x] Automatically play one Blackjack hand after ladder rounds 10, 20, 30, etc., before queued slots.
+- [x] Reuse live Blackjack rules, d12 overtime, shared views and chip payouts with Bet-a-lot Fire/caps.
+- [x] Preserve ladder state and bonus recovery; reject skipped hands and duplicate payouts.
+- [ ] User multi-tab verification — [tenth-round bonus checklist](docs/browser-testing.md#bet-a-lot-tenth-round-blackjack--2-players-and-optional-spectator).

@@ -140,7 +140,7 @@ export class BetALotPayments {
     fromPlayerId: PlayerId,
     toPlayerId: PlayerId | null,
     amount: number,
-    reason: BetALotPaymentReason,
+    reason: BetALotPaymentReason | 'blackjack',
   ): number {
     const payer = this.player(fromPlayerId);
     if (!payer || amount <= 0) return 0;
@@ -152,14 +152,16 @@ export class BetALotPayments {
     payer.chips -= paid;
     if (toPlayerId) this.player(toPlayerId)!.chips += paid;
     else this.sevensPot += paid;
-    this.emit({
-      type: 'paid',
-      fromPlayerId,
-      toPlayerId,
-      amount: paid,
-      reason,
-      sevensPot: this.sevensPot,
-    });
+    // Blackjack's roundEnded event reports this transfer once, after its result is set.
+    if (reason !== 'blackjack')
+      this.emit({
+        type: 'paid',
+        fromPlayerId,
+        toPlayerId,
+        amount: paid,
+        reason,
+        sevensPot: this.sevensPot,
+      });
     return paid;
   }
 

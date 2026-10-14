@@ -1,5 +1,5 @@
 import type { BetALotStatePublic, RoomSnapshot } from '@dice/shared';
-import { isBlackjackState, isDice5State } from '@dice/shared';
+import { activeBlackjackState, isDice5State } from '@dice/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRemotePoseAudioTap } from '../table3d/audio/remotePoseAudio';
 import { RemoteRollFeed } from '../table3d/dice/remoteFeed';
@@ -46,7 +46,7 @@ export function useRemoteRoll(
   const betALotGame =
     snapshot?.settings.kind === 'betalot' ? (snapshot.game as BetALotStatePublic | null) : null;
   const dice5Game = isDice5State(snapshot?.game) ? snapshot.game : null;
-  const blackjack = isBlackjackState(snapshot?.game) ? snapshot.game : null;
+  const blackjack = activeBlackjackState(snapshot?.game);
   const turnPlayerId =
     blackjack?.currentPlayerId ??
     betALotGame?.currentPlayerId ??

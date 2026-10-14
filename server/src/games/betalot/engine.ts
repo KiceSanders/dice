@@ -15,6 +15,7 @@ import {
   validateRestPose,
 } from '@dice/shared';
 import type { EnginePlayer } from '../../engine.js';
+import { BetALotBlackjack } from './blackjack.js';
 import type { BetALotEvent } from './events.js';
 import { BetALotPayments } from './payments.js';
 import { BetALotSlots, type SlotCommand } from './slots.js';
@@ -66,6 +67,7 @@ export class BetALotEngine {
   private readonly timing = new BetALotTiming();
   private pendingSettings: BetALotSettings | null = null;
   private readonly slots: BetALotSlots;
+  private readonly blackjack: BetALotBlackjack;
 
   constructor(
     private readonly getPlayers: () => EnginePlayer[],
@@ -73,6 +75,14 @@ export class BetALotEngine {
     private readonly emit: (event: BetALotEvent) => void,
     slotDrawIndex?: (max: number) => number,
   ) {
+    this.blackjack = new BetALotBlackjack({
+      players: this.getPlayers,
+      settings: () => this.settings,
+      firePlayer: () => this.payments.fireState().find((entry) => entry.onFire)?.playerId ?? null,
+      pay: (winner, loser, amount) => this.payments.pay(loser, winner, amount, 'blackjack'),
+      emit: (event) => this.emit({ type: 'blackjack', event }),
+      finished: () => this.continueRound(),
+    });
     this.slots = new BetALotSlots(
       {
         terms: (id) => this.payments.slotTerms(id),
@@ -90,6 +100,10 @@ export class BetALotEngine {
     );
   }
 
+  get blackjackEngine() {
+    return this.blackjack.engine;
+  }
+
   slotsAction(playerId: PlayerId, command: SlotCommand): BetALotError | null {
     if (this.phase !== 'roundEnd') return error('BAD_REQUEST', 'slots are played between rounds');
     return this.slots.command(playerId, command);
@@ -101,6 +115,7 @@ export class BetALotEngine {
 
   updateSettings(settings: BetALotSettings): void {
     this.settings = settings;
+    this.blackjack.engine?.updateSettings({ ...settings, kind: 'blackjack' });
   }
 
   beginThrow(playerId: PlayerId): BetALotError | null {
@@ -225,6 +240,10 @@ export class BetALotEngine {
   }
 
   forceStand(playerId: PlayerId): void {
+    if (this.blackjack.engine) {
+      this.blackjack.engine.forceStand(playerId);
+      return;
+    }
     if (playerId !== this.currentTurnPlayerId || this.phase !== 'playing') return;
     this.endRound(
       this.other(playerId),
@@ -235,6 +254,10 @@ export class BetALotEngine {
 
   continueRound(): void {
     if (this.phase !== 'roundEnd') return;
+    if (this.blackjack.engine) {
+      this.blackjack.engine.continueRound();
+      return;
+    }
     if (this.slots.active) return;
     this.timing.cancelRoundFallback();
     if (this.payments.bankruptPlayer()) {
@@ -242,6 +265,7 @@ export class BetALotEngine {
       this.emit({ type: 'gameEnded', reason: 'a player ran out of chips' });
       return;
     }
+    if (this.blackjack.startNext(this.roundNumber)) return;
     if (this.slots.startNext()) return;
     this.startRound();
   }
@@ -260,6 +284,7 @@ export class BetALotEngine {
       ladder: this.ladder,
       roundHistory: this.roundHistory,
       slots: this.slots.snapshot(),
+      blackjack: this.blackjack.engine?.publicState() ?? null,
     });
   }
 
@@ -270,6 +295,7 @@ export class BetALotEngine {
       rung: this.rung,
       extraRoll: this.extraRoll ? { ...this.extraRoll } : null,
       pendingSettings: this.pendingSettings,
+      blackjackBonus: this.blackjack.saved(),
     } satisfies BetALotPersistedState;
   }
 
@@ -277,7 +303,11 @@ export class BetALotEngine {
     const persisted = readPersistedState(state, this.settings);
     const publicState = persisted.publicState;
     this.players = this.getPlayers()
-      .filter((player) => player.seat !== null)
+      .filter(
+        (player) =>
+          player.seat !== null ||
+          publicState.blackjack?.hands.some((hand) => hand.playerId === player.id),
+      )
       .slice(0, 2);
     this.roundNumber = publicState.roundNumber;
     this.openerId = publicState.openerId;
@@ -294,6 +324,7 @@ export class BetALotEngine {
     this.slots.restore(publicState.slots);
     this.phase = persisted.phase;
     this.pendingSettings = persisted.pendingSettings;
+    this.blackjack.restore(persisted.blackjackBonus);
     if (publicState.resolving) {
       const settings = this.pendingSettings ?? this.settings;
       const extraDie = this.extraRoll?.settledDie ?? null;
@@ -309,13 +340,16 @@ export class BetALotEngine {
   pause(): void {
     this.timing.pause();
     this.slots.pause();
+    this.blackjack.engine?.pause();
     this.throwing = false;
   }
 
   resume(): void {
     if (!this.timing.resume()) return;
     this.slots.resume();
-    if (this.phase === 'roundEnd' && !this.slots.active) this.scheduleRoundFallback();
+    this.blackjack.engine?.resume();
+    if (this.phase === 'roundEnd' && !this.slots.active && !this.blackjack.engine)
+      this.scheduleRoundFallback();
     else this.emit({ type: 'stateChanged' });
   }
 
@@ -452,7 +486,7 @@ export class BetALotEngine {
   }
 
   private scheduleRoundFallback(): void {
-    if (this.phase === 'roundEnd' && !this.slots.active)
+    if (this.phase === 'roundEnd' && !this.slots.active && !this.blackjack.engine)
       this.timing.scheduleRoundFallback(() => this.continueRound());
   }
 
@@ -463,5 +497,6 @@ export class BetALotEngine {
   stop(): void {
     this.timing.stop();
     this.slots.stop();
+    this.blackjack.engine?.stop();
   }
 }

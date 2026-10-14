@@ -57,7 +57,7 @@ export type ClientMessage =
   | { type: 'dice:frames'; frames: PoseFrame[] }
   /** Voluntary stand; optional final selecting layout for the settled hand (ADR 005). */
   | { type: 'turn:stand'; restPose?: BodyPose[] }
-  /** Dice blackjack: one physics die, followed by an explicit stand/continue decision. */
+  /** Standalone or Bet-a-lot's active tenth-round bonus: one physics die, then a decision. */
   | { type: 'blackjack:throwStart' }
   | { type: 'blackjack:throwResult'; die: number; restPose?: BodyPose[] }
   | { type: 'blackjack:decide'; decision: 'stand' | 'continue' }

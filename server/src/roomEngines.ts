@@ -44,7 +44,7 @@ export function attachRoomEngine(room: Room): void {
     room.onForcedStand = (id) => room.blackjackEngine?.forceStand(id);
   } else if (room.settings.kind === 'betalot') {
     room.betALotEngine = new BetALotEngine(
-      () => room.seatedPlayers(),
+      () => [...room.players.values()].sort((a, b) => (a.seat ?? 8) - (b.seat ?? 8)),
       room.settings,
       (event) =>
         handleBetALotEvent(event, {

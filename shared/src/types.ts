@@ -229,6 +229,8 @@ export interface BlackjackHand {
 
 export interface BlackjackStatePublic {
   kind: 'blackjack';
+  /** Present when this hand interrupts Bet-a-lot between ladder rounds. */
+  bonus?: { afterRound: number; firePlayerId: PlayerId | null };
   roundNumber: number;
   overtime: number;
   dieSides: DieSides;
@@ -381,6 +383,7 @@ export interface BetALotStatePublic {
   roundHistory: BetALotRoundResult[];
   fire: BetALotFireState[];
   slots: import('./games/slots/round.js').BetALotSlotsState;
+  blackjack: BlackjackStatePublic | null;
 }
 
 export type AnyGameStatePublic = GameStatePublic | BetALotStatePublic | BlackjackStatePublic;
@@ -395,6 +398,13 @@ export function isBetALotState(
   game: AnyGameStatePublic | null | undefined,
 ): game is BetALotStatePublic {
   return game !== null && game !== undefined && 'kind' in game && game.kind === 'betalot';
+}
+
+/** The same Blackjack rules and table serve standalone rooms and scheduled bonuses. */
+export function activeBlackjackState(
+  game: AnyGameStatePublic | null | undefined,
+): BlackjackStatePublic | null {
+  return isBlackjackState(game) ? game : isBetALotState(game) ? (game.blackjack ?? null) : null;
 }
 
 export function isDice5State(game: AnyGameStatePublic | null | undefined): game is GameStatePublic {

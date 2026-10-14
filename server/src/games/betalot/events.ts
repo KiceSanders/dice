@@ -1,7 +1,9 @@
 import type { BetALotFireState, BodyPose, Die, PlayerId } from '@dice/shared';
+import type { BlackjackEvent } from '../blackjack/engine.js';
 import type { BetALotPaidEvent } from './payments.js';
 
 export type BetALotEvent =
+  | { type: 'blackjack'; event: BlackjackEvent }
   | { type: 'throwStarted'; playerId: PlayerId; diceCount: number; rung: number; extra: boolean }
   | {
       type: 'rolled';
